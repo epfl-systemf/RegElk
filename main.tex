@@ -1,0 +1,71 @@
+\documentclass{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{natbib}
+\usepackage{url}
+\usepackage{lipsum}
+\usepackage{geometry}
+\usepackage[tt=false]{libertine}
+\usepackage{xcolor}
+\bibliographystyle{apalike}
+\citestyle{acmauthoryear}   %% For author/year citations
+\renewcommand\cite\citep
+
+\usepackage[bookmarksnumbered,unicode]{hyperref} %Utiliser pour une bibliographie interactive + sommaire et TOC interactifs (pour une sortie PDF, par exemple).
+\bibpunct{[}{]}{,}{a}{}{;}
+
+\hypersetup{colorlinks,
+      linkcolor=ACMPurple,
+      citecolor=ACMPurple,
+      urlcolor=ACMDarkBlue,
+      filecolor=ACMDarkBlue}
+
+\definecolor[named]{ACMBlue}{cmyk}{1,0.1,0,0.1}
+\definecolor[named]{ACMYellow}{cmyk}{0,0.16,1,0}
+\definecolor[named]{ACMOrange}{cmyk}{0,0.42,1,0.01}
+\definecolor[named]{ACMRed}{cmyk}{0,0.90,0.86,0}
+\definecolor[named]{ACMLightBlue}{cmyk}{0.49,0.01,0,0}
+\definecolor[named]{ACMGreen}{cmyk}{0.20,0,1,0.19}
+\definecolor[named]{ACMPurple}{cmyk}{0.55,1,0,0.15}
+\definecolor[named]{ACMDarkBlue}{cmyk}{1,0.58,0,0.21}
+
+
+
+\geometry{vmargin=4.0cm}
+
+\title{Regular Epressions with Lookarounds and Capture Groups Can Be Matched Linearly}
+\author{}
+\date{}
+
+
+
+\begin{document}
+
+
+\maketitle
+
+
+\section{Context}
+
+\section{A Linear Algorithm for Loookarounds and Capture Groups}
+
+\subsection{Lookaround Dependency Tree}
+
+\subsection{Bytecode Generation}
+
+\subsection{First Step: Constructing the Oracle}
+
+\subsection{Second Step: Finding Capture Groups}
+
+\section{Complexity Analysis}
+
+\section{Limitations}
+
+\section{Conclusion}
+
+
+
+\newpage
+\bibliography{main.bib}
+
+\end{document}
