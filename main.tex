@@ -10,6 +10,8 @@
 \bibliographystyle{apalike}
 \citestyle{acmauthoryear}   %% For author/year citations
 \renewcommand\cite\citep
+\usepackage{syntaxdefs}
+\usepackage{graphicx}
 
 \usepackage[bookmarksnumbered,unicode]{hyperref} %Utiliser pour une bibliographie interactive + sommaire et TOC interactifs (pour une sortie PDF, par exemple).
 \bibpunct{[}{]}{,}{a}{}{;}
@@ -29,7 +31,11 @@
 \definecolor[named]{ACMPurple}{cmyk}{0.55,1,0,0.15}
 \definecolor[named]{ACMDarkBlue}{cmyk}{1,0.58,0,0.21}
 
-
+\def\todo#1{{\color{ACMOrange}{TODO: }}#1}
+\def\regex#1{\texttt{#1}}
+\def\undef{\texttt{undefined}}
+\def\str#1{\texttt{"#1"}}
+\def\group#1{\texttt{\##1}}
 
 \geometry{vmargin=4.0cm}
 
@@ -46,6 +52,69 @@
 
 
 \section{Context}
+
+\subsection{Syntax}
+We consider the following grammar of regular expressions:
+
+\def\re{\ensuremath{\mathit{e}}}
+\def\char{\ensuremath{\mathit{c}}}
+\def\quant{\ensuremath{\mathit{q}}}
+
+\begin{figure}[h]
+  \begin{syntax}
+    \syntaxclass{Regular Expressions:}
+\re & ::= & \char & Character \\
+&\mid& \re_1 ~ \re_2 & Concatenation\\
+&\mid& \re_1 \regex{|} \re_2 & Union\\
+&\mid&  \re ~ \quant & Quantifier \\
+&\mid&  \regex{(}\re\regex{)} & Capture Group \\
+&\mid& \regex{(?=}\re\regex{)} & Positive Lookahead \\
+&\mid& \regex{(?!}\re\regex{)} & Negative Lookahead \\
+&\mid& \regex{(?<=}\re\regex{)} & Positive Lookbehind \\
+&\mid& \regex{(?<!}\re\regex{)} & Negative Lookbehind \\
+%
+\syntaxclass{Quantifiers:}
+\quant & ::=& \regex{*} & Greedy Star\\
+&\mid& \regex{*?} & Lazy Star\\
+&\mid& \regex{+} & Greedy Plus\\
+&\mid& \regex{+?} & Lazy Plus\\
+  \end{syntax}
+\end{figure}
+
+\subsection{Semantics}
+\subsubsection{Backtracking Semantics}
+\todo{semantics}
+
+
+\subsubsection{Semantic Properties}
+Here are some notable properties of the semantics, that may separate it from other extended regex languages.
+Note that all these properties are properties of the JS regex language as well.
+
+\paragraph{Unbounded Lookarounds}
+Some languages (\emph{e.g.} Perl, Python, Java) only allow fixed-width lookarounds. Meaning that regular expression patterns inside lookaheads and lookbehinds should not contain quantifiers.
+Here, we allow lookarounds with quantifiers.
+For example, the regular expression \regex{(?=a*)} is allowed.
+
+\paragraph{Capture Reset}
+When executing a quantifier, the value of the capture groups defined inside that quantifier are reset to \undef.
+For instance, matching \regex{((a)|(b))*} on string \str{ab} will return a match where group \group{2} is set to undefined.
+On the first star iteration, \group{2} was set to the capture value \texttt{[0-1]}, matching the first character of the string.
+When executing the second star iteration, \group{2} is reset to undefined, and group \group{3} is set to \texttt{[1-2]}, matching character \texttt{b}.
+This means that only the last iteration of a quantifier in a successful match will set the values of the groups defined inside that quantifier.
+This property holds for the JS regex language, but the behavior differs in the regex languages of Perl, Python, Java and .NET.
+
+\paragraph{No negative captures}
+Note that negative lookahead and negative lookbehinds do not define any capture groups.
+You can write the regular expression \regex{(?!(a))}, but group \group{1} will always be \undef.
+As a result, \regex{(?!(?!e))} is not equivalent to \regex{(?=e)}.
+This appears to be a property shared by most regex languages with negative lookarounds.
+
+\paragraph{Quantifiers that did not consume any characters do not capture anything}
+Lookarounds do not consume characters, meaning that the current position of the string does not change after matching a lookaround.
+If the regular expression inside a quantifier does not consume any character, then the capture groups values inside that quantifiers are discarded.
+For instance, when matching \regex{(?=(a))*a} on string \str{a}, capture group \group{1} will be \undef.
+This property holds for the JS regex language, but the behavior differs in the regex languages of Perl, Python, Java and .NET.
+
 
 \section{A Linear Algorithm for Loookarounds and Capture Groups}
 
