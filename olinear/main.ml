@@ -1,6 +1,7 @@
 
 open Oracle
 open Regex
+open Bytecode
 
 let oracle_tests () =
   let o = create_oracle 4 5 in
@@ -9,8 +10,7 @@ let oracle_tests () =
   assert (get_oracle o 1 4 = false);
   set_oracle o 1 4;
   assert (get_oracle o 1 4 = true);
-  assert (get_oracle o 1 3 = false);
-  ()
+  assert (get_oracle o 1 3 = false)
 
 let regex_tests () =
   let raw = Raw_con(Raw_char 'a', Raw_lookaround (Lookbehind, Raw_char 'a')) in
@@ -25,12 +25,18 @@ let regex_tests () =
   assert (rr = Re_capture (0, Re_con(Re_lookaround (1, Lookbehind, Re_char 'a'), Re_char 'a')));
   let rc = remove_capture rr in
   Printf.printf "%s\n" (print_regex rc);
-  assert (rc = Re_con(Re_lookaround (1, Lookbehind, Re_char 'a'), Re_char 'a'));
-  ()
-   
+  assert (rc = Re_con(Re_lookaround (1, Lookbehind, Re_char 'a'), Re_char 'a'))
+
+let bytecode_tests () =
+  let bytecode = [Jmp 1; Fork (0,2); Accept] in
+  Printf.printf "%s\n" (print_code bytecode);
+  assert (nb_epsilon bytecode = 3)
+                 
+  
 let tests () =
   oracle_tests();
   regex_tests();
+  bytecode_tests();
   Printf.printf "Tests passed\n"
 
 
