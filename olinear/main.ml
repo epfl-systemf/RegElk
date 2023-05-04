@@ -2,7 +2,11 @@
 open Oracle
 open Regex
 open Bytecode
+open Compiler
 
+
+(** * Basic Testing *)
+   
 let oracle_tests () =
   let o = create_oracle 4 5 in
   assert (Array.length o = 4);
@@ -31,15 +35,22 @@ let bytecode_tests () =
   let bytecode = [Jmp 1; Fork (0,2); Accept] in
   Printf.printf "%s\n" (print_code bytecode);
   assert (nb_epsilon bytecode = 3)
-                 
+
+let compiler_tests() =
+  let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
+  let re = annotate raw in
+  let code = compile_to_bytecode re in
+  assert (code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
+  Printf.printf "%s\n" (print_code code);
+  assert(true)
   
 let tests () =
   oracle_tests();
   regex_tests();
   bytecode_tests();
+  compiler_tests();
   Printf.printf "Tests passed\n"
 
-
+  
 let main =
-  tests();
-  ()
+  tests()

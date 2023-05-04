@@ -1,2 +1,2 @@
-main.native: main.ml oracle.ml regex.ml bytecode.ml
+main.native: main.ml oracle.ml regex.ml bytecode.ml compiler.ml
 	ocamlbuild main.native

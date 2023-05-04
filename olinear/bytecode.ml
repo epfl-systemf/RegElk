@@ -18,6 +18,7 @@ type instruction =
   | SetRegisterToCP of register
   | ClearRegister of register
   | CheckOracle of lookid       (* checks the oracle at the current CP. Kills the thread on a failure *)
+  | NegCheckOracle of lookid    (* same, but expects a negative answer *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
 type code = instruction list
@@ -43,13 +44,14 @@ let nb_epsilon (c:code) : int =
 
 let print_instruction (i:instruction) : string =
   match i with
-  | Consume ch -> String.make 1 ch
+  | Consume ch -> "Consume " ^ String.make 1 ch
   | Accept -> "Accept"
   | Jmp l -> "Jmp " ^ string_of_int l
   | Fork (l1,l2) -> "Fork " ^ string_of_int l1 ^ " " ^ string_of_int l2
   | SetRegisterToCP r -> "SetRegisterToCP " ^ string_of_int r
   | ClearRegister r -> "ClearRegister " ^ string_of_int r
   | CheckOracle l -> "CheckOracle " ^ string_of_int l
+  | NegCheckOracle l -> "NegCheckOracle " ^ string_of_int l
   
 let rec print_code (c:code) (pc:int) : string =
   match c with
@@ -57,3 +59,10 @@ let rec print_code (c:code) (pc:int) : string =
   | i::c' -> "\027[33m" ^ string_of_int pc ^ ":\027[0m " ^print_instruction i ^ "\n" ^ print_code c' (pc+1)
      
 let print_code (c:code) : string = print_code c 0
+
+
+(** * Accessing the Bytecode  *)
+                                 
+let get_instr (c:code) (pc:label) : instruction =
+  List.nth c pc
+           (* this will probably change to an array access for O(1) complexity *)
