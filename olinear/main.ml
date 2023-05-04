@@ -3,6 +3,7 @@ open Oracle
 open Regex
 open Bytecode
 open Compiler
+open Interpreter
 
 
 (** * Basic Testing *)
@@ -45,11 +46,12 @@ let compiler_tests() =
   assert(true)
   
 let tests () =
+  Printf.printf "\027[32mTests: \027[0m\n\n";
   oracle_tests();
   regex_tests();
   bytecode_tests();
   compiler_tests();
-  Printf.printf "Tests passed\n"
+  Printf.printf "\027[32mTests passed\027[0m\n"
 
   
 let main =

@@ -33,8 +33,8 @@ type code = instruction list
 let nb_epsilon_transition (i:instruction) : int =
   match i with
   | Fork _ -> 2
-  | Jmp _ -> 1
-  | _ -> 0 (* TODO: should CheckOracle count as an Epsilon Transition? *)
+  | Jmp _ | CheckOracle _ | NegCheckOracle _ -> 1
+  | _ -> 0 
            
 let nb_epsilon (c:code) : int =
   List.fold_left (fun n i -> n + (nb_epsilon_transition i)) 0 c
