@@ -1,6 +1,7 @@
 \documentclass{article}
 
 \usepackage[T1]{fontenc}
+\usepackage{amsmath}
 \usepackage{natbib}
 \usepackage{url}
 \usepackage{lipsum}
@@ -12,6 +13,7 @@
 \renewcommand\cite\citep
 \usepackage{syntaxdefs}
 \usepackage{graphicx}
+\usepackage{listings}
 
 \usepackage[bookmarksnumbered,unicode]{hyperref} %Utiliser pour une bibliographie interactive + sommaire et TOC interactifs (pour une sortie PDF, par exemple).
 \bibpunct{[}{]}{,}{a}{}{;}
@@ -31,8 +33,23 @@
 \definecolor[named]{ACMPurple}{cmyk}{0.55,1,0,0.15}
 \definecolor[named]{ACMDarkBlue}{cmyk}{1,0.58,0,0.21}
 
+
+\lstdefinestyle{rgx}{ %
+  xleftmargin=2\parindent,
+  captionpos=b,
+  mathescape,
+  basicstyle=\ttfamily,
+  commentstyle=\itshape\color{MidnightBlue},
+  identifierstyle=\color{black},
+  keywordstyle=\bfseries,
+}
+
+
+
+\def\regex#1{\lstinline[style=rgx]{#1}}
+\def\tregex#1{\text{\regex{#1}}}
+
 \def\todo#1{{\color{ACMOrange}{TODO: }}#1}
-\def\regex#1{\texttt{#1}}
 \def\undef{\texttt{undefined}}
 \def\str#1{\texttt{"#1"}}
 \def\group#1{\texttt{\##1}}
@@ -65,19 +82,19 @@ We consider the following grammar of regular expressions:
     \syntaxclass{Regular Expressions:}
 \re & ::= & \char & Character \\
 &\mid& \re_1 ~ \re_2 & Concatenation\\
-&\mid& \re_1 \regex{|} \re_2 & Union\\
+&\mid& \re_1 \tregex{|} \re_2 & Union\\
 &\mid&  \re ~ \quant & Quantifier \\
-&\mid&  \regex{(}\re\regex{)} & Capture Group \\
-&\mid& \regex{(?=}\re\regex{)} & Positive Lookahead \\
-&\mid& \regex{(?!}\re\regex{)} & Negative Lookahead \\
-&\mid& \regex{(?<=}\re\regex{)} & Positive Lookbehind \\
-&\mid& \regex{(?<!}\re\regex{)} & Negative Lookbehind \\
+&\mid&  \tregex{(}\re\tregex{)} & Capture Group \\
+&\mid& \tregex{(?=}\re\tregex{)} & Positive Lookahead \\
+&\mid& \tregex{(?!}\re\tregex{)} & Negative Lookahead \\
+&\mid& \tregex{(?<=}\re\tregex{)} & Positive Lookbehind \\
+&\mid& \tregex{(?<!}\re\tregex{)} & Negative Lookbehind \\
 %
 \syntaxclass{Quantifiers:}
-\quant & ::=& \regex{*} & Greedy Star\\
-&\mid& \regex{*?} & Lazy Star\\
-&\mid& \regex{+} & Greedy Plus\\
-&\mid& \regex{+?} & Lazy Plus\\
+\quant & ::=& \tregex{*} & Greedy Star\\
+&\mid& \tregex{*?} & Lazy Star\\
+&\mid& \tregex{+} & Greedy Plus\\
+&\mid& \tregex{+?} & Lazy Plus\\
   \end{syntax}
 \end{figure}
 
@@ -118,7 +135,31 @@ This property holds for the JS regex language, but the behavior differs in the r
 
 \section{A Linear Algorithm for Loookarounds and Capture Groups}
 
-\subsection{Lookaround Dependency Tree}
+\subsection{Preliminary Definitions}
+
+Before describing our algorithm, we need the following definitions.
+
+\paragraph{Capture Group Annotations}
+We annotate each regex with a different identifier for each capture group.
+Some regex languages (like .NET) allow different capture groups to have the same identifiers using named capture groups.
+Others (like JS, PCRE and Java) disallow this. In this work, we associate unique identifiers to each capture group.
+
+% TODO: why does using the regex macro not work here with subscript???
+For instance, the regex \regex{a(b)(c)} gets annotated to \lstinline[style=rgx]{a$(b)_1$(c)$_2$} and \regex{a((b))} gets annotated to \lstinline[style=rgx]{a((b)$_2$)$_1$}.
+Groups are annotated in order of a depth-first AST traversal, starting with 1.
+Before matching a regex, we add a new capture group around the entire expression annotated with index 0, mimicking the JS behavior.
+
+\paragraph{Lookaround Annotations}
+Similarly, we annotate each lookaround with an unique identifier.
+Identifiers are integers given in order of a depth-first AST traversal.
+This ensures that if lookaround $l_1$ contains another lookaround $l_2$, then the index of $l_1$ is smaller than the index of $l_2$.
+For instance, the regex \regex{(?=a(?<=a))a} gets annotated to \lstinline[style=rgx]{(?=$_1$a(?<=$_2$a))a}.
+We write $\mathit{looks}(r)$ the total number of lookarounds in a regex $r$.
+For instance, $\mathit{looks}(\tregex{(?=a(?<=a))a}) = 2$.
+
+\subsection{Main Intuitions}
+
+
 
 \subsection{Bytecode Generation}
 
