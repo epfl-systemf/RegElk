@@ -5,6 +5,7 @@ open Bytecode
 open Regex
 open Map
 open Array
+open Format
 
 (** * Capture Registers  *)
 (* each thread stores capture registers for the capture groups it has matched so far *)
@@ -40,6 +41,9 @@ type thread =
     mutable regs: cap_regs;
   }
 
+let init_thread : thread =
+  { pc = 0; regs = init_regs }
+  
 (** * PC Sets  *)
 
 (* for each PC of the bytecode, we want to track if, in a step of the interpreter, this PC has already been processed *)
@@ -88,23 +92,57 @@ type interpreter_state =
     mutable nextchar: char;             (* next character to consume *)
   }
 
+let init_state (c:code) =
+  { cp = 0;
+    active = [init_thread];
+    processed = init_pcset (size c);
+    blocked = [];
+    isblocked = init_pcset (size c);
+    bestmatch = None;
+    nextchar = 'a';             (* this won't be used before it's set *)
+  }
+
+(** * Debugging Utilities  *)
+  
+let print_thread (t:thread) : string = string_of_int t.pc
+
+let print_active (l:thread list) : string =
+  "  ACTIVE: " ^ List.fold_left (fun s t -> if (s = "") then (print_thread t) else (print_thread t) ^ ", " ^ s) "" l ^ "\n"
+
+let print_blk (b:thread * char) : string =
+  "(" ^ print_thread (fst b) ^ ":" ^ String.make 1 (snd b) ^ ")"
+  
+let print_blocked (l:(thread*char) list) : string =
+  "  BLOCKED: " ^ List.fold_left (fun s b -> if (s = "") then (print_blk b) else (print_blk b) ^ ", " ^ s) "" l ^ "\n"
+
+let print_cp (cp:int) : string =
+  "  CP: " ^ string_of_int cp ^ "\n"
+
+let print_match (b:thread option) =
+  match b with
+  | None -> "None\n"
+  | Some t -> print_thread t
+
+let print_bestmatch (b:thread option) =
+  "  BEST: " ^ print_match b ^ "\n"
+  
 (** * Interpreter  *)
   
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
-let rec advance_epsilon (c:code) (s:interpreter_state) : unit =
+let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) : unit =
   match s.active with
   | [] -> () (* done advancing epsilon transitions *)
   | t::ac -> (* t: highest priority active thread *)
      let i = get_instr c t.pc in
      if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
-       begin s.active <- ac; advance_epsilon c s end
+       begin s.active <- ac; advance_epsilon ~debug c s end
      else
        begin match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t x s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
-          advance_epsilon c s
+          advance_epsilon ~debug c s
        | Accept ->              (* updates the best match and don't consider the remain active threads *)
           (* TODO: depends on the stage *)
           s.active <- [];
@@ -112,38 +150,48 @@ let rec advance_epsilon (c:code) (s:interpreter_state) : unit =
           () (* no recursive call *)
        | Jmp x ->
           t.pc <- x;
-          advance_epsilon c s
+          advance_epsilon ~debug c s
        | Fork (x,y) ->            (* x has higher priority *)
           t.pc <- y;
           s.active <- {pc = x; regs = t.regs}::s.active;
-          advance_epsilon c s
+          advance_epsilon ~debug c s
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
           t.pc <- t.pc + 1;
-          advance_epsilon c s
+          advance_epsilon ~debug c s
        | ClearRegister r ->
           t.regs <- clear_reg t.regs r;
           t.pc <- t.pc + 1;
-          advance_epsilon c s
+          advance_epsilon ~debug c s
        | CheckOracle l -> failwith "TODO oracle"
        | NegCheckOracle l -> failwith "TODO oracle"
        end
 
 (* modifies the state by consuming the next character  *)
 (* calls itself recursively until there are no more blocked threads *)
-let rec consume (c:code) (s:interpreter_state): unit =
+let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
   match s.blocked with
   | [] -> ()
   | (t,x)::blocked' ->
      s.blocked <- blocked';
      if (x = s.nextchar) then
        begin t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
-     consume c s
+     consume ~debug c s
      
   
-let rec interpreter (c:code) (str:string) (s:interpreter_state) : thread option =
+let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) : thread option =
+  if debug then
+    begin
+      Printf.printf "%s" (print_cp s.cp);
+      Printf.printf "%s" (print_active s.active);
+      Printf.printf "%s" (print_bestmatch s.bestmatch);
+    end;
   (* follow epsilon transitions *)
-  advance_epsilon c s;
+  advance_epsilon ~debug c s;
+  if debug then
+    begin
+      Printf.printf "%s\n" (print_blocked s.blocked);
+    end;
   (* read the next character *)
   let x = get_char str s.cp in
   begin match x with
@@ -151,13 +199,27 @@ let rec interpreter (c:code) (str:string) (s:interpreter_state) : thread option 
   | Some chr ->
      s.nextchar <- chr;
      (* advancing blocked threads *)
-     consume c s;
+     consume ~debug c s;
      (* resetting the processed and blocked sets *)
      s.processed <- init_pcset (size c); (* TODO: should we cache it to avoid recomputing? Or should that be constant time when we switch to arrays? *)
      s.isblocked <- init_pcset (size c);
      (* advancing the current position *)
      s.cp <- s.cp + 1;
-     interpreter c str s
+     interpreter ~debug c str s
   end
     (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
     
+
+let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) : thread option =
+  if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
+  if verbose then Printf.printf "%s\n" (print_code c);
+  let result = interpreter ~debug c s (init_state c) in
+  if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
+  result
+  
+
+(* for tests, sometimes we only want to know if there is a match *)
+let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) : bool =
+  match (matcher_interp ~verbose ~debug c s) with
+  | None -> false
+  | _ -> true

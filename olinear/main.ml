@@ -44,6 +44,16 @@ let compiler_tests() =
   assert (code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
   Printf.printf "%s\n" (print_code code);
   assert(true)
+
+let interpreter_tests() =
+  let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
+  let re = annotate raw in
+  let code = compile_to_bytecode re in
+  let str1 = "aab" in
+  let str2 = "aaa" in
+  assert (match_interp ~debug:true code str1 = true);
+  assert (match_interp ~debug:true code str2 = false)
+  
   
 let tests () =
   Printf.printf "\027[32mTests: \027[0m\n\n";
@@ -51,6 +61,7 @@ let tests () =
   regex_tests();
   bytecode_tests();
   compiler_tests();
+  interpreter_tests();
   Printf.printf "\027[32mTests passed\027[0m\n"
 
   
