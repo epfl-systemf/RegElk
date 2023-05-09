@@ -27,6 +27,12 @@ type code = instruction list
 (* Because the code is accessed for each thread at a different pc *)
 (* Maybe I should instead put the code in an array of instructions? *)
 
+let instr_get (c:code) (pc:int) : instruction = (* failure if the pc is invalid *)
+  List.nth c pc                
+
+let size (c:code) : int =
+  List.length c
+  
 (** * Bytecode Properties *)
           
 (* Counting epsilon transitions. This will be useful to provide a bound when finding the next active thread list *)

@@ -23,14 +23,21 @@ let get_reg (regs:cap_regs) (r:register) : int =
               
 let init_regs : cap_regs =
   IntMap.empty
+
+(** * String Manipulation *)
+
+let get_char (str:string) (cp:int) : char option =
+  try Some (String.get str cp) with
+  | Invalid_argument _ -> None    (* when reaching the end of the string *)
+  
   
 (** * Threads  *)
 
 (* each thread has a program counter in the bytecode and a map of capture registers *)
 type thread =
   {
-    pc: int;
-    regs: cap_regs;
+    mutable pc: int;
+    mutable regs: cap_regs;
   }
 
 (** * PC Sets  *)
@@ -52,13 +59,13 @@ let pc_add (pcs:pcset) (pc:label) : unit =
 let pc_mem (pcs:pcset) (pc:label) : bool =
   pcs.(pc)
   
-(* adds a thread at the head of a list only if it's not already in *)
+(* adds a thread and char at the head of a blocked list only if it's not already in *)
 (* modifies the pcset in place *)
-let add_thread (t:thread) (current:thread list) (inset:pcset) : thread list =
+let add_thread (t:thread) (x:char) (current:(thread*char) list) (inset:pcset) : (thread*char) list =
   if (pc_mem inset t.pc) then current
   else begin
       pc_add inset t.pc;
-      t::current
+      (t,x)::current
     end
 
 
@@ -69,47 +76,88 @@ let add_thread (t:thread) (current:thread list) (inset:pcset) : thread list =
    - then it reads the next input character of the string at the current position and advances or kill each thread
  *)
 
-type epsilon_state =            (* while following epsilon transitions *)
-  {
-    cp: int;                (* current position in the input string *)
-    str: string;            (* input string *)
-    active: thread list;    (* ordered list of threads. high to low priority *)
-    processed: pcset;       (* already processed pcs. Similar to isPcProcessed in Experimental  *)
-    blocked: thread list;   (* threads stuck at a Consume instruction: finished following epsilon transitions. low to high.  *)
-    isblocked: pcset;       (* already blocked pcs, to avoid duplicates *)
-    bestmatch: thread option;   (* best match found so far, but there might be a higher priotity one still *)
-  }
-
-type done_epsilon_state =            (* the result of following espilon transitions *)
-  {
-    cp: int;
-    str: string;
-    blocked: thread list;
-    bestmatch: thread option;
-  }
-
-type consuming_state =          (* while consuming a character *)
-  {
-    cp: int;
-    str: string;
-    x: char;                    (* current character to consume *)
-    blocked: thread list;
-    next: thread list;          (* list of alive threads after consuming. high to low priority *)
-    bestmatch: thread option;
-  }
-
-type done_consuming_state =     (* the result of consuming *)
-  {
-    cp: int;
-    str: string;
-    next: thread list;
-    bestmatch: thread option;
-  }
-  
-  
 type interpreter_state =
-  | Epsilon of epsilon_state
-  | Done_Epsilon of done_epsilon_state
-  | Consuming of consuming_state
-  | Done_Consuming of done_consuming_state
-  | EOE of thread option        (* end of execution *)
+  {
+    mutable cp: int;             (* current position in the input string *)
+    mutable active: thread list;    (* ordered list of threads. high to low priority *)
+    mutable processed: pcset;       (* already processed pcs. Similar to isPcProcessed in Experimental  *)
+    (* mutable because we reset it each step, but its modifications during a step are done in-place *)
+    mutable blocked: (thread*char) list;   (* threads stuck at a Consume instruction for a given char. low to high priority. *)
+    mutable isblocked: pcset;       (* already blocked pcs, to avoid duplicates *)
+    mutable bestmatch: thread option;   (* best match found so far, but there might be a higher priotity one still *)
+    mutable nextchar: char;             (* next character to consume *)
+  }
+
+(** * Interpreter  *)
+  
+(* modifies the state by advancing all threads along epsilon transitions *)
+(* calls itself recursively until there are no more active threads *)
+let rec advance_epsilon (c:code) (s:interpreter_state) : unit =
+  match s.active with
+  | [] -> () (* done advancing epsilon transitions *)
+  | t::ac -> (* t: highest priority active thread *)
+     let i = get_instr c t.pc in
+     if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
+       begin s.active <- ac; advance_epsilon c s end
+     else
+       begin match i with
+       | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
+          s.blocked <- add_thread t x s.blocked s.isblocked; (* also updates isblocked *)
+          s.active <- ac;
+          advance_epsilon c s
+       | Accept ->              (* updates the best match and don't consider the remain active threads *)
+          (* TODO: depends on the stage *)
+          s.active <- [];
+          s.bestmatch <- Some t;
+          () (* no recursive call *)
+       | Jmp x ->
+          t.pc <- x;
+          advance_epsilon c s
+       | Fork (x,y) ->            (* x has higher priority *)
+          t.pc <- y;
+          s.active <- {pc = x; regs = t.regs}::s.active;
+          advance_epsilon c s
+       | SetRegisterToCP r ->
+          t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
+          t.pc <- t.pc + 1;
+          advance_epsilon c s
+       | ClearRegister r ->
+          t.regs <- clear_reg t.regs r;
+          t.pc <- t.pc + 1;
+          advance_epsilon c s
+       | CheckOracle l -> failwith "TODO oracle"
+       | NegCheckOracle l -> failwith "TODO oracle"
+       end
+
+(* modifies the state by consuming the next character  *)
+(* calls itself recursively until there are no more blocked threads *)
+let rec consume (c:code) (s:interpreter_state): unit =
+  match s.blocked with
+  | [] -> ()
+  | (t,x)::blocked' ->
+     s.blocked <- blocked';
+     if (x = s.nextchar) then
+       begin t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
+     consume c s
+     
+  
+let rec interpreter (c:code) (str:string) (s:interpreter_state) : thread option =
+  (* follow epsilon transitions *)
+  advance_epsilon c s;
+  (* read the next character *)
+  let x = get_char str s.cp in
+  begin match x with
+  | None -> s.bestmatch         (* we reached the end of the string *)
+  | Some chr ->
+     s.nextchar <- chr;
+     (* advancing blocked threads *)
+     consume c s;
+     (* resetting the processed and blocked sets *)
+     s.processed <- init_pcset (size c); (* TODO: should we cache it to avoid recomputing? Or should that be constant time when we switch to arrays? *)
+     s.isblocked <- init_pcset (size c);
+     (* advancing the current position *)
+     s.cp <- s.cp + 1;
+     interpreter c str s
+  end
+    (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
+    
