@@ -6,6 +6,7 @@ open Regex
 open Map
 open Array
 open Format
+open Oracle
 
 (** * Capture Registers  *)
 (* each thread stores capture registers for the capture groups it has matched so far *)
@@ -130,41 +131,53 @@ let print_bestmatch (b:thread option) =
   
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
-let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) : unit =
+let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle): unit =
   match s.active with
   | [] -> () (* done advancing epsilon transitions *)
   | t::ac -> (* t: highest priority active thread *)
      let i = get_instr c t.pc in
      if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
-       begin s.active <- ac; advance_epsilon ~debug c s end
+       begin s.active <- ac; advance_epsilon ~debug c s o end
      else
        begin match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t x s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
-          advance_epsilon ~debug c s
+          advance_epsilon ~debug c s o
        | Accept ->              (* updates the best match and don't consider the remain active threads *)
-          (* TODO: depends on the stage *)
           s.active <- [];
           s.bestmatch <- Some t;
           () (* no recursive call *)
        | Jmp x ->
           t.pc <- x;
-          advance_epsilon ~debug c s
+          advance_epsilon ~debug c s o
        | Fork (x,y) ->            (* x has higher priority *)
           t.pc <- y;
           s.active <- {pc = x; regs = t.regs}::s.active;
-          advance_epsilon ~debug c s
+          advance_epsilon ~debug c s o
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
           t.pc <- t.pc + 1;
-          advance_epsilon ~debug c s
+          advance_epsilon ~debug c s o
        | ClearRegister r ->
           t.regs <- clear_reg t.regs r;
           t.pc <- t.pc + 1;
-          advance_epsilon ~debug c s
-       | CheckOracle l -> failwith "TODO oracle"
-       | NegCheckOracle l -> failwith "TODO oracle"
+          advance_epsilon ~debug c s o
+       | CheckOracle l ->
+          if (get_oracle o s.cp l)
+          then t.pc <- t.pc + 1 (* keeping the thread alive *)
+          else s.active <- ac;  (* killing the thread *)
+          advance_epsilon ~debug c s o
+       | NegCheckOracle l ->
+          if (get_oracle o s.cp l)
+          then s.active <- ac   (* killing the thread *)
+          else t.pc <- t.pc + 1;(* keeping the thread alive *)
+          advance_epsilon ~debug c s o
+       | WriteOracle l ->
+          (* we reached a match but we want to write that into the oracle. we don't discard lower priotity threads *)
+          s.active <- ac;       (* no need to consider that thread anymore *)
+          set_oracle o s.cp l;    (* writing to the oracle *)
+          advance_epsilon ~debug c s o (* we keep searching for more matches *)
        end
 
 (* modifies the state by consuming the next character  *)
@@ -179,7 +192,7 @@ let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
      consume ~debug c s
      
   
-let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) : thread option =
+let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) : thread option =
   if debug then
     begin
       Printf.printf "%s" (print_cp s.cp);
@@ -187,7 +200,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) :
       Printf.printf "%s" (print_bestmatch s.bestmatch);
     end;
   (* follow epsilon transitions *)
-  advance_epsilon ~debug c s;
+  advance_epsilon ~debug c s o;
   if debug then
     begin
       Printf.printf "%s\n" (print_blocked s.blocked);
@@ -205,21 +218,20 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) :
      s.isblocked <- init_pcset (size c);
      (* advancing the current position *)
      s.cp <- s.cp + 1;
-     interpreter ~debug c str s
+     interpreter ~debug c str s o
   end
     (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
     
 
-let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) : thread option =
+let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c) in
+  let result = interpreter ~debug c s (init_state c) o in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
-  
 
 (* for tests, sometimes we only want to know if there is a match *)
-let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) : bool =
-  match (matcher_interp ~verbose ~debug c s) with
+let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle): bool =
+  match (matcher_interp ~verbose ~debug c s o) with
   | None -> false
   | _ -> true

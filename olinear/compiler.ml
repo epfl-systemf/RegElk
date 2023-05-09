@@ -70,3 +70,9 @@ let rec compile (r:regex) (fresh:label) : code * label =
 let compile_to_bytecode (r:regex) : code =
   let (c,_) = compile r 0 in
   c @ [Accept]
+
+(* same but with a WriteOracle instruction instead of an Accept *)
+(* l is the current lookid we are compiling the regex for *)
+let compile_to_write (r:regex) (l:lookid): code =
+  let (c,_) = compile r 0 in
+  c @ [WriteOracle l]

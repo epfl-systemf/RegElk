@@ -19,4 +19,17 @@ let get_oracle (o:oracle) (cp:int) (lookid:int): bool =
   assert (cp < Array.length o);
   assert (lookid < Array.length o.(0));
   o.(cp).(lookid)
+
+(** * Pretty-printing  *)
+let print_bool (b:bool) : string =
+  if b then "✔" else "✘"
   
+let print_oracle (o:oracle) : string =
+  let s = ref "" in
+  for i = 0 to ((Array.length o) -1) do
+    for j = 0 to ((Array.length o.(0)) -1) do
+      s := !s ^ print_bool (get_oracle o i j);
+    done;
+      s := !s ^ "\n";
+  done;
+  !s

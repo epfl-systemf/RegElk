@@ -14,6 +14,7 @@ let oracle_tests () =
   assert (Array.length (o.(0)) = 5);
   assert (get_oracle o 1 4 = false);
   set_oracle o 1 4;
+  Printf.printf "%s\n" (print_oracle o);
   assert (get_oracle o 1 4 = true);
   assert (get_oracle o 1 3 = false)
 
@@ -46,13 +47,14 @@ let compiler_tests() =
   assert(true)
 
 let interpreter_tests() =
+  let o = create_oracle 1 1 in
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
   let str1 = "aab" in
   let str2 = "aaa" in
-  assert (match_interp ~debug:true code str1 = true);
-  assert (match_interp ~debug:true code str2 = false)
+  assert (match_interp ~debug:true code str1 o = true);
+  assert (match_interp ~debug:true code str2 o = false)
   
   
 let tests () =

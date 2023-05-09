@@ -12,13 +12,14 @@ type register = int
 (* when the next label isn't directly specified, we expect a falltrough order of just going to the next instruction in the list *)
 type instruction =
   | Consume of char
-  | Accept                      (* has different effects depending on the stage of the algorithm *)
+  | Accept
   | Jmp of label
   | Fork of label * label
   | SetRegisterToCP of register
   | ClearRegister of register
   | CheckOracle of lookid       (* checks the oracle at the current CP. Kills the thread on a failure *)
   | NegCheckOracle of lookid    (* same, but expects a negative answer *)
+  | WriteOracle of lookid       (* when we find a match, we write to the oracle at CP *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
 type code = instruction list
@@ -58,6 +59,7 @@ let print_instruction (i:instruction) : string =
   | ClearRegister r -> "ClearRegister " ^ string_of_int r
   | CheckOracle l -> "CheckOracle " ^ string_of_int l
   | NegCheckOracle l -> "NegCheckOracle " ^ string_of_int l
+  | WriteOracle l -> "WriteOracle " ^ string_of_int l
   
 let rec print_code (c:code) (pc:int) : string =
   match c with
