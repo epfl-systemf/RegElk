@@ -23,6 +23,7 @@ type lookaround =
 type raw_regex =
   | Raw_empty
   | Raw_char of char
+  | Raw_dot
   | Raw_alt of raw_regex * raw_regex
   | Raw_con of raw_regex * raw_regex
   | Raw_quant of quantifier * raw_regex
@@ -40,6 +41,7 @@ type lookid = int
 type regex =
   | Re_empty
   | Re_char of char
+  | Re_dot                      (* any character. TODO: should I generalize to ranges? *)
   | Re_alt of regex * regex
   | Re_con of regex * regex
   (* in [quant cstart cend q r] we describe that capture groups in the interval [cstart, cend[ are defined inside the quantifier *)
@@ -71,6 +73,7 @@ let rec print_raw (ra:raw_regex) : string =
   match ra with
   | Raw_empty -> ""
   | Raw_char ch -> String.make 1 ch
+  | Raw_dot -> "."
   | Raw_alt (r1, r2) -> print_raw r1 ^ "|" ^ print_raw r2
   | Raw_con (r1, r2) -> print_raw r1 ^ print_raw r2
   | Raw_quant (q, r1) -> print_raw r1 ^ print_quant q
@@ -81,6 +84,7 @@ let rec print_regex (r:regex) : string =
   match r with
   | Re_empty -> ""
   | Re_char ch -> String.make 1 ch
+  | Re_dot -> "."
   | Re_alt (r1, r2) -> print_regex r1 ^ "|" ^ print_regex r2
   | Re_con (r1, r2) -> print_regex r1 ^ print_regex r2
   | Re_quant (_, _, q, r1) -> print_regex r1 ^ print_quant q
@@ -96,6 +100,7 @@ let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) : regex * capture *
   match ra with
   | Raw_empty -> (Re_empty, c, l)
   | Raw_char ch -> (Re_char ch, c, l)
+  | Raw_dot -> (Re_dot, c, l)
   | Raw_alt (r1, r2) ->
      let (ar1, c1, l1) = annotate_regex r1 c l in
      let (ar2, c2, l2) = annotate_regex r2 c1 l1 in
@@ -119,7 +124,10 @@ let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) : regex * capture *
 (* lookarounds start at 1 *)
 let annotate (ra:raw_regex) : regex =
   let (re,_,_) = annotate_regex (Raw_capture ra) 0 1 in re
-                                
+
+(* Adds a .*? at the beginning of a regex so that it does not have to be matched at the beginning *)
+let lazy_prefix (r:regex) : regex =
+  Re_con (Re_quant (0, 0, LazyStar, Re_dot),r)
 
 (** * Regex Manipulation  *)
 
@@ -129,7 +137,7 @@ let annotate (ra:raw_regex) : regex =
 (* For instance, in [ab(?<=(ab|b))] over "ab", group 1 contains "ab", not "b" *)
 let rec reverse_regex (r:regex) : regex =
   match r with
-  | Re_empty | Re_char _ -> r
+  | Re_empty | Re_char _ | Re_dot -> r
   | Re_alt (r1, r2) -> Re_alt (reverse_regex r1, reverse_regex r2)
   | Re_con (r1, r2) -> Re_con (reverse_regex r2, reverse_regex r1) (* reversing concatenation *)
   | Re_quant (cstart, cend, quant, r1) -> Re_quant (cstart, cend, quant, reverse_regex r1)
@@ -142,7 +150,7 @@ let rec reverse_regex (r:regex) : regex =
 (* We also remove the annotations in the quantifiers because there is no need to clear capture registers *)
 let rec remove_capture (r:regex) : regex =
   match r with
-  | Re_empty | Re_char _ -> r
+  | Re_empty | Re_char _ | Re_dot -> r
   | Re_alt (r1, r2) -> Re_alt (remove_capture r1, remove_capture r2)
   | Re_con (r1, r2) -> Re_con (remove_capture r1, remove_capture r2)
   | Re_quant (cstart, cend, quant, r1) -> Re_quant (cstart, cstart, quant, remove_capture r1) (* cend = cstart: empty interval *)
@@ -155,7 +163,7 @@ let rec remove_capture (r:regex) : regex =
 (* Extracting the lookaround type and inner subexpression of a given lookaround identifier *)
 let rec get_lookaround (r:regex) (lid:lookid) : (regex * lookaround) option =
   match r with
-  | Re_empty | Re_char _ -> None
+  | Re_empty | Re_char _ | Re_dot -> None
   | Re_alt (r1, r2) | Re_con (r1, r2) -> (* the order does not matter since each identifier is unique *)
      begin match (get_lookaround r1 lid) with
      | Some le -> Some le
@@ -167,10 +175,16 @@ let rec get_lookaround (r:regex) (lid:lookid) : (regex * lookaround) option =
      if (l = lid) then Some (r1, look)
      else get_lookaround r1 lid
 
+(* we should always be able to find a lookahead in the right range *)
+let get_look (r:regex) (lid:lookid) : regex * lookaround =
+  match (get_lookaround r lid) with
+  | Some r -> r
+  | _ -> failwith "Cannot find lookaround"
+
 (* Returns the maximum used lookaround in a regex *)
 let rec max_lookaround (r:regex) : lookid =
   match r with
-  | Re_empty | Re_char _ -> 0
+  | Re_empty | Re_char _ | Re_dot -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_lookaround r1) (max_lookaround r2)
   | Re_quant (_,_,_,r1) | Re_capture (_,r1) -> max_lookaround r1
   | Re_lookaround (lid, look, r1) -> max lid (max_lookaround r1)

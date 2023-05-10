@@ -32,6 +32,7 @@ let rec compile (r:regex) (fresh:label) : code * label =
   match r with
   | Re_empty -> ([], fresh)
   | Re_char ch -> ([Consume ch], fresh+1)
+  | Re_dot -> ([ConsumeAll], fresh+1)
   | Re_con (r1, r2) ->
      let (l1, f1) = compile r1 fresh in
      let (l2, f2) = compile r2 f1 in
@@ -67,6 +68,7 @@ let rec compile (r:regex) (fresh:label) : code * label =
      end
 
 (* adds an accept at the end of the bytecode *)
+(* And a lazy star at the beginning *)
 let compile_to_bytecode (r:regex) : code =
   let (c,_) = compile r 0 in
   c @ [Accept]
@@ -76,3 +78,4 @@ let compile_to_bytecode (r:regex) : code =
 let compile_to_write (r:regex) (l:lookid): code =
   let (c,_) = compile r 0 in
   c @ [WriteOracle l]
+        (* TODO: I'm probably forgetting a lazy star at the beginning *)

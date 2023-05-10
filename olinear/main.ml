@@ -4,14 +4,14 @@ open Regex
 open Bytecode
 open Compiler
 open Interpreter
-
+open Linear
 
 (** * Basic Testing *)
    
 let oracle_tests () =
-  let o = create_oracle 4 5 in
-  assert (Array.length o = 4);
-  assert (Array.length (o.(0)) = 5);
+  let o = create_oracle 4 8 in
+  assert (Array.length o = 5);
+  assert (Array.length (o.(0)) = 8);
   assert (get_oracle o 1 4 = false);
   set_oracle o 1 4;
   Printf.printf "%s\n" (print_oracle o);
@@ -38,7 +38,7 @@ let bytecode_tests () =
   Printf.printf "%s\n" (print_code bytecode);
   assert (nb_epsilon bytecode = 3)
 
-let compiler_tests() =
+let compiler_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
@@ -46,7 +46,7 @@ let compiler_tests() =
   Printf.printf "%s\n" (print_code code);
   assert(true)
 
-let interpreter_tests() =
+let interpreter_tests () =
   let o = create_oracle 1 1 in
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
@@ -55,7 +55,19 @@ let interpreter_tests() =
   let str2 = "aaa" in
   assert (match_interp ~debug:true code str1 o = true);
   assert (match_interp ~debug:true code str2 o = false)
-  
+
+let build_oracle_tests () =
+  let raw = Raw_con (Raw_lookaround (Lookahead, Raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (Raw_char 'a',Raw_char 'b'))) in
+  let re = annotate raw in
+  let str = "aaab" in
+  Printf.printf "%s\n" (print_regex re);
+  let o = build_oracle ~debug:true re str in
+  Printf.printf "%s\n" (print_oracle o);
+  assert (get_oracle o 4 2 = true);
+  assert (get_oracle o 3 2 = false);
+  assert (get_oracle o 2 1 = true);
+  assert (get_oracle o 2 0 = false);
+  assert (get_oracle o 4 1 = false)
   
 let tests () =
   Printf.printf "\027[32mTests: \027[0m\n\n";
@@ -64,6 +76,7 @@ let tests () =
   bytecode_tests();
   compiler_tests();
   interpreter_tests();
+  build_oracle_tests();
   Printf.printf "\027[32mTests passed\027[0m\n"
 
   

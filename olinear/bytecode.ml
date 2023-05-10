@@ -12,6 +12,7 @@ type register = int
 (* when the next label isn't directly specified, we expect a falltrough order of just going to the next instruction in the list *)
 type instruction =
   | Consume of char
+  | ConsumeAll                  (* fot the dot. TODO: generalize to ranges *)
   | Accept
   | Jmp of label
   | Fork of label * label
@@ -28,8 +29,9 @@ type code = instruction list
 (* Because the code is accessed for each thread at a different pc *)
 (* Maybe I should instead put the code in an array of instructions? *)
 
-let instr_get (c:code) (pc:int) : instruction = (* failure if the pc is invalid *)
-  List.nth c pc                
+let get_instr (c:code) (pc:label) : instruction =
+  List.nth c pc
+           (* this will probably change to an array access for O(1) complexity *)
 
 let size (c:code) : int =
   List.length c
@@ -52,6 +54,7 @@ let nb_epsilon (c:code) : int =
 let print_instruction (i:instruction) : string =
   match i with
   | Consume ch -> "Consume " ^ String.make 1 ch
+  | ConsumeAll -> "ConsumeAll"
   | Accept -> "Accept"
   | Jmp l -> "Jmp " ^ string_of_int l
   | Fork (l1,l2) -> "Fork " ^ string_of_int l1 ^ " " ^ string_of_int l2
@@ -67,10 +70,4 @@ let rec print_code (c:code) (pc:int) : string =
   | i::c' -> "\027[33m" ^ string_of_int pc ^ ":\027[0m " ^print_instruction i ^ "\n" ^ print_code c' (pc+1)
      
 let print_code (c:code) : string = print_code c 0
-
-
-(** * Accessing the Bytecode  *)
                                  
-let get_instr (c:code) (pc:label) : instruction =
-  List.nth c pc
-           (* this will probably change to an array access for O(1) complexity *)
