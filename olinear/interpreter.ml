@@ -9,6 +9,9 @@ open Format
 open Oracle
 
 (** * Capture Registers  *)
+(* TODO: why don't we switch to a int Array? We know how much capture regs we need *)
+(* in that case we will need to make a copy of the Array for the forks, which is not constant-time *)
+   
 (* each thread stores capture registers for the capture groups it has matched so far *)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
               
@@ -23,7 +26,22 @@ let clear_reg (regs:cap_regs) (r:register) : cap_regs =
 let get_reg (regs:cap_regs) (r:register) : int =
   IntMap.find r regs
               
-let init_regs : cap_regs =
+let init_regs () : cap_regs =
+  IntMap.empty
+
+(** * Lookarounds Memory  *)
+(* For the second stage of the algorithm, we need to remember when (which cp) we used the oracle *)
+(* So that we can later get the capture groups defined in that lookaround *)
+
+type look_mem = int IntMap.t
+
+let set_mem (lm:look_mem) (lid:lookid) (cp:int) : look_mem =
+  IntMap.add lid cp lm
+  
+let get_mem (lm:look_mem) (lid:lookid) : int option =
+  IntMap.find_opt lid lm
+
+let init_mem (): look_mem =
   IntMap.empty
 
 (** * String Manipulation *)
@@ -40,10 +58,11 @@ type thread =
   {
     mutable pc: int;
     mutable regs: cap_regs;
+    mutable mem: look_mem;
   }
 
 let init_thread () : thread =
-  { pc = 0; regs = init_regs }
+  { pc = 0; regs = init_regs(); mem = init_mem() }
   
 (** * PC Sets  *)
 
@@ -162,7 +181,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | Fork (x,y) ->            (* x has higher priority *)
           t.pc <- y;
-          s.active <- {pc = x; regs = t.regs}::s.active;
+          s.active <- {pc = x; regs = t.regs; mem = t.mem}::s.active;
           advance_epsilon ~debug c s o
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
@@ -174,7 +193,10 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | CheckOracle l ->
           if (get_oracle o s.cp l)
-          then t.pc <- t.pc + 1 (* keeping the thread alive *)
+          then begin
+              t.pc <- t.pc + 1; (* keeping the thread alive *)
+              t.mem <- set_mem t.mem l s.cp (* remembering the cp where we needed the oracle *)
+            end
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
        | NegCheckOracle l ->
