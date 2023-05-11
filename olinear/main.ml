@@ -53,11 +53,11 @@ let interpreter_tests () =
   let code = compile_to_bytecode re in
   let str1 = "aab" in
   let str2 = "aaa" in
-  assert (match_interp ~debug:true code str1 o = true);
-  assert (match_interp ~debug:true code str2 o = false)
+  assert (match_interp ~debug:true code str1 o Forward = true);
+  assert (match_interp ~debug:true code str2 o Forward = false)
 
 let build_oracle_tests () =
-  let raw = Raw_con (Raw_lookaround (Lookahead, Raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (Raw_char 'a',Raw_char 'b'))) in
+  let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, Raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (Raw_char 'a',Raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in
   let re = annotate raw in
   let str = "aaab" in
   Printf.printf "%s\n" (print_regex re);

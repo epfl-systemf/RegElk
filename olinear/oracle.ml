@@ -13,11 +13,13 @@ let create_oracle (str_size:int) (look_nb:int): oracle =
 let set_oracle (o:oracle) (cp:int) (lookid:int): unit =
   assert (cp < Array.length o);
   assert (lookid < Array.length o.(0));
+  assert (cp >= 0);
   o.(cp).(lookid) <- true
 
 let get_oracle (o:oracle) (cp:int) (lookid:int): bool =
   assert (cp < Array.length o);
   assert (lookid < Array.length o.(0));
+  assert (cp >= 0);
   o.(cp).(lookid)
 
 (** * Pretty-printing  *)

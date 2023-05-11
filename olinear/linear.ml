@@ -14,6 +14,8 @@ let reverse_type (l:lookaround) (r:regex) : regex =
   match l with
   | Lookahead | NegLookahead -> reverse_regex r
   | Lookbehind | NegLookbehind -> r
+
+
    
 (* we consider lookarounds by reverse order of their identifiers *)
 (* we do not need to do this for the main regex *)
@@ -26,7 +28,8 @@ let build_oracle ?(verbose = true) ?(debug=false) (r:regex) (str:string): oracle
     let lookreg_rev = reverse_type looktype lookreg_nc in (* correct direction *)
     let lookreg = lazy_prefix lookreg_rev in              (* lazy star prefix *)
     let bytecode = compile_to_write lookreg lid in
-    ignore (matcher_interp ~verbose ~debug bytecode str o)
+    let direction = oracle_direction looktype in 
+    ignore (matcher_interp ~verbose ~debug bytecode str o direction)
            (* we don't want the return value, we just want to write to the oracle *)
   done;
   o                             (* returning the modified oracle *)
