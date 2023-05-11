@@ -42,6 +42,8 @@ let rec compile (r:regex) (fresh:label) : code * label =
      let (l2, f2) = compile r2 (f1+1) in
      ([Fork (fresh+1, f1+1)] @ l1 @ [Jmp f2] @ l2, f2)
   | Re_quant (cstart, cend, quant, r1) ->
+     (* TODO IMPORTANT *)
+     (* in a star, we should not only clear the capture regs but also the look memory *)
      let range = cend - cstart in
      begin match quant with
      | Star ->

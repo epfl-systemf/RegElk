@@ -81,3 +81,11 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
      Some (!regs)
      
   
+let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : cap_regs option =
+  let re = annotate raw in
+  let o = build_oracle ~verbose ~debug re str in
+  let ca = build_capture ~verbose ~debug re str o in
+  if verbose then
+    Printf.printf "%s\n" (print_result re str ca);
+  ca
+            

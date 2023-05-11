@@ -7,6 +7,7 @@ open Map
 open Array
 open Format
 open Oracle
+open Compiler
 
 (** * Direction  *)
 (* In our algorithm, the interpreter can traverse the string in a forward way or ina backward way *)
@@ -61,8 +62,8 @@ let set_reg (regs:cap_regs) (r:register) (v:int) : cap_regs =
 let clear_reg (regs:cap_regs) (r:register) : cap_regs =
   IntMap.remove r regs
   
-let get_reg (regs:cap_regs) (r:register) : int =
-  IntMap.find r regs
+let get_reg (regs:cap_regs) (r:register) : int option =
+  IntMap.find_opt r regs
               
 let init_regs () : cap_regs =
   IntMap.empty
@@ -316,3 +317,43 @@ let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle)
   match (matcher_interp ~verbose ~debug c s o dir) with
   | None -> false
   | _ -> true
+
+
+(** * Printing Results  *)
+(* extracting a capture group slice given its registers *)
+let print_slice (str:string) (startreg:int option) (endreg:int option) : string =
+  match startreg with
+  | None -> "NONE"
+  | Some startv ->
+     begin match endreg with
+     | None -> failwith "startreg is set but not endreg"
+     | Some endv ->
+        String.sub str startv (endv - startv)
+     end
+
+(* printing all capture groups *)
+let print_cap_regs (c:cap_regs) (max_groups:int) (str:string) : string =
+  let s = ref "" in
+  for i = 0 to max_groups do
+    s := !s ^ "Group #" ^ string_of_int i ^ ": ";
+    let startr = get_reg c (start_reg i) in
+    let endr = get_reg c (end_reg i) in
+    s := !s ^ print_slice str startr endr ^ "\n"
+  done;
+  !s
+
+let print_cap_option (c:cap_regs option) (max_groups:int) (str:string) : string =
+  match c with
+  | None -> "No match"
+  | Some ca -> print_cap_regs ca max_groups str
+
+let get_result (th:thread option) : cap_regs option =
+  match th with
+  | None -> None
+  | Some t -> Some (t.regs)
+
+let print_result (r:regex) (str:string) (c:cap_regs option) : string =
+  let s = ref ("Result of matching " ^ print_regex r ^ " on string " ^ str ^ " : \n") in
+  let max = max_group r in
+  !s ^ print_cap_option c max str
+          

@@ -188,3 +188,10 @@ let rec max_lookaround (r:regex) : lookid =
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_lookaround r1) (max_lookaround r2)
   | Re_quant (_,_,_,r1) | Re_capture (_,r1) -> max_lookaround r1
   | Re_lookaround (lid, look, r1) -> max lid (max_lookaround r1)
+
+let rec max_group (r:regex) : capture =
+  match r with 
+  | Re_empty | Re_char _ | Re_dot -> 0
+  | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_group r1) (max_group r2)
+  | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
+  | Re_capture (cid, r1) -> max cid (max_group r1)
