@@ -99,8 +99,8 @@ type thread =
     mutable mem: look_mem;
   }
 
-let init_thread () : thread =
-  { pc = 0; regs = init_regs(); mem = init_mem() }
+let init_thread (initregs:cap_regs) (initmem:look_mem) : thread =
+  { pc = 0; regs = initregs; mem = initmem }
   
 (** * PC Sets  *)
 
@@ -150,9 +150,9 @@ type interpreter_state =
     mutable nextchar: char;             (* next character to consume *)
   }
 
-let init_state (c:code) (dir:direction) (str_size:int)=
-  { cp = init_cp dir str_size;
-    active = [init_thread ()];
+let init_state (c:code) (initcp:int) (initregs:cap_regs) (initmem:look_mem) =
+  { cp = initcp;
+    active = [init_thread initregs initmem];
     processed = init_pcset (size c);
     blocked = [];
     isblocked = init_pcset (size c);
@@ -297,10 +297,17 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
     (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
     
 
+let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_mem:look_mem): thread option =
+  if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
+  if verbose then Printf.printf "%s\n" (print_code c);
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_mem) o dir in
+  if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
+  result
+  
 let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c dir (String.length s)) o dir in
+  let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_mem()) ) o dir in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
 
