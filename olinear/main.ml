@@ -5,6 +5,7 @@ open Bytecode
 open Compiler
 open Interpreter
 open Linear
+open Tojs
 
 (** * Basic Testing *)
    
@@ -71,8 +72,14 @@ let build_oracle_tests () =
 
 let full_algo_tests () =
   let raw = Raw_con (Raw_char 'a', Raw_lookaround (Lookahead, Raw_capture(Raw_char 'b'))) in
-  let str = "ab" in
+  let str = "cab" in
   ignore(full_match ~verbose:true ~debug:true raw str)
+
+let compare_engines_tests() =
+  compare_engines (Raw_con (Raw_quant (Star, Raw_capture (Raw_char 'a')), Raw_char 'b')) "aaab";
+  compare_engines (Raw_char 'a') "b";
+  compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))) "ababab"
+  
   
 let tests () =
   Printf.printf "\027[32mTests: \027[0m\n\n";
@@ -83,8 +90,11 @@ let tests () =
   interpreter_tests();
   build_oracle_tests();
   full_algo_tests();
+  compare_engines_tests();
   Printf.printf "\027[32mTests passed\027[0m\n"
 
   
 let main =
   tests()
+  
+  

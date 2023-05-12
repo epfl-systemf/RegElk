@@ -323,7 +323,7 @@ let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle)
 (* extracting a capture group slice given its registers *)
 let print_slice (str:string) (startreg:int option) (endreg:int option) : string =
   match startreg with
-  | None -> "NONE"
+  | None -> "Undefined"
   | Some startv ->
      begin match endreg with
      | None -> failwith "startreg is set but not endreg"
@@ -335,7 +335,7 @@ let print_slice (str:string) (startreg:int option) (endreg:int option) : string 
 let print_cap_regs (c:cap_regs) (max_groups:int) (str:string) : string =
   let s = ref "" in
   for i = 0 to max_groups do
-    s := !s ^ "Group #" ^ string_of_int i ^ ": ";
+    s := !s ^ "#" ^ string_of_int i ^ ":";
     let startr = get_reg c (start_reg i) in
     let endr = get_reg c (end_reg i) in
     s := !s ^ print_slice str startr endr ^ "\n"
@@ -344,7 +344,7 @@ let print_cap_regs (c:cap_regs) (max_groups:int) (str:string) : string =
 
 let print_cap_option (c:cap_regs option) (max_groups:int) (str:string) : string =
   match c with
-  | None -> "No match"
+  | None -> "NoMatch\n"
   | Some ca -> print_cap_regs ca max_groups str
 
 let get_result (th:thread option) : cap_regs option =
@@ -352,8 +352,10 @@ let get_result (th:thread option) : cap_regs option =
   | None -> None
   | Some t -> Some (t.regs)
 
-let print_result (r:regex) (str:string) (c:cap_regs option) : string =
-  let s = ref ("Result of matching " ^ print_regex r ^ " on string " ^ str ^ " : \n") in
+let print_result ?(verbose=true) (r:regex) (str:string) (c:cap_regs option) : string =
+  let s = ref "" in
+  if verbose then
+    s := !s ^ ("Result of matching " ^ print_regex r ^ " on string " ^ str ^ " : \n");
   let max = max_group r in
-  !s ^ print_cap_option c max str
+  !s ^ print_cap_option c max str ^ "\n"
           

@@ -91,7 +91,7 @@ let rec print_regex (r:regex) : string =
   | Re_capture (cid, r1) -> "(" ^ print_regex r1 ^ ")" ^ "\027[33m" ^ string_of_int cid ^ "\027[0m"
   | Re_lookaround (lid, l, r1) -> "(" ^ "\027[36m" ^ string_of_int lid ^ "\027[0m" ^ print_lookaround l ^ print_regex r1 ^ ")"
 
-                   
+                                
 (** * Annotating Regexes  *)
 
 (* Adds annotation, identifiers for each capture group and lookaround *)
