@@ -6,6 +6,7 @@ open Compiler
 open Interpreter
 open Linear
 open Tojs
+open Diff_fuzzer
 
 (** * Basic Testing *)
    
@@ -95,6 +96,7 @@ let tests () =
 
   
 let main =
-  tests()
+  (* tests(); *)
+  fuzzer()
   
   
