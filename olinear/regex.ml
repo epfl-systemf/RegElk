@@ -195,3 +195,31 @@ let rec max_group (r:regex) : capture =
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_group r1) (max_group r2)
   | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
   | Re_capture (cid, r1) -> max cid (max_group r1)
+
+
+(** * Error Reporting  *)
+(* we want to be able to print exactly the AST to the console so that we can copy paste it when the fuzzer finds a crash *)
+let report_quant (q:quantifier) : string =
+  match q with
+  | Star -> "Star"
+  | LazyStar -> "LazyStar"
+  | Plus -> "Plus"
+  | LazyPlus -> "LazyPlus"
+
+let report_look (l:lookaround) : string =
+  match l with
+  | Lookahead -> "Lookahead"
+  | NegLookahead -> "NegLookahead"
+  | Lookbehind -> "Lookbehind"
+  | NegLookbehind -> "NegLookbehind"
+  
+let rec report_raw (raw:raw_regex) : string =
+  match raw with
+  | Raw_empty -> "Raw_empty"
+  | Raw_char x -> "Raw_char(\'"^String.make 1 x^"\')"
+  | Raw_dot -> "Raw_dot"
+  | Raw_alt (r1,r2) -> "Raw_alt("^report_raw r1^","^report_raw r2^")"
+  | Raw_con (r1,r2) -> "Raw_con("^report_raw r1^","^report_raw r2^")"
+  | Raw_quant (q,r1) -> "Raw_quant("^report_quant q^","^report_raw r1^")"
+  | Raw_capture r1 -> "Raw_capture("^report_raw r1^")"
+  | Raw_lookaround (l,r1) -> "Raw_lookaround("^report_look l^","^report_raw r1^")"

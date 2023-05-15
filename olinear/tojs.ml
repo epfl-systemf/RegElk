@@ -57,9 +57,12 @@ let get_js_result (raw:raw_regex) (str:string) : string =
 let compare_engines ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : unit =
   Printf.printf "\027[36mRegex:\027[0m %s || " (print_regex (annotate raw));
   Printf.printf "\027[36mJS Regex:\027[0m %s || " (print_js raw);
-  Printf.printf "\027[36mString:\027[0m %s\n\n%!" str;
+  Printf.printf "\027[36mString:\027[0m %s\n%!" str;
+  Printf.printf "%s\n%!" (report_raw raw);
   let sjs = get_js_result raw str in
   Printf.printf "\027[35mJS result:\027[0m\n%s%!" sjs;
   let sl = get_linear_result ~verbose ~debug raw str in
   Printf.printf "\027[35mLinear result:\027[0m\n%s%!" sl;
   assert (String.compare sjs sl = 0)
+
+
