@@ -44,8 +44,9 @@ type regex =
   | Re_dot                      (* any character. TODO: should I generalize to ranges? *)
   | Re_alt of regex * regex
   | Re_con of regex * regex
-  (* in [quant cstart cend q r] we describe that capture groups in the interval [cstart, cend[ are defined inside the quantifier *)
-  | Re_quant of capture * capture * quantifier * regex
+  (* in [quant cstart cend lstart lend q r] we describe that capture groups in the interval [cstart, cend[ are defined inside the quantifier *)
+  (* same for lookarounds in the interval [lstart, lend[  *)
+  | Re_quant of capture * capture * lookid * lookid * quantifier * regex
   | Re_capture of capture * regex
   | Re_lookaround of lookid * lookaround * regex
 
@@ -87,7 +88,7 @@ let rec print_regex (r:regex) : string =
   | Re_dot -> "."
   | Re_alt (r1, r2) -> print_regex r1 ^ "|" ^ print_regex r2
   | Re_con (r1, r2) -> print_regex r1 ^ print_regex r2
-  | Re_quant (_, _, q, r1) -> print_regex r1 ^ print_quant q
+  | Re_quant (_, _, _, _, q, r1) -> print_regex r1 ^ print_quant q
   | Re_capture (cid, r1) -> "(" ^ print_regex r1 ^ ")" ^ "\027[33m" ^ string_of_int cid ^ "\027[0m"
   | Re_lookaround (lid, l, r1) -> "(" ^ "\027[36m" ^ string_of_int lid ^ "\027[0m" ^ print_lookaround l ^ print_regex r1 ^ ")"
 
@@ -111,7 +112,7 @@ let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) : regex * capture *
      (Re_con (ar1, ar2), c2, l2)
   | Raw_quant (quant, r1) ->
      let (ar1, c1, l1) = annotate_regex r1 c l in
-     (Re_quant (c, c1, quant, ar1), c1, l1)
+     (Re_quant (c, c1, l, l1, quant, ar1), c1, l1)
   | Raw_capture r1 ->
      let (ar1, c1, l1) = annotate_regex r1 (c+1) l in
      (Re_capture (c, ar1), c1, l1)
@@ -127,7 +128,7 @@ let annotate (ra:raw_regex) : regex =
 
 (* Adds a .*? at the beginning of a regex so that it does not have to be matched at the beginning *)
 let lazy_prefix (r:regex) : regex =
-  Re_con (Re_quant (0, 0, LazyStar, Re_dot),r)
+  Re_con (Re_quant (0, 0, 0, 0, LazyStar, Re_dot),r)
 
 (** * Regex Manipulation  *)
 
@@ -140,7 +141,7 @@ let rec reverse_regex (r:regex) : regex =
   | Re_empty | Re_char _ | Re_dot -> r
   | Re_alt (r1, r2) -> Re_alt (reverse_regex r1, reverse_regex r2)
   | Re_con (r1, r2) -> Re_con (reverse_regex r2, reverse_regex r1) (* reversing concatenation *)
-  | Re_quant (cstart, cend, quant, r1) -> Re_quant (cstart, cend, quant, reverse_regex r1)
+  | Re_quant (cstart, cend, lstart, lend, quant, r1) -> Re_quant (cstart, cend, lstart, lend, quant, reverse_regex r1)
   | Re_capture (cid, r1) -> Re_capture (cid, reverse_regex r1)
   | Re_lookaround (lid, look, r1) -> Re_lookaround (lid, look, reverse_regex r1)
 
@@ -153,7 +154,10 @@ let rec remove_capture (r:regex) : regex =
   | Re_empty | Re_char _ | Re_dot -> r
   | Re_alt (r1, r2) -> Re_alt (remove_capture r1, remove_capture r2)
   | Re_con (r1, r2) -> Re_con (remove_capture r1, remove_capture r2)
-  | Re_quant (cstart, cend, quant, r1) -> Re_quant (cstart, cstart, quant, remove_capture r1) (* cend = cstart: empty interval *)
+  | Re_quant (cstart, cend, lstart, lend, quant, r1) ->
+     Re_quant (cstart, cstart, lstart, lstart, quant, remove_capture r1)
+  (* cend = cstart: empty interval *)
+  (* because this is used in the first stage, we can also have an empty interval for the lookarounds *)
   | Re_capture (cid, r1) -> remove_capture r1 (* removing the group entirely *)
   | Re_lookaround (lid, look, r1) -> Re_lookaround (lid, look, remove_capture r1)
 
@@ -169,7 +173,7 @@ let rec get_lookaround (r:regex) (lid:lookid) : (regex * lookaround) option =
      | Some le -> Some le
      | None -> get_lookaround r2 lid
      end
-  | Re_quant (_, _, _, r1) | Re_capture (_, r1)->
+  | Re_quant (_, _, _, _, _, r1) | Re_capture (_, r1)->
      get_lookaround r1 lid
   | Re_lookaround (l, look, r1) ->
      if (l = lid) then Some (r1, look)
@@ -186,14 +190,14 @@ let rec max_lookaround (r:regex) : lookid =
   match r with
   | Re_empty | Re_char _ | Re_dot -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_lookaround r1) (max_lookaround r2)
-  | Re_quant (_,_,_,r1) | Re_capture (_,r1) -> max_lookaround r1
+  | Re_quant (_,_,_,_,_,r1) | Re_capture (_,r1) -> max_lookaround r1
   | Re_lookaround (lid, look, r1) -> max lid (max_lookaround r1)
 
 let rec max_group (r:regex) : capture =
   match r with 
   | Re_empty | Re_char _ | Re_dot -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_group r1) (max_group r2)
-  | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
+  | Re_quant (_,_,_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
   | Re_capture (cid, r1) -> max cid (max_group r1)
 
 

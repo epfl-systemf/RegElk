@@ -82,6 +82,9 @@ type look_mem = int IntMap.t
 
 let set_mem (lm:look_mem) (lid:lookid) (cp:int) : look_mem =
   IntMap.add lid cp lm
+
+let clear_mem (lm:look_mem) (lid:lookid) : look_mem =
+  IntMap.remove lid lm
   
 let get_mem (lm:look_mem) (lid:lookid) : int option =
   IntMap.find_opt lid lm
@@ -238,6 +241,10 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | ClearRegister r ->
           t.regs <- clear_reg t.regs r;
+          t.pc <- t.pc + 1;
+          advance_epsilon ~debug c s o
+       | ClearMemory l ->
+          t.mem <- clear_mem t.mem l;
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | CheckOracle l ->

@@ -22,8 +22,22 @@ let rec clear_regs (cstart:capture) (nb:int) : instruction list =
 let clear_range (cstart:capture) (cend:capture) : instruction list =
   clear_regs cstart (cend - cstart)
 
+(** * Lookaround Memory  *)
+
+let rec clear_looks (lstart:lookid) (nb:int) : instruction list =
+  assert (nb >= 0);
+  if (nb = 0) then []
+  else (ClearMemory (lstart+nb-1))::(clear_looks lstart (nb-1))
+
+let clear_mem (lstart:lookid) (lend:lookid) : instruction list =
+  clear_looks lstart (lend - lstart)
+  
   
 (** * Compilation  *)
+  (* currently, we are quadratic because of list concatenation *)
+  (* our clearing of the registers and memory is also not optimal and can result in quadratic bytecode *)
+  (* experimental V8 has the same issue *)
+
   
 (* Recursively compiles a regex *)
 (* [fresh] is the next available instruction label *)
@@ -41,23 +55,24 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      let (l1, f1) = compile r1 (fresh+1) in
      let (l2, f2) = compile r2 (f1+1) in
      ([Fork (fresh+1, f1+1)] @ l1 @ [Jmp f2] @ l2, f2)
-  | Re_quant (cstart, cend, quant, r1) ->
+  | Re_quant (cstart, cend, lstart, lend, quant, r1) ->
      (* TODO IMPORTANT *)
      (* in a star, we should not only clear the capture regs but also the look memory *)
      let range = cend - cstart in
+     let look_range = lend - lstart in
      begin match quant with
      | Star ->
-        let (l1, f1) = compile r1 (fresh+1+range) in
-        ([Fork (fresh+1, f1+1)] @ clear_range cstart cend @ l1 @ [Jmp fresh], f1+1)
+        let (l1, f1) = compile r1 (fresh+1+range+look_range) in
+        ([Fork (fresh+1, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
      | LazyStar ->
-        let (l1, f1) = compile r1 (fresh+1+range) in
-        ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ l1 @ [Jmp fresh], f1+1)
+        let (l1, f1) = compile r1 (fresh+1+range+look_range) in
+        ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
      | Plus ->
         let (l1, f1) = compile r1 fresh in (* not clearing registers on the first iteration *)
-        (l1 @ [Fork (f1+1, f1+2+range)] @ clear_range cstart cend @ [Jmp fresh], f1+2+range )
+        (l1 @ [Fork (f1+1, f1+2+range+look_range)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range )
      | LazyPlus ->
         let (l1, f1) = compile r1 fresh in (* not clearing registers on the first iteration *)
-        (l1 @ [Fork (f1+2+range, f1+1)] @ clear_range cstart cend @ [Jmp fresh], f1+2+range )
+        (l1 @ [Fork (f1+2+range+look_range, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range )
      end
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) in
