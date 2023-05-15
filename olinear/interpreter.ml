@@ -338,7 +338,11 @@ let print_slice (str:string) (startreg:int option) (endreg:int option) : string 
      begin match endreg with
      | None -> failwith "startreg is set but not endreg"
      | Some endv ->
-        String.sub str startv (endv - startv)
+        if (endv >= startv) then
+          String.sub str startv (endv - startv)
+        else
+          String.sub str endv (startv - endv)
+                     (* capture groups defined in lookbehind have their capture regs reversed *)
      end
 
 (* printing all capture groups *)

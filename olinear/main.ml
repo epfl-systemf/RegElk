@@ -84,15 +84,16 @@ let compare_engines_tests() =
   
   
 (** * Gathering some errors found with the fuzzer *)
-let string_sub_errors : (raw_regex*string) list =
+let string_sub_errors : (raw_regex*string) list = (* FIXED! *)
   [(Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"bababaaabbacacbabbacabcccaaacaabccab");
    (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(Raw_empty,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_alt(Raw_lookaround(NegLookahead,Raw_dot),Raw_capture(Raw_dot)))))))),Raw_lookaround(Lookbehind,Raw_capture(Raw_dot))))),"bcacaaaacaabcbbcacaaacbbaabc");
-   (Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"cabacbbccbacbcbbccbaccbaccabbbaaa")]
+   (Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"cabacbbccbacbcbbccbaccbaccabbbaaa");
+   (Raw_lookaround(Lookbehind,Raw_capture(Raw_capture(Raw_dot))),"bbacccabbcccbcccaabcbabcaaacacacbbbcabbc")]
 
 let oracle_assert_errors : (raw_regex*string) list = (* FIXED! *)
   [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_char('a')))),"ccbba")]
   
-let expected_result_oracle_errors : (raw_regex*string) list = (* FIXED *)
+let expected_result_oracle_errors : (raw_regex*string) list = (* FIXED! *)
   [(Raw_lookaround(Lookbehind,Raw_char('b')),"bccaaacabcbcabaacbccaccbbbaaccccaabcac");
    (Raw_lookaround(Lookbehind,Raw_char('a')),"cabbcabcccacbbabcb")]
 
@@ -116,11 +117,12 @@ let tests () =
   build_oracle_tests();
   full_algo_tests();
   compare_engines_tests();
-  replay_bugs (oracle_assert_errors);
+  replay_bugs(oracle_assert_errors);
   replay_bugs(expected_result_oracle_errors);
+  replay_bugs(string_sub_errors);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
   
 let main =
-  (* tests() *)
-  fuzzer()
+  tests();
+  (* fuzzer() *)
