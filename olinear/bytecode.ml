@@ -23,18 +23,18 @@ type instruction =
   | WriteOracle of lookid       (* when we find a match, we write to the oracle at CP *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
-type code = instruction list
+type code = instruction Array.t
 (* TODO: a list has random access complexity O(n) *)
 (* I want a random access complexity of O(1) *)
 (* Because the code is accessed for each thread at a different pc *)
-(* Maybe I should instead put the code in an array of instructions? *)
+(* This is why we use an array instead of a list *)
 
 let get_instr (c:code) (pc:label) : instruction =
-  List.nth c pc
+  Array.get c pc
            (* this will probably change to an array access for O(1) complexity *)
 
 let size (c:code) : int =
-  List.length c
+  Array.length c
   
 (** * Bytecode Properties *)
           
@@ -46,7 +46,7 @@ let nb_epsilon_transition (i:instruction) : int =
   | _ -> 0 
            
 let nb_epsilon (c:code) : int =
-  List.fold_left (fun n i -> n + (nb_epsilon_transition i)) 0 c
+  Array.fold_left (fun n i -> n + (nb_epsilon_transition i)) 0 c
 
 
 (** * Bytecode Pretty-printing *)
@@ -64,10 +64,10 @@ let print_instruction (i:instruction) : string =
   | NegCheckOracle l -> "NegCheckOracle " ^ string_of_int l
   | WriteOracle l -> "WriteOracle " ^ string_of_int l
   
-let rec print_code (c:code) (pc:int) : string =
-  match c with
-  | [] -> ""
-  | i::c' -> "\027[33m" ^ string_of_int pc ^ ":\027[0m " ^print_instruction i ^ "\n" ^ print_code c' (pc+1)
-     
-let print_code (c:code) : string = print_code c 0
-                                 
+let rec print_code (c:code) : string =
+  let s = ref "" in
+  for i=0 to (size c)-1 do
+    s := !s ^ "\027[33m" ^ string_of_int i ^ ":\027[0m " ^ print_instruction (get_instr c i) ^ "\n"
+  done;
+  !s
+                               

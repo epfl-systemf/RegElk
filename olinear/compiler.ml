@@ -13,13 +13,13 @@ let end_reg (c:capture) : register = (2*c) + 1
 
 (* Clearing Start Registers *)
 (* Generating code to clear the start registers inside a quantifier to comply with the JS semantics *)
-let rec clear_regs (cstart:capture) (nb:int) : code =
+let rec clear_regs (cstart:capture) (nb:int) : instruction list =
   assert (nb >= 0);
   if (nb = 0) then []
   else (ClearRegister (start_reg (cstart+nb-1)))::(clear_regs cstart (nb-1))
 
 (* Clear the interval [cstart; cend[ *)
-let clear_range (cstart:capture) (cend:capture) : code =
+let clear_range (cstart:capture) (cend:capture) : instruction list =
   clear_regs cstart (cend - cstart)
 
   
@@ -28,7 +28,7 @@ let clear_range (cstart:capture) (cend:capture) : code =
 (* Recursively compiles a regex *)
 (* [fresh] is the next available instruction label *)
 (* also returns the next fresh label after compilation *)
-let rec compile (r:regex) (fresh:label) : code * label =
+let rec compile (r:regex) (fresh:label) : instruction list * label =
   match r with
   | Re_empty -> ([], fresh)
   | Re_char ch -> ([Consume ch], fresh+1)
@@ -73,11 +73,12 @@ let rec compile (r:regex) (fresh:label) : code * label =
 (* And a lazy star at the beginning *)
 let compile_to_bytecode (r:regex) : code =
   let (c,_) = compile r 0 in
-  c @ [Accept]
+  let full_c = c @ [Accept] in
+  Array.of_list full_c
 
 (* same but with a WriteOracle instruction instead of an Accept *)
 (* l is the current lookid we are compiling the regex for *)
 let compile_to_write (r:regex) (l:lookid): code =
   let (c,_) = compile r 0 in
-  c @ [WriteOracle l]
-        (* TODO: I'm probably forgetting a lazy star at the beginning *)
+  let full_c = c @ [WriteOracle l] in
+  Array.of_list full_c

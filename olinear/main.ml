@@ -36,7 +36,8 @@ let regex_tests () =
   assert (rc = Re_con(Re_lookaround (1, Lookbehind, Re_char 'a'), Re_char 'a'))
 
 let bytecode_tests () =
-  let bytecode = [Jmp 1; Fork (0,2); Accept] in
+  let code = [Jmp 1; Fork (0,2); Accept] in
+  let bytecode = Array.of_list code in
   Printf.printf "%s\n" (print_code bytecode);
   assert (nb_epsilon bytecode = 3)
 
@@ -44,7 +45,7 @@ let compiler_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
-  assert (code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
   Printf.printf "%s\n" (print_code code);
   assert(true)
 
@@ -102,4 +103,6 @@ let main =
   fuzzer ()
   (* INFINITE LOOP: *)
   (* let raw_test = Raw_quant (Plus, Raw_lookaround (Lookbehind, Raw_lookaround (NegLookbehind, Raw_capture (Raw_char 'b')))) in *)
-  
+         (* another example, without lookarounds: *)
+         (* ((+?)1|.a+?)0 *)
+         (* It's an issue with empty loops? I thought these worked in linear engines without particular care *)
