@@ -97,10 +97,14 @@ let tests () =
 
   
 let main =
+  (* let raw_test = Raw_quant (Star, Raw_lookaround (Lookahead, Raw_char 'b')) in
+   * compare_engines ~verbose:true ~debug:true raw_test "bb";
+   * () *)
+  fuzzer()
   (* let raw_test = Raw_quant (Plus, Raw_lookaround (Lookahead, Raw_lookaround (NegLookbehind, Raw_capture (Raw_char 'b')))) in
    * compare_engines ~verbose:true ~debug:true raw_test "bb"; *)
   (* tests(); *)
-  fuzzer ()
+  (* fuzzer () *)
   (* INFINITE LOOP: *)
   (* let raw_test = Raw_quant (Plus, Raw_lookaround (Lookbehind, Raw_lookaround (NegLookbehind, Raw_capture (Raw_char 'b')))) in *)
          (* another example, without lookarounds: *)

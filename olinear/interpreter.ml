@@ -200,6 +200,9 @@ let print_bestmatch (b:thread option) =
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
 let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle) (dir:direction): unit =
+  if debug then begin
+      (* Printf.printf "Epsilon active %s\n%!" (print_active s.active) *)
+    end;
   match s.active with
   | [] -> () (* done advancing epsilon transitions *)
   | t::ac -> (* t: highest priority active thread *)
@@ -207,6 +210,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
      if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
        begin s.active <- ac; advance_epsilon ~debug c s o dir end
      else
+       pc_add s.processed t.pc; (* adding the current pc being handled to the set of proccessed pcs *)
        begin match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t (Some x) s.blocked s.isblocked; (* also updates isblocked *)
@@ -277,13 +281,13 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
     begin
       Printf.printf "%s" (print_cp s.cp);
       Printf.printf "%s" (print_active s.active);
-      Printf.printf "%s" (print_bestmatch s.bestmatch);
+      Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
   (* follow epsilon transitions *)
   advance_epsilon ~debug c s o dir;
   if debug then
     begin
-      Printf.printf "%s\n" (print_blocked s.blocked);
+      Printf.printf "%s\n%!" (print_blocked s.blocked);
     end;
   (* read the next character *)
   let x = get_char str s.cp in
