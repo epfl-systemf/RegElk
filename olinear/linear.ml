@@ -27,7 +27,7 @@ let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
     let lookreg_rev = reverse_type looktype lookreg_nc in (* correct direction *)
     let lookreg = lazy_prefix lookreg_rev in              (* lazy star prefix *)
     let bytecode = compile_to_write lookreg lid in
-    let direction = oracle_direction looktype in 
+    let direction = oracle_direction looktype in
     ignore (matcher_interp ~verbose ~debug bytecode str o direction)
            (* we don't want the return value, we just want to write to the oracle *)
   done;
@@ -91,6 +91,6 @@ let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : cap
     Printf.printf "%s\n" (print_result re str ca);
   ca
             
-let get_linear_result (raw:raw_regex) (str:string) : string =
-  let capop = full_match ~verbose:false ~debug:false raw str in
-  print_result ~verbose:false (annotate raw) str capop
+let get_linear_result ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : string =
+  let capop = full_match ~verbose ~debug raw str in
+  print_result ~verbose (annotate raw) str capop

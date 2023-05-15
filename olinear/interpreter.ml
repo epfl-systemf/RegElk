@@ -18,6 +18,11 @@ type direction =
   | Forward
   | Backward
 
+let print_direction (d:direction) : string =
+  match d with
+  | Forward -> "Forward"
+  | Backward -> "Backward"
+
 let oracle_direction (l:lookaround) : direction =
   match l with
   | Lookahead | NegLookahead -> Backward
@@ -231,7 +236,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o dir
        | CheckOracle l ->
-          if (get_oracle o s.cp l)
+          if (get_oracle o (s.cp + cp_offset dir) l)
           then begin
               t.pc <- t.pc + 1; (* keeping the thread alive *)
               t.mem <- set_mem t.mem l s.cp (* remembering the cp where we last needed the oracle *)
@@ -239,7 +244,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o dir
        | NegCheckOracle l ->
-          if (get_oracle o s.cp l)
+          if (get_oracle o (s.cp + cp_offset dir) l)
           then s.active <- ac   (* killing the thread *)
           else t.pc <- t.pc + 1;(* keeping the thread alive *)
           advance_epsilon ~debug c s o dir
