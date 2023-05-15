@@ -83,6 +83,29 @@ let compare_engines_tests() =
   compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))) "ababab"
   
   
+(** * Gathering some errors found with the fuzzer *)
+let string_sub_errors : (raw_regex*string) list =
+  [(Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"bababaaabbacacbabbacabcccaaacaabccab");
+   (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(Raw_empty,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_alt(Raw_lookaround(NegLookahead,Raw_dot),Raw_capture(Raw_dot)))))))),Raw_lookaround(Lookbehind,Raw_capture(Raw_dot))))),"bcacaaaacaabcbbcacaaacbbaabc");
+   (Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"cabacbbccbacbcbbccbaccbaccabbbaaa")]
+
+let oracle_assert_errors : (raw_regex*string) list = (* FIXED! *)
+  [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_char('a')))),"ccbba")]
+  
+let expected_result_oracle_errors : (raw_regex*string) list = (* FIXED *)
+  [(Raw_lookaround(Lookbehind,Raw_char('b')),"bccaaacabcbcabaacbccaccbbbaaccccaabcac");
+   (Raw_lookaround(Lookbehind,Raw_char('a')),"cabbcabcccacbbabcb")]
+
+let different_results : (raw_regex*string) list =
+  [(Raw_quant(Plus,Raw_alt(Raw_quant(LazyStar,Raw_lookaround(NegLookbehind,Raw_con(Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_alt(Raw_char('c'),Raw_char('c')))),Raw_lookaround(NegLookbehind,Raw_quant(Plus,Raw_dot))))),Raw_dot)),"abacaaaacabaccbcabcacabccbcaacbabaa");
+   (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
+   (Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(Raw_char('b'),Raw_capture(Raw_empty)),Raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('c')))))))),Raw_quant(Plus,Raw_con(Raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
+
+let replay_bugs (l:(raw_regex*string) list) =
+  List.iter (fun (raw,str) -> compare_engines raw str) l
+
+
+(** * Running tests  *)
 let tests () =
   Printf.printf "\027[32mTests: \027[0m\n\n";
   oracle_tests();
@@ -93,38 +116,11 @@ let tests () =
   build_oracle_tests();
   full_algo_tests();
   compare_engines_tests();
+  replay_bugs (oracle_assert_errors);
+  replay_bugs(expected_result_oracle_errors);
   Printf.printf "\027[32mTests passed\027[0m\n"
-
-(** * Gathering some errors found with the fuzzer *)
-let string_sub_errors : (raw_regex*string) list =
-  [(Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"bababaaabbacacbabbacabcccaaacaabccab");
-   (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(Raw_empty,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_alt(Raw_lookaround(NegLookahead,Raw_dot),Raw_capture(Raw_dot)))))))),Raw_lookaround(Lookbehind,Raw_capture(Raw_dot))))),"bcacaaaacaabcbbcacaaacbbaabc");
-   (Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"cabacbbccbacbcbbccbaccbaccabbbaaa")]
-
-let oracle_assert_errors : (raw_regex*string) list =
-  [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_char('a')))),"ccbba")]
-  
-let expected_result_oracle_errors : (raw_regex*string) list =
-  [(Raw_lookaround(Lookbehind,Raw_char('b')),"bccaaacabcbcabaacbccaccbbbaaccccaabcac");
-   (Raw_lookaround(Lookbehind,Raw_char('a')),"cabbcabcccacbbabcb")]
-
-let different_results : (raw_regex*string) list =
-  [(Raw_quant(Plus,Raw_alt(Raw_quant(LazyStar,Raw_lookaround(NegLookbehind,Raw_con(Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_alt(Raw_char('c'),Raw_char('c')))),Raw_lookaround(NegLookbehind,Raw_quant(Plus,Raw_dot))))),Raw_dot)),"abacaaaacabaccbcabcacabccbcaacbabaa");
-   (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
-   (Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(Raw_char('b'),Raw_capture(Raw_empty)),Raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('c')))))))),Raw_quant(Plus,Raw_con(Raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
 
   
 let main =
-  (* let raw_test = Raw_quant (Star, Raw_lookaround (Lookahead, Raw_char 'b')) in
-   * compare_engines ~verbose:true ~debug:true raw_test "bb";
-   * () *)
+  (* tests() *)
   fuzzer()
-  (* let raw_test = Raw_quant (Plus, Raw_lookaround (Lookahead, Raw_lookaround (NegLookbehind, Raw_capture (Raw_char 'b')))) in
-   * compare_engines ~verbose:true ~debug:true raw_test "bb"; *)
-  (* tests(); *)
-  (* fuzzer () *)
-  (* INFINITE LOOP: *)
-  (* let raw_test = Raw_quant (Plus, Raw_lookaround (Lookbehind, Raw_lookaround (NegLookbehind, Raw_capture (Raw_char 'b')))) in *)
-         (* another example, without lookarounds: *)
-         (* ((+?)1|.a+?)0 *)
-         (* It's an issue with empty loops? I thought these worked in linear engines without particular care *)

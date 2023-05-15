@@ -43,7 +43,8 @@ let incr_cp (cp:int) (dir:direction) : int =
 let init_cp (dir:direction) (str_size:int) : int =
   match dir with
   | Forward -> 0
-  | Backward -> str_size - 1
+  | Backward -> str_size
+(* there are (str_size+1) distinct positions: before and after the string count *)
 
 (* when writing to the oracle, if we've been going backward we need an offset *)
 let cp_offset (dir:direction) : int =
@@ -199,7 +200,7 @@ let print_bestmatch (b:thread option) =
   
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
-let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle) (dir:direction): unit =
+let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle): unit =
   if debug then begin
       (* Printf.printf "Epsilon active %s\n%!" (print_active s.active) *)
     end;
@@ -208,55 +209,55 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
   | t::ac -> (* t: highest priority active thread *)
      let i = get_instr c t.pc in
      if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
-       begin s.active <- ac; advance_epsilon ~debug c s o dir end
+       begin s.active <- ac; advance_epsilon ~debug c s o end
      else
        pc_add s.processed t.pc; (* adding the current pc being handled to the set of proccessed pcs *)
        begin match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t (Some x) s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | ConsumeAll ->
           s.blocked <- add_thread t None s.blocked s.isblocked;
           s.active <- ac;
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | Accept ->              (* updates the best match and don't consider the remain active threads *)
           s.active <- [];
           s.bestmatch <- Some t;
           () (* no recursive call *)
        | Jmp x ->
           t.pc <- x;
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | Fork (x,y) ->            (* x has higher priority *)
           t.pc <- y;
           s.active <- {pc = x; regs = t.regs; mem = t.mem}::s.active;
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
           t.pc <- t.pc + 1;
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | ClearRegister r ->
           t.regs <- clear_reg t.regs r;
           t.pc <- t.pc + 1;
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | CheckOracle l ->
-          if (get_oracle o (s.cp + cp_offset dir) l)
+          if (get_oracle o s.cp l)
           then begin
               t.pc <- t.pc + 1; (* keeping the thread alive *)
               t.mem <- set_mem t.mem l s.cp (* remembering the cp where we last needed the oracle *)
             end
           else s.active <- ac;  (* killing the thread *)
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | NegCheckOracle l ->
-          if (get_oracle o (s.cp + cp_offset dir) l)
+          if (get_oracle o s.cp l)
           then s.active <- ac   (* killing the thread *)
           else t.pc <- t.pc + 1;(* keeping the thread alive *)
-          advance_epsilon ~debug c s o dir
+          advance_epsilon ~debug c s o
        | WriteOracle l ->
           (* we reached a match but we want to write that into the oracle. we don't discard lower priotity threads *)
           s.active <- ac;       (* no need to consider that thread anymore *)
-          set_oracle o (s.cp + cp_offset dir) l;    (* writing to the oracle *)
-          advance_epsilon ~debug c s o dir (* we keep searching for more matches *)
+          set_oracle o s.cp l;    (* writing to the oracle *)
+          advance_epsilon ~debug c s o (* we keep searching for more matches *)
        end
 
 let is_accepted (x:char) (o:char option): bool =
@@ -284,13 +285,13 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
   (* follow epsilon transitions *)
-  advance_epsilon ~debug c s o dir;
+  advance_epsilon ~debug c s o;
   if debug then
     begin
       Printf.printf "%s\n%!" (print_blocked s.blocked);
     end;
   (* read the next character *)
-  let x = get_char str s.cp in
+  let x = get_char str (s.cp - cp_offset dir)  in
   begin match x with
   | None -> s.bestmatch         (* we reached the end of the string *)
   | Some chr ->
