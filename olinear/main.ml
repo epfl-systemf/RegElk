@@ -104,15 +104,19 @@ let idk : (raw_regex*string) list = (* FIXED, but i don't know why *)
 let clear_mem : (raw_regex*string) list = (* FIXED! clear the lookaround memory in quantifiers *)
   [(Raw_quant(Star,Raw_alt(Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_capture(Raw_char('b')))),Raw_char('b'))),"abc")] 
 
-let double_quant : (raw_regex*string) list =
+let double_quant : (raw_regex*string) list = (* not fixed. not sure what we should do. maybe related to the empty problem *)
   [(Raw_quant(Plus,Raw_alt(Raw_quant(LazyStar,Raw_lookaround(NegLookbehind,Raw_con(Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_alt(Raw_char('c'),Raw_char('c')))),Raw_lookaround(NegLookbehind,Raw_quant(Plus,Raw_dot))))),Raw_dot)),"abacaaaacabaccbcabcacabccbcaacbabaa");
    (Raw_capture(Raw_quant(Plus,Raw_quant(LazyStar,Raw_dot))),"bacababaacbcabaabccccacca"); 
    (Raw_con(Raw_con(Raw_empty,Raw_capture(Raw_quant(Star,Raw_quant(LazyStar,Raw_dot)))),Raw_dot),"")]
 
-  
-let different_results : (raw_regex*string) list =
+let empty_problem : (raw_regex*string) list = (* not fixed. the problem comes from Raw_empty. If we replace it with dot, no issues *)
   [(Raw_con(Raw_lookaround(NegLookbehind,Raw_char('b')),Raw_quant(Plus,Raw_alt(Raw_empty,Raw_capture(Raw_dot)))),"bbccbacbccbcabbcbcaccccba");
-   (Raw_quant(Plus,Raw_alt(Raw_empty,Raw_con(Raw_alt(Raw_dot,Raw_alt(Raw_dot,Raw_empty)),Raw_alt(Raw_lookaround(Lookahead,Raw_char('b')),Raw_quant(LazyStar,Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_con(Raw_con(Raw_dot,Raw_capture(Raw_dot)),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_quant(LazyStar,Raw_empty))))))))))))))),"bbccaaccbbbaccabccbabccababc")]
+   (Raw_quant(Plus,Raw_alt(Raw_empty,Raw_con(Raw_alt(Raw_dot,Raw_alt(Raw_dot,Raw_empty)),Raw_alt(Raw_lookaround(Lookahead,Raw_char('b')),Raw_quant(LazyStar,Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_con(Raw_con(Raw_dot,Raw_capture(Raw_dot)),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_quant(LazyStar,Raw_empty))))))))))))))),"bbccaaccbbbaccabccbabccababc");
+   (Raw_alt(Raw_quant(Plus,Raw_alt(Raw_empty,Raw_dot)),Raw_capture(Raw_alt(Raw_dot,Raw_char('c')))),"bbccacccabcbaaabbabbbccccccacbaabacbc")]
+
+let different_results : (raw_regex*string) list =
+  []
+
 
 (* JS is stuck, but not our engine *)
 let stuck : (raw_regex*string) list =
@@ -143,7 +147,7 @@ let tests () =
   
 let main =
   (* tests(); *)
-  fuzzer()
-  (* get_linear_result ~debug:true ~verbose:true (Raw_capture(Raw_quant(Star,Raw_quant(LazyStar,Raw_dot)))) "b";
-   * compare_engines (Raw_capture(Raw_quant(Plus,Raw_quant(LazyStar,Raw_dot)))) "b" *)
+  (* fuzzer() *)
+  compare_engines (Raw_alt(Raw_quant(Plus,Raw_alt(Raw_dot,Raw_dot)),Raw_capture(Raw_alt(Raw_dot,Raw_char('c'))))) "bbccacccabcbaaabbabbbccccccacbaabacbc"
+  
     
