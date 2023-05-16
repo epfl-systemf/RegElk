@@ -66,7 +66,10 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
         ([Fork (fresh+1, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
      | LazyStar ->
         let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-        ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
+        ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
+     (* Old version, has a bug on (.*?)* *)
+        (* let (l1, f1) = compile r1 (fresh+1+range+look_range) in
+         * ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1) *)
      | Plus ->
         (* Compiling as a concatenation *)
         (* This may duplicates capture groups numbers *)
