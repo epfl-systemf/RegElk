@@ -6,7 +6,7 @@ open Array
 type oracle = bool Array.t Array.t 
 
 let create_oracle (str_size:int) (look_nb:int): oracle =
-  assert (str_size > 0);
+  assert (str_size >= 0);
   Array.make_matrix (str_size+1) look_nb false
 
 (* we only allow setting to true, there's no reason to set an entry of the table back to false *)

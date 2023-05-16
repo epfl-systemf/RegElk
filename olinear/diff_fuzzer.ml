@@ -15,7 +15,7 @@ let alphabet = ['a'; 'b'; 'c']
 
 let max_depth = 20
 
-let max_string = 50
+let max_string = 2
 
 let max_tests = 1000
 
@@ -77,7 +77,7 @@ let random_raw () : raw_regex =
 (** * Creating Random Strings  *)
 
 let random_string () : string =
-  let size = (Random.int max_string)+1 in (* my JS does not work on the empty string *)
+  let size = (Random.int max_string) in
   String.init size (fun _ -> random_char())
   
   

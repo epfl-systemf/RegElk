@@ -48,7 +48,7 @@ let string_of_command (command:string) : string =
 let get_js_result (raw:raw_regex) (str:string) : string =
   let js_regex = print_js raw in
   let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
-  let js_command = "node jsmatcher.js " ^ js_regex ^ " " ^ str in
+  let js_command = "node jsmatcher.js " ^ js_regex ^ " " ^ "'"^str^"'" in
   string_of_command(js_command)
 
   
