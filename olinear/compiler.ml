@@ -68,11 +68,17 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
         let (l1, f1) = compile r1 (fresh+1+range+look_range) in
         ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
      | Plus ->
-        let (l1, f1) = compile r1 fresh in (* not clearing registers on the first iteration *)
-        (l1 @ [Fork (f1+1, f1+2+range+look_range)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range )
+        (* Compiling as a concatenation *)
+        (* This may duplicates capture groups numbers *)
+        compile (Re_con(r1,Re_quant(cstart,cend,lstart,lend,Star,r1))) fresh
+     (* Old version *)
+        (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
+         * (l1 @ [Fork (f1+1, f1+2+range+look_range)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
      | LazyPlus ->
-        let (l1, f1) = compile r1 fresh in (* not clearing registers on the first iteration *)
-        (l1 @ [Fork (f1+2+range+look_range, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range )
+        (* same thing *)
+        compile (Re_con(r1,Re_quant(cstart,cend,lstart,lend,LazyStar,r1))) fresh
+        (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
+         * (l1 @ [Fork (f1+2+range+look_range, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
      end
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) in
