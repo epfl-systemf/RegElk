@@ -7,6 +7,7 @@ open Interpreter
 open Linear
 open Tojs
 open Diff_fuzzer
+open Complexity_exp
 
 (** * Basic Testing *)
    
@@ -149,7 +150,8 @@ let tests () =
   
 let main =
   (* tests() *)
-  fuzzer()
+  (* fuzzer() *)
+  lookahead_star_test("lookahead_star.data")
     
 
   

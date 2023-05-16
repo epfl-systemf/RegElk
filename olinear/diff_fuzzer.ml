@@ -13,9 +13,9 @@ let _ = Random.self_init()
 (* we restrict ourselves to a small alphabet *)
 let alphabet = ['a'; 'b'; 'c']
 
-let max_depth = 20
+let max_depth = 50
 
-let max_string = 2
+let max_string = 100
 
 let max_tests = 1000
 
