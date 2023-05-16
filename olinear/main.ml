@@ -119,7 +119,7 @@ let different_results : (raw_regex*string) list =
   []
 
 
-(* JS is stuck, but not our engine *)
+(* JS is stuck (timeout), but not our engine *)
 let stuck : (raw_regex*string) list =
   [(Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_dot),Raw_quant(LazyPlus,Raw_capture(Raw_con(Raw_quant(Star,Raw_char('a')),Raw_con(Raw_alt(Raw_empty,Raw_dot),Raw_dot)))))),"cbabbccccbbcccaaaaaccabccbaabaabcaaacbca")]
   
@@ -150,9 +150,9 @@ let tests () =
   
 let main =
   (* tests() *)
-  (* fuzzer() *)
-  lookahead_star_test("lookahead_star.data")
-    
+  fuzzer()
+  (* lookahead_star_test("lookahead_star.data") *)
+  (* lookahead_nested_test("lookahead_nested.data") *)
 
   
     
