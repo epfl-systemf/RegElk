@@ -5,3 +5,7 @@ clean:
 	-rm -R _build
 	-rm main.native
 	-rm *.data
+
+clean_data:
+	-rm *.csv
+	-rm *.jpg

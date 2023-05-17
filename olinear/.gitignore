@@ -1,3 +1,4 @@
 _build/
 main.native
-*.data
+*.csv
+*.jpg

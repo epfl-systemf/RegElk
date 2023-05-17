@@ -150,9 +150,7 @@ let tests () =
   
 let main =
   (* tests() *)
-  fuzzer()
-  (* lookahead_star_test("lookahead_star.data") *)
-  (* lookahead_nested_test("lookahead_nested.data") *)
-
+  (* fuzzer() *)
+  run_benchmark(double_star_explosion);
   
     
