@@ -51,6 +51,12 @@ let get_js_result (raw:raw_regex) (str:string) : string =
   let js_command = "node jsmatcher.js " ^ js_regex ^ " " ^ "'"^str^"'" in
   string_of_command(js_command)
 
+(* calling the JS timer that starts and ends its timer just before and after matching the regex *)
+let get_time_js (raw:raw_regex) (str:string) : string =
+  let js_regex = print_js raw in
+  let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
+  let js_command = "node jstimer.js " ^ js_regex ^ " " ^ "'"^str^"'" in
+  string_of_command(js_command)
   
 (** *  Comparing JS engine with our engine *)
   

@@ -9,55 +9,63 @@ open Regex
 open Tojs
 open Linear
 open Sys
-
+open Unix
+open Gc
+   
 (** * A Benchmark Framework  *)
 (* Regexes and strings parameterized with a size *)
 type reg_param = int -> raw_regex
 type str_param = int -> string
 
 (* either we make the regex size vary or the string size *)
-(* last string is a name, the ints are the bounds for the variation *)
+(* last string is a name *)
+(* first int is the minimum size *)
+(* second size is the maximum JS size *)
+(* third int is the maximum OCaml size *)
 type benchmark =
-   | RegSize of (reg_param * string * int * int * string) 
-   | StrSize of (raw_regex * str_param * int * int * string)
+   | RegSize of (reg_param * string * int * int * int * string) 
+   | StrSize of (raw_regex * str_param * int * int * int * string)
 
-                        
-let get_time_js (r:raw_regex) (str:string) : float =
-  let tstart = Sys.time() in
-  ignore(get_js_result r str);
-  let tend = Sys.time() in
-  tend -. tstart
 
 let get_time_ocaml (r:raw_regex) (str:string) : float =
-  let tstart = Sys.time() in
+  Gc.full_major();               (* triggering the GC *)
+  let tstart = Unix.gettimeofday() in
   ignore(get_linear_result r str);
-  let tend = Sys.time() in
+  let tend = Unix.gettimeofday() in
   tend -. tstart
 
 (* writes to a csv file and plots the result *)
 let run_benchmark (b:benchmark) : unit =
   match b with
-  | RegSize (rp, str, min, max, name) -> 
+  | RegSize (rp, str, min, max_js, max_ocaml, name) -> 
      let oc = open_out (name^".csv") in
-     for i = min to max do
-       Printf.printf "%s\r\n%!" (string_of_int i); (* live update *)
+     for i = min to max_ocaml do
+       Printf.printf "%s\r%!" (string_of_int i); (* live update *)
        let reg = rp i in
        let tocaml = get_time_ocaml reg str in
-       let tjs = get_time_js reg str in
-       Printf.fprintf oc "%d,%f,%f\n" i tocaml tjs
+       Printf.fprintf oc "%d,%f" i tocaml;
+       if (i <= max_js) then begin 
+           let tjs = get_time_js reg str in
+           Printf.fprintf oc ",%s" tjs
+         end;
+       Printf.fprintf oc "\n"
      done;
      close_out oc;
      (* plotting the results *)
      let command = "python3 plot_exps.py " ^ name ^ " RegexSize " ^ " &" in
      ignore(string_of_command command)
-  | StrSize (reg, strp, min, max, name) ->
+  | StrSize (reg, strp, min, max_js, max_ocaml, name) ->
      let oc = open_out (name^".csv") in
-     for i = min to max do
+     for i = min to max_ocaml do
        Printf.printf "%s\r%!" (string_of_int i); (* live update *)
        let str = strp i in
        let tocaml = get_time_ocaml reg str in
-       let tjs = get_time_js reg str in
-       Printf.fprintf oc "%d,%f,%f\n" i tocaml tjs
+       Printf.fprintf oc "%d,%f" i tocaml;
+       if (i <= max_js) then begin
+           let tjs = get_time_js reg str in
+           Printf.fprintf oc ",%s" tjs
+         end;
+       Printf.fprintf oc "\n"
      done;
      close_out oc;
      (* plotting the results *)
@@ -76,7 +84,7 @@ let a_repeat_b : str_param = fun str_size ->
   (String.make str_size 'a') ^ (String.make 1 'b')
 
 let lookahead_star : benchmark =
-  StrSize (lookahead_star_reg, a_repeat_b, 0, 500, "Lookahead_Star")
+  StrSize (lookahead_star_reg, a_repeat_b, 0, 500, 500, "Lookahead_Star")
   
 (** * Nested Lookaheads  *)
 
@@ -90,7 +98,7 @@ let nested_string : string =
   String.make 500 'a'
 
 let lookahead_nested : benchmark =
-  RegSize (nested_lookahead_reg, nested_string, 0, 500, "Lookahead_Nested")
+  RegSize (nested_lookahead_reg, nested_string, 0, 500, 500, "Lookahead_Nested")
 
 
 (** * Double Star Explosion  *)
@@ -102,4 +110,4 @@ let a_repeat : str_param = fun str_size ->
   String.make str_size 'a'
 
 let double_star_explosion : benchmark =
-  StrSize (explosion_reg, a_repeat, 0, 34, "DoubleStarExplosion")
+  StrSize (explosion_reg, a_repeat, 0, 34, 100, "DoubleStarExplosion")
