@@ -151,6 +151,6 @@ let tests () =
 let main =
   (* tests() *)
   (* fuzzer() *)
-  run_benchmark(lookahead_nested);
+  run_benchmark(possibly_quadratic);
   
     

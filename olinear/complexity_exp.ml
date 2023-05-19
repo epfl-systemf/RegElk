@@ -121,3 +121,20 @@ let a_repeat : str_param = fun str_size ->
 
 let double_star_explosion : benchmark =
   StrSize (explosion_reg, a_repeat, 0, 34, 300, "DoubleStarExplosion")
+
+
+(** * Possibly Quadratic  *)
+(* because of the way we clear capture gristers (same in Experimental) *)
+(* our bytecode might be quadratic in the regex size, and thus execution time could be as well *)
+  
+
+let rec quadratic_bytecode : reg_param = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_dot
+  | _ -> Raw_quant(Star, Raw_capture (quadratic_bytecode (reg_size-1)))
+
+let quadratic_string : string =
+  String.make 100 'b'
+
+let possibly_quadratic : benchmark =
+  RegSize (quadratic_bytecode, quadratic_string, 0, 200, 200, "PossiblyQuadratic")
