@@ -38,34 +38,44 @@ let get_time_ocaml (r:raw_regex) (str:string) : float =
 let run_benchmark (b:benchmark) : unit =
   match b with
   | RegSize (rp, str, min, max_js, max_ocaml, name) -> 
-     let oc = open_out (name^".csv") in
+     let oc = open_out (name^"_ocaml.csv") in
      for i = min to max_ocaml do
-       Printf.printf "%s\r%!" (string_of_int i); (* live update *)
+       Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let reg = rp i in
        let tocaml = get_time_ocaml reg str in
-       Printf.fprintf oc "%d,%f" i tocaml;
-       if (i <= max_js) then begin 
-           let tjs = get_time_js reg str in
-           Printf.fprintf oc ",%s" tjs
-         end;
-       Printf.fprintf oc "\n"
+       Printf.fprintf oc "%d,%f\n" i tocaml;
+     done;
+     close_out oc;
+     Printf.printf "      \r%!";
+     Unix.sleep 1;
+     let oc = open_out (name^"_js.csv") in
+     for i = min to max_js do
+       Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+       let reg = rp i in
+       let tjs = get_time_js reg str in
+       Printf.fprintf oc "%d,%s\n" i tjs;
      done;
      close_out oc;
      (* plotting the results *)
      let command = "python3 plot_exps.py " ^ name ^ " RegexSize " ^ " &" in
      ignore(string_of_command command)
   | StrSize (reg, strp, min, max_js, max_ocaml, name) ->
-     let oc = open_out (name^".csv") in
+     let oc = open_out (name^"_ocaml.csv") in
      for i = min to max_ocaml do
-       Printf.printf "%s\r%!" (string_of_int i); (* live update *)
+       Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let str = strp i in
        let tocaml = get_time_ocaml reg str in
-       Printf.fprintf oc "%d,%f" i tocaml;
-       if (i <= max_js) then begin
-           let tjs = get_time_js reg str in
-           Printf.fprintf oc ",%s" tjs
-         end;
-       Printf.fprintf oc "\n"
+       Printf.fprintf oc "%d,%f\n" i tocaml;
+     done;
+     close_out oc;
+     Printf.printf "      \r%!";
+     Unix.sleep 1;
+     let oc = open_out (name^"_js.csv") in
+     for i = min to max_js do
+       Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+       let str = strp i in
+       let tjs = get_time_js reg str in
+       Printf.fprintf oc "%d,%s\n" i tjs;
      done;
      close_out oc;
      (* plotting the results *)
@@ -84,7 +94,7 @@ let a_repeat_b : str_param = fun str_size ->
   (String.make str_size 'a') ^ (String.make 1 'b')
 
 let lookahead_star : benchmark =
-  StrSize (lookahead_star_reg, a_repeat_b, 0, 500, 500, "Lookahead_Star")
+  StrSize (lookahead_star_reg, a_repeat_b, 0, 1000, 1000, "Lookahead_Star")
   
 (** * Nested Lookaheads  *)
 
@@ -95,7 +105,7 @@ let rec nested_lookahead_reg : reg_param = fun reg_size ->
   | _ -> Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,nested_lookahead_reg(reg_size-1)))
 
 let nested_string : string =
-  String.make 500 'a'
+  String.make 600 'a'
 
 let lookahead_nested : benchmark =
   RegSize (nested_lookahead_reg, nested_string, 0, 500, 500, "Lookahead_Nested")
@@ -110,4 +120,4 @@ let a_repeat : str_param = fun str_size ->
   String.make str_size 'a'
 
 let double_star_explosion : benchmark =
-  StrSize (explosion_reg, a_repeat, 0, 34, 100, "DoubleStarExplosion")
+  StrSize (explosion_reg, a_repeat, 0, 34, 300, "DoubleStarExplosion")

@@ -3,17 +3,21 @@ from matplotlib import pyplot as plt
 import csv
 import sys
 
-columns = ["Size", "OCaml", "JS"]
-data = pd.read_csv(sys.argv[1]+".csv", names=columns)
+columns_ocaml = ["Size", "OCaml"]
+data_ocaml = pd.read_csv(sys.argv[1]+"_ocaml.csv", names=columns_ocaml)
+
+columns_js = ["Size", "JS"]
+data_js = pd.read_csv(sys.argv[1]+"_js.csv", names=columns_js)
+
 figure, axis = plt.subplots(3,1)
 
 figure.set_figwidth(16)
 figure.set_figheight(16)
 
-axis[0].plot(data.Size.values,data.OCaml.values,label="OCaml",color='b')
-axis[1].plot(data.Size.values,data.OCaml.values,label="OCaml",color='b')
-axis[0].plot(data.Size.values,data.JS.values,label="JS",color='m')
-axis[2].plot(data.Size.values,data.JS.values,label="JS",color='m')
+axis[0].plot(data_ocaml.Size.values,data_ocaml.OCaml.values,label="OCaml",color='b')
+axis[1].plot(data_ocaml.Size.values,data_ocaml.OCaml.values,label="OCaml",color='b')
+axis[0].plot(data_js.Size.values,data_js.JS.values,label="JS",color='m')
+axis[2].plot(data_js.Size.values,data_js.JS.values,label="JS",color='m')
 
 axis[0].legend(loc="upper left")
 axis[1].legend(loc="upper left")
