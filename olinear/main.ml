@@ -120,12 +120,18 @@ let different_results : (raw_regex*string) list =
 
 
 (* JS is stuck (timeout), but not our engine *)
-let stuck : (raw_regex*string) list =
-  [(Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_dot),Raw_quant(LazyPlus,Raw_capture(Raw_con(Raw_quant(Star,Raw_char('a')),Raw_con(Raw_alt(Raw_empty,Raw_dot),Raw_dot)))))),"cbabbccccbbcccaaaaaccabccbaabaabcaaacbca")]
+let redos : (raw_regex*string) list =
+  [(Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_dot),Raw_quant(LazyPlus,Raw_capture(Raw_con(Raw_quant(Star,Raw_char('a')),Raw_con(Raw_alt(Raw_empty,Raw_dot),Raw_dot)))))),"cbabbccccbbcccaaaaaccabccbaabaabcaaacbca");
+   (Raw_con(Raw_con(Raw_lookaround(Lookahead,Raw_capture(Raw_capture(Raw_dot))),Raw_capture(Raw_alt(Raw_lookaround(Lookahead,Raw_dot),Raw_alt(Raw_con(Raw_capture(Raw_quant(Star,Raw_char('c'))),Raw_capture(Raw_char('a'))),Raw_alt(Raw_capture(Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)))),Raw_capture(Raw_alt(Raw_alt(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_con(Raw_capture(Raw_dot),Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(Raw_char('a'),Raw_quant(LazyPlus,Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_empty))),Raw_quant(Plus,Raw_alt(Raw_dot,Raw_capture(Raw_capture(Raw_dot))))))))),Raw_empty)))),Raw_lookaround(Lookahead,Raw_char('c')))))),Raw_dot),Raw_dot))))))),Raw_con(Raw_alt(Raw_con(Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_con(Raw_capture(Raw_char('b')),Raw_alt(Raw_empty,Raw_char('c'))))),Raw_dot),Raw_dot),Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_empty)))),Raw_lookaround(NegLookahead,Raw_alt(Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_lookaround(Lookbehind,Raw_empty)),Raw_lookaround(Lookahead,Raw_empty))))),"ccaacababbbcccbbbabcbbbccaaabccacbcb");
+   (Raw_capture(Raw_alt(Raw_alt(Raw_con(Raw_alt(Raw_lookaround(NegLookbehind,Raw_con(Raw_con(Raw_alt(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_empty))))))),Raw_empty),Raw_alt(Raw_char('a'),Raw_capture(Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_con(Raw_con(Raw_capture(Raw_alt(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_char('a'))))),Raw_char('b'))),Raw_empty),Raw_lookaround(Lookbehind,Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,Raw_dot),Raw_empty)))),Raw_quant(LazyPlus,Raw_con(Raw_dot,Raw_quant(Star,Raw_alt(Raw_con(Raw_lookaround(NegLookahead,Raw_lookaround(Lookbehind,Raw_char('a'))),Raw_capture(Raw_dot)),Raw_capture(Raw_con(Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_empty)),Raw_capture(Raw_char('c'))))))))),Raw_char('b')),Raw_empty)))))))),Raw_lookaround(NegLookahead,Raw_con(Raw_capture(Raw_char('a')),Raw_con(Raw_empty,Raw_lookaround(Lookahead,Raw_quant(Star,Raw_char('c')))))))),Raw_alt(Raw_con(Raw_con(Raw_alt(Raw_lookaround(Lookbehind,Raw_capture(Raw_lookaround(Lookbehind,Raw_dot))),Raw_con(Raw_con(Raw_capture(Raw_lookaround(NegLookbehind,Raw_char('b'))),Raw_quant(LazyPlus,Raw_quant(Star,Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_capture(Raw_capture(Raw_capture(Raw_dot)))),Raw_dot))))),Raw_capture(Raw_capture(Raw_char('c'))))),Raw_con(Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_capture(Raw_char('b')))),Raw_capture(Raw_alt(Raw_con(Raw_dot,Raw_quant(Star,Raw_char('b'))),Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_char('c'))),Raw_dot)))))))),Raw_quant(Plus,Raw_empty)),Raw_quant(Plus,Raw_empty))),Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(NegLookbehind,Raw_empty)))),Raw_char('b')),Raw_char('b'))),"acccbcabbacbccbccbbcbbaa")]
   
+(* re-checking a list of previous bugs *)
 let replay_bugs (l:(raw_regex*string) list) =
   List.iter (fun (raw,str) -> compare_engines raw str) l
 
+(* just checking that our engine is not stuck on the REDOS regexes *)
+let replay_stuck (l:(raw_regex*string) list) =
+  List.iter (fun (raw,str) -> ignore(full_match raw str)) l
 
 (** * Running tests  *)
 let tests () =
@@ -145,12 +151,13 @@ let tests () =
   replay_bugs(clear_mem);
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
+  replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
   
 let main =
-  (* tests() *)
+  tests()
   (* fuzzer() *)
-  run_benchmark(possibly_quadratic);
+  (* run_benchmark(possibly_quadratic); *)
   
     
