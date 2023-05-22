@@ -76,6 +76,7 @@ We consider the following grammar of regular expressions:
 \def\re{\ensuremath{\mathit{e}}}
 \def\char{\ensuremath{\mathit{c}}}
 \def\quant{\ensuremath{\mathit{q}}}
+\def\look{\ensuremath{\mathit{lk}}}
 
 \begin{figure}[h]
   \begin{syntax}
@@ -85,16 +86,23 @@ We consider the following grammar of regular expressions:
 &\mid& \re_1 \tregex{|} \re_2 & Union\\
 &\mid&  \re ~ \quant & Quantifier \\
 &\mid&  \tregex{(}\re\tregex{)} & Capture Group \\
-&\mid& \tregex{(?=}\re\tregex{)} & Positive Lookahead \\
-&\mid& \tregex{(?!}\re\tregex{)} & Negative Lookahead \\
-&\mid& \tregex{(?<=}\re\tregex{)} & Positive Lookbehind \\
-&\mid& \tregex{(?<!}\re\tregex{)} & Negative Lookbehind \\
+&\mid& \tregex{(}\look~\re\tregex{)} & Lookaround \\
+%% &\mid& \tregex{(?=}\re\tregex{)} & Positive Lookahead \\
+%% &\mid& \tregex{(?!}\re\tregex{)} & Negative Lookahead \\
+%% &\mid& \tregex{(?<=}\re\tregex{)} & Positive Lookbehind \\
+%% &\mid& \tregex{(?<!}\re\tregex{)} & Negative Lookbehind \\
 %
 \syntaxclass{Quantifiers:}
 \quant & ::=& \tregex{*} & Greedy Star\\
 &\mid& \tregex{*?} & Lazy Star\\
 &\mid& \tregex{+} & Greedy Plus\\
 &\mid& \tregex{+?} & Lazy Plus\\
+%
+\syntaxclass{Lookarounds:}
+\look & ::=& \tregex{?=} & Positive Lookahead\\
+&\mid& \tregex{?!} & Negative Lookahead\\
+&\mid& \tregex{<=} & Positive Lookbehind\\
+&\mid& \tregex{<!} & Negative Lookbehind\\
   \end{syntax}
 \end{figure}
 
@@ -132,6 +140,7 @@ If the regular expression inside a quantifier does not consume any character, th
 For instance, when matching \regex{(?=(a))*a} on string \str{a}, capture group \group{1} will be \undef.
 This property holds for the JS regex language, but the behavior differs in the regex languages of Perl, Python, Java and .NET.
 
+\todo{add a property about empty captures and lazy stars}
 
 \section{A Linear Algorithm for Loookarounds and Capture Groups}
 
