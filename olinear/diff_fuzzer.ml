@@ -42,29 +42,31 @@ let random_look () : lookaround =
   | _ -> failwith "random range error"
 
 (* with a maximal number of recursion [depth] *)
-let rec random_regex (depth:int) : raw_regex =
-  let rand = if (depth=0) then Random.int 3 else Random.int 10 in
+(* the [look] boolean specifies if lookarounds are allowed *)
+let rec random_regex (depth:int) (look:bool): raw_regex =
+  let max = if look then 10 else 8 in
+  let rand = if (depth=0) then Random.int 3 else Random.int max in
   match rand with
   | 0 -> Raw_empty
   | 1 -> let x = random_char() in Raw_char x
   | 2 -> Raw_dot
   | 3 ->
-     let r1 = random_regex (depth-1) in
-     let r2 = random_regex (depth-1) in
+     let r1 = random_regex (depth-1) look in
+     let r2 = random_regex (depth-1) look in
      Raw_alt (r1, r2)
   | 4 ->
-     let r1 = random_regex (depth-1) in
-     let r2 = random_regex (depth-1) in
+     let r1 = random_regex (depth-1) look in
+     let r2 = random_regex (depth-1) look in
      Raw_con (r1, r2)
   | 5 ->
-     let r1 = random_regex (depth-1) in
+     let r1 = random_regex (depth-1) look in
      let q = random_quant() in
      Raw_quant(q, r1)
   | 6 | 7 ->
-     let r1 = random_regex (depth-1) in
+     let r1 = random_regex (depth-1) look in
      Raw_capture(r1)
   | 8 | 9 ->
-     let r1 = random_regex (depth-1) in
+     let r1 = random_regex (depth-1) look in
      let l = random_look() in
      Raw_lookaround(l, r1)
   | _ -> failwith "random range error"
@@ -72,7 +74,7 @@ let rec random_regex (depth:int) : raw_regex =
 
 let random_raw () : raw_regex =
   let max = Random.int max_depth in
-  random_regex (max)
+  random_regex max true
 
 (** * Creating Random Strings  *)
 
