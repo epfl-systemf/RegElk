@@ -7,6 +7,7 @@ open Interpreter
 open Linear
 open Tojs
 open Tore2
+open Toexp
 open Diff_fuzzer
 open Complexity_exp
 
@@ -161,4 +162,5 @@ let main =
   (* tests() *)
   (* fuzzer() *)
   (* run_benchmark(possibly_quadratic); *)
-  Printf.printf "%s\n" (get_re2_result (Raw_quant(Star,Raw_dot)) "aba")
+  Printf.printf "%s\n" (get_re2_result (Raw_quant(Star,Raw_dot)) "aba");
+  Printf.printf "%s\n" (get_experimental_result (Raw_quant(Star,Raw_dot)) "aba")

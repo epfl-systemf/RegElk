@@ -23,16 +23,15 @@ function result_to_string (result) {
 }
 
 // calling the regex engine
-function matcher () {
-    // getting the command line arguments
-    const regex = process.argv[2];
-    const string = process.argv[3];
-    // building the regex
-    const re = new RegExp(regex);
+function matcher (regex, string) {
+    // building the regex with the linear flag
+    const re = new RegExp(regex,"l");
     // matching the regex
     const result = string.match(re);
     console.log(result_to_string(result));
     return 0;
 }
 
-matcher();
+const regex = arguments[0];
+const string = arguments[1];
+matcher(regex, string);
