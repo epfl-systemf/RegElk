@@ -5,7 +5,7 @@ function timer() {
     const regex = process.argv[2];
     const string = process.argv[3];
     // building the regex
-    const re = new RegExp(regex);
+    const re = new RegExp(regex,"l");
     // matching the regex
     let start = performance.now();
     const result = string.match(re);

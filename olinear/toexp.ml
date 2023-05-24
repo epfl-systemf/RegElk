@@ -36,5 +36,14 @@ let get_experimental_result (raw:raw_regex) (str:string) : string =
   let js_regex = print_exp raw in
   let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
   let js_string = "'"^str^"'" in
-  let js_command = "~/v8/v8/out/x64.release/d8 --enable-experimental-regexp-engine expmatcher.js -- " ^ js_regex ^ " " ^ js_string in
+  let js_command = "node --enable-experimental-regexp-engine expmatcher.js " ^ js_regex ^ " " ^ js_string in
+  string_of_command(js_command)
+
+
+(* calling the Experimental timer that starts and ends its timer just before and after matching the regex *)
+let get_time_experimental (raw:raw_regex) (str:string) : string =
+  let js_regex = print_exp raw in
+  let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
+  let js_string = "'"^str^"'" in
+  let js_command = "node --enable-experimental-regexp-engine exptimer.js " ^ js_regex ^ " " ^ js_string in
   string_of_command(js_command)

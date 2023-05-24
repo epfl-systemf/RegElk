@@ -7,6 +7,7 @@
 
 open Regex
 open Tojs
+open Toexp
 open Linear
 open Sys
 open Unix
@@ -138,3 +139,18 @@ let quadratic_string : string =
 
 let possibly_quadratic : benchmark =
   RegSize (quadratic_bytecode, quadratic_string, 0, 200, 200, "PossiblyQuadratic")
+
+
+(** * Checking that the V8 Experimental engine is also quadratic  *)
+let experimental_benchmark () =
+  let oc = open_out ("experimental_quadratic.csv") in
+  for i = 0 to 200 do
+    let reg = quadratic_bytecode i in
+    let texp = get_time_experimental reg quadratic_string in
+    Printf.fprintf oc "%d,%s\n" i texp;
+  done;
+  close_out oc;
+  (* plotting the results *)
+  let command = "python3 plot_single.py experimental_quadratic V8Experimental &" in
+  ignore(string_of_command command)
+  

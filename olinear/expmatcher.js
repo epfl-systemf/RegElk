@@ -23,7 +23,10 @@ function result_to_string (result) {
 }
 
 // calling the regex engine
-function matcher (regex, string) {
+function matcher () {
+    // getting the command line arguments
+    const regex = process.argv[2];
+    const string = process.argv[3];
     // building the regex with the linear flag
     const re = new RegExp(regex,"l");
     // matching the regex
@@ -32,6 +35,4 @@ function matcher (regex, string) {
     return 0;
 }
 
-const regex = arguments[0];
-const string = arguments[1];
-matcher(regex, string);
+matcher();
