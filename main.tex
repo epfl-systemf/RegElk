@@ -2,6 +2,7 @@
 
 \usepackage[T1]{fontenc}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{natbib}
 \usepackage{url}
 \usepackage{lipsum}
@@ -44,7 +45,19 @@
   keywordstyle=\bfseries,
 }
 
+\lstdefinestyle{byt}{ %
+  xleftmargin=2\parindent,
+  captionpos=b,
+  mathescape,
+  basicstyle=\ttfamily,
+  commentstyle=\itshape\color{MidnightBlue},
+  identifierstyle=\color{black},
+  keywordstyle=\bfseries,
+}
 
+
+\def\bytecode#1{\lstinline[style=byt]{#1}}
+\def\tbytecode#1{\text{\bytecode{#1}}}
 
 \def\regex#1{\lstinline[style=rgx]{#1}}
 \def\tregex#1{\text{\regex{#1}}}
@@ -53,6 +66,12 @@
 \def\undef{\texttt{undefined}}
 \def\str#1{\texttt{"#1"}}
 \def\group#1{\texttt{\##1}}
+
+\def\size#1{\ensuremath{|#1|}}
+\def\psize#1{\ensuremath{||#1||}}
+\def\looknb#1{\ensuremath{\mathcal{L}(#1)}}
+\def\bigo{\ensuremath{\mathcal{O}}}
+
 
 \geometry{vmargin=4.0cm}
 
@@ -82,6 +101,7 @@ We consider the following grammar of regular expressions:
   \begin{syntax}
     \syntaxclass{Regular Expressions:}
 \re & ::= & \char & Character \\
+&\mid& . & Any Character\\
 &\mid& \re_1 ~ \re_2 & Concatenation\\
 &\mid& \re_1 \tregex{|} \re_2 & Union\\
 &\mid&  \re ~ \quant & Quantifier \\
@@ -163,14 +183,82 @@ Similarly, we annotate each lookaround with an unique identifier.
 Identifiers are integers given in order of a depth-first AST traversal.
 This ensures that if lookaround $l_1$ contains another lookaround $l_2$, then the index of $l_1$ is smaller than the index of $l_2$.
 For instance, the regex \regex{(?=a(?<=a))a} gets annotated to \lstinline[style=rgx]{(?=$_1$a(?<=$_2$a))a}.
-We write $\mathit{looks}(r)$ the total number of lookarounds in a regex $r$.
-For instance, $\mathit{looks}(\tregex{(?=a(?<=a))a}) = 2$.
+We write \looknb{r} the total number of lookarounds in a regex $r$.
+For instance, $\looknb{(\tregex{(?=a(?<=a))a})} = 2$.
 
 \subsection{Main Intuitions}
+\todo{I assume the reader know the bytecode-based simulation technique for regexes without lookarounds.}
+
+
+\paragraph{Issue:}
+For a regular expression with lookarounds, trying to reuse the simulation technique, with a single traversal of the input string, is difficult.
+What should we do when a thread encounters a lookaround?
+\begin{itemize}
+\item We could suspend the execution, and run another regex matcher to determine if the lookaround is verified.
+  This will not have a linear complexity in the size of the string. For a regex like \regex{(a(?=a*))*)} on a string repeating the character \str{a}, this will
+\item For lookaheads, we could try to run in parallel two state machines: one for the outer sub-expression, and one for the sub-expression inside the lookahead. Threads would then consist in a pair of states.
+  This will not have a linear complexity in the size of the regex, since the number of possible threads that cannot be merged together explodes with each lookahead.
+\end{itemize}
+
+\paragraph{Intuition:}
+These issues disappear if we know in advance, for each lookaround, at which positions in the input string it holds.
+For instance, if we know that lookaround \regex{(?=a)} on input string \str{abac} holds at positions 0 and 2.
+Then, when compiling a regex with lookarounds to bytecode, we can simply generate for each lookaround a bytecode instruction that kills the current thread if this lookaround does not hold at the current string position.
+
+\paragraph{Notations:}
+From now on, we consider the problem of regex matching a regex $r$ on an input string $s$.
+The size of $r$ (as in the number of nodes in its AST), is noted \size{r}.
+The number of lookarounds in $r$ is noted \looknb{r}.
+$r_{\Box i}$ denotes the sub-expression inside the lookaround annotated with $i$ in $r$.
+For instance, \lstinline[style=rgx]{a(?=$_1$(b|c))c$_{\Box 1}$} = \regex{(b|c)}. 
+The \textit{proper size} of a regex $r$, noted \psize{r}, is defined to be the number of nodes in its AST without descending recursively inside lookarounds.
+We get the following equality, expressing that the full size of a regex is equal to the sum of its proper size and the proper sizes of all its lookarounds:
+$$\forall r, \size{r} = \psize{r} + \sum_{i=1}^{\looknb{r}}\psize{r_{\Box i}}$$
+
+The length of a string $s$ is noted \size{s}.
+A \textit{position} in a string $s$ corresponds to an integer between 0 and $\size{s}+1$.
+The positions correspond to places in-between characters of the string.
+Asymptotical complexities are noted using \bigo~ notations.
 
 
 
+\paragraph{Overview of our algorithm:}
+
+Following this intuition, we present the following algorithm:
+
+\begin{itemize}
+\item First, we build an \textit{oracle}, an 2-dimension array of booleans of size $(\size{s}+1, \looknb{r})$.
+  At the end of this first step, \textit{oracle} contains \textit{true} at row $i$ and column $j$ if and only if the lookaround annotated with $j$ holds at position $i$ in the input string.
+\item Then, we can match $r$ using a standard simulation technique. Whenever a thread encounters a lookaround, it simply checks the oracle. If a match is found, we extract the capture groups defined in $r$ that are not contained inside lookarounds.
+\item Finally, we reconstruct the missing capture groups defined inside lookarounds.
+\end{itemize}
+
+  
 \subsection{Bytecode Generation}
+
+The bytecode we generate consists in lists of instructions described by the following grammar:
+
+\def\instr{\ensuremath{\mathit{e}}}
+\def\lbl{\ensuremath{\mathit{l}}}
+\def\reg{\ensuremath{\mathit{reg}}}
+\def\lid{\ensuremath{\mathit{lid}}}
+
+\begin{figure}[h]
+  \begin{syntax}
+    \syntaxclass{Instructions:}
+    \instr & ::= & \tbytecode{Consume}~\char & Consume the character \char \\
+    &\mid& \tbytecode{ConsumeAll} & Consume any character\\
+    &\mid& \tbytecode{Jump}~\lbl & Jumps to label~\lbl\\
+    &\mid& \tbytecode{Fork}~\lbl_1~\lbl_2 & Creates a new thread. \lbl$_1$ has higher priority \\
+    &\mid& \tbytecode{Accept} & A match is found\\
+    &\mid& \tbytecode{SetRegisterToCP}~\reg & Writes the current CP value to a register \reg \\
+    &\mid& (\tbytecode{ClearRegister}~\reg) & Clears the value of a register \\
+    &\mid& \tbytecode{WriteOracle}~\lid & Writes the current CP value to the oracle, in row \lid \\
+    &\mid& \tbytecode{CheckOracle}~\lid & Checks that the oracle is true \\
+    &\mid& \tbytecode{NegCheckOracle}~\lid & Checks that the oracle is false \\
+    &\mid& (\tbytecode{ClearMemory}~\lid) & Clears the value \lid of the lookaround memory\\
+  \end{syntax}
+\end{figure}
 
 \subsection{First Step: Constructing the Oracle}
 

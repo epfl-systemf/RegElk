@@ -161,5 +161,5 @@ let tests () =
 let main =
   (* tests() *)
   (* fuzzer() *)
-  (* run_benchmark(possibly_quadratic); *)
-  experimental_benchmark()
+  run_benchmark(lookahead_star);
+  (* experimental_benchmark() *)

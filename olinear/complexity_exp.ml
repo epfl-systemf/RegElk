@@ -95,7 +95,7 @@ let a_repeat_b : str_param = fun str_size ->
   (String.make str_size 'a') ^ (String.make 1 'b')
 
 let lookahead_star : benchmark =
-  StrSize (lookahead_star_reg, a_repeat_b, 0, 1000, 1000, "Lookahead_Star")
+  StrSize (lookahead_star_reg, a_repeat_b, 0, 3000, 3000, "Lookahead_Star")
   
 (** * Nested Lookaheads  *)
 
