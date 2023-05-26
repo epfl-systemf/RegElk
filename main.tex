@@ -121,8 +121,8 @@ We consider the following grammar of regular expressions:
 \syntaxclass{Lookarounds:}
 \look & ::=& \tregex{?=} & Positive Lookahead\\
 &\mid& \tregex{?!} & Negative Lookahead\\
-&\mid& \tregex{<=} & Positive Lookbehind\\
-&\mid& \tregex{<!} & Negative Lookbehind\\
+&\mid& \tregex{?<=} & Positive Lookbehind\\
+&\mid& \tregex{?<!} & Negative Lookbehind\\
   \end{syntax}
 \end{figure}
 
@@ -174,15 +174,15 @@ Some regex languages (like .NET) allow different capture groups to have the same
 Others (like JS, PCRE and Java) disallow this. In this work, we associate unique identifiers to each capture group.
 
 % TODO: why does using the regex macro not work here with subscript???
-For instance, the regex \regex{a(b)(c)} gets annotated to \lstinline[style=rgx]{a$(b)_1$(c)$_2$} and \regex{a((b))} gets annotated to \lstinline[style=rgx]{a((b)$_2$)$_1$}.
+For instance, the regex \regex{a(b)(c)} gets annotated to \lstinline[style=rgx]{a$(b)_{\#1}$(c)$_{\#2}$} and \regex{a((b))} gets annotated to \lstinline[style=rgx]{a((b)$_{\#2}$)$_{\#1}$}.
 Groups are annotated in order of a depth-first AST traversal, starting with 1.
 Before matching a regex, we add a new capture group around the entire expression annotated with index 0, mimicking the JS behavior.
 
 \paragraph{Lookaround Annotations}
 Similarly, we annotate each lookaround with an unique identifier.
 Identifiers are integers given in order of a depth-first AST traversal.
-This ensures that if lookaround $l_1$ contains another lookaround $l_2$, then the index of $l_1$ is smaller than the index of $l_2$.
-For instance, the regex \regex{(?=a(?<=a))a} gets annotated to \lstinline[style=rgx]{(?=$_1$a(?<=$_2$a))a}.
+This ensures that if lookaround $l_{\Box1}$ contains another lookaround $l_{\Box2}$, then the index of $l_{\Box1}$ is smaller than the index of $l_{\Box2}$.
+For instance, the regex \regex{(?=a(?<=a))a} gets annotated to \lstinline[style=rgx]{(?=$_{\Box1}$a(?<=$_{\Box2}$a))a}.
 We write \looknb{r} the total number of lookarounds in a regex $r$.
 For instance, $\looknb{(\tregex{(?=a(?<=a))a})} = 2$.
 
@@ -234,7 +234,7 @@ Following this intuition, we present the following algorithm:
 \end{itemize}
 
   
-\subsection{Bytecode Generation}
+\subsection{Bytecode}
 
 The bytecode we generate consists in lists of instructions described by the following grammar:
 
@@ -260,7 +260,81 @@ The bytecode we generate consists in lists of instructions described by the foll
   \end{syntax}
 \end{figure}
 
+Labels \lbl correspond to indices of the list.
+
+\subsection{Bytecode Compilation}
+This section describes how we generate bytecode from a regex.
+Much of this is similar to the classic lookaround-free case~\cite{regex_vm_approach}.
+
+We recursively define the function \texttt{compile}, transforming a regex AST into a list of bytecode instructions.
+Instructions labels are given names followed by colons \texttt{:}.
+
+\begin{tabular}{l p{6cm}}
+  \regex{c} & \bytecode{Consume}~\regex{c}\\
+  \hline
+  \regex{.} & \bytecode{ConsumeAll}\\
+  \hline
+  $\re_1~\re_2$ & \texttt{compile}$(\re_1)$\newline\texttt{compile}$(\re_2)$ \\
+  \hline
+  $\re_1~|~\re_2$ & \bytecode{Fork l1 l2}\newline\texttt{l1: compile}$(\re_1)$\newline
+  \bytecode{Jump end}\newline\texttt{l2: compile}$(\re_2)$\newline\texttt{end: ...}\\
+  \hline
+  $(\re)_{\#c}$ & \bytecode{SetRegisterToCP}$(2 * r)$\newline\texttt{compile}$(\re)$\newline\bytecode{SetRegisterToCP}$((2*r)+1)$\\
+  \hline
+  $\re$\tregex{*} & \bytecode{star: Fork body end}\newline\bytecode{body: Clear}\todo{clearing and other quantifiers}\newline
+  \texttt{compile}$(\re)$\newline\bytecode{Jump star}\newline\texttt{end: ...}\\
+  \hline
+  \regex{(?=}$_{\Box i}$\re\regex{)} & \bytecode{CheckOracle i}\\
+  \hline
+  \regex{(?<=}$_{\Box i}$\re\regex{)} & \bytecode{CheckOracle i}\\
+  \hline
+  \regex{(?!}$_{\Box i}$\re\regex{)} & \bytecode{NegCheckOracle i}\\
+  \hline
+  \regex{(?<!}$_{\Box i}$\re\regex{)} & \bytecode{NegCheckOracle i}\\
+\end{tabular}
+
+\paragraph{Bytecode size property}
+The bytecode size (number of instructions) of \texttt{compile}$(\re)$ is linear in the proper size of $\re$: $\bigo(\psize{\re})$.
+\todo{not true with the plus and clearing}
+
+
 \subsection{First Step: Constructing the Oracle}
+
+The first step of the algorithm consists in building the oracle, the array that indicates for each lookaround of the regex, at which position in the input string it holds.
+
+\paragraph{Constructing one row of the oracle}
+Finding all the places where a lookaround subexpression $e_{\Box i}$ is true can be done by matching it \textit{in reverse}.
+First, one constructs the reverse of $e_{\Box i}$, $\mathit{rev}(e_{\Box i})$ by recursively inverting the two subexpressions of each concatenation in $e_{\Box i}$.
+We compile to bytecode \regex{.*?}$\mathit{rev(\re_{\Box i})}$ and replace its last \bytecode{Accept} instruction with a \bytecode{WriteOracle i} instruction.
+Then, we extend a standard NFA-simulation matcher by allowing it to read the input string backward, starting with the last character of the string, then moving toward its beginning.
+We will use the standard forward direction for lookbheinds and negative lookbehinds, and the backward direction for lookaheads and negative lookaheads.
+
+Since a lookaround may depend on the result of another lookaround defined inside, we consider lookarounds from the highest to lowest indices.
+
+\paragraph{First step complexity}
+For each lookaround, we run a NFA-simulation on the entire string.
+The bytecode size of each lookaround is linear with its \textit{proper size}.
+As a result, for each lookaround $\re_{\Box i}$, constructing the $i$-th row of the oracle has time complexity $\bigo(\size{s} * \psize{\re_{\Box i}})$.
+Finally, the complexity of building the entire oracle is $\bigo(\sum_{i=1}^{\looknb{r}} \size{s} * \psize{\re_{\Box i}})$.
+Usig the proper size equality, this is $\bigo(\size{s} * \size{\re})$.
+
+The asymptotical space complexity of this first step is also $\bigo(\size{s} * \size{\re})$, given that both the array itself and each NFA-simulation have this complexity.
+
+
+\paragraph{Remark on using lazy-DFA matchers}
+In that step capture groups do not matter, and we can freely remove them from each lookaround subexpression.
+As a result, one could use a lazy-DFA matcher instead of the NFA-simulation technique.
+The lazy-DFA approach does not order threads by priority, but instead considers unordered sets of threads.
+This allows for faster matching, at the cost of not extracting the capture groups.
+An engine like RE2 already contains both NFA-simulation and lazy-DFA matching.
+
+\paragraph{Remark on streaming mode}
+An engine like RE2 only ever reads the input string from its beginning to its end.
+As a result, it can also work in streaming mode, where the input string is being processed on-the-fly;
+Due to the fact that we analyze lookaheads and negative lookaheads in the backward direction, our algorithm is not compatible with streaming mode.
+
+
+
 
 \subsection{Second Step: Finding Capture Groups}
 
