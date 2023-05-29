@@ -15,6 +15,7 @@
 \usepackage{syntaxdefs}
 \usepackage{graphicx}
 \usepackage{listings}
+\usepackage[ruled,vlined]{algorithm2e} %% for the pseudocode
 
 \usepackage[bookmarksnumbered,unicode]{hyperref} %Utiliser pour une bibliographie interactive + sommaire et TOC interactifs (pour une sortie PDF, par exemple).
 \bibpunct{[}{]}{,}{a}{}{;}
@@ -319,9 +320,117 @@ Finding all the places where a lookaround subexpression $e_{\Box i}$ is true can
 First, one constructs the reverse of $e_{\Box i}$, $\mathit{rev}(e_{\Box i})$ by recursively inverting the two subexpressions of each concatenation in $e_{\Box i}$.
 We compile to bytecode \regex{.*?}$\mathit{rev(\re_{\Box i})}$ and replace its last \bytecode{Accept} instruction with a \bytecode{WriteOracle i} instruction.
 Then, we extend a standard NFA-simulation matcher by allowing it to read the input string backward, starting with the last character of the string, then moving toward its beginning.
-We will use the standard forward direction for lookbheinds and negative lookbehinds, and the backward direction for lookaheads and negative lookaheads.
+We will use the standard forward direction for lookbehinds and negative lookbehinds, and the backward direction for lookaheads and negative lookaheads.
 
 Since a lookaround may depend on the result of another lookaround defined inside, we consider lookarounds from the highest to lowest indices.
+
+
+\paragraph{Remark on using lazy-DFA matchers}
+In that step capture groups do not matter, and we can freely remove them from each lookaround subexpression.
+As a result, one could use a lazy-DFA matcher instead of the NFA-simulation technique.
+The lazy-DFA approach does not order threads by priority, but instead considers unordered sets of threads.
+This allows for faster matching, at the cost of not extracting the capture groups.
+An engine like RE2 already contains both NFA-simulation and lazy-DFA matching.
+
+
+\begin{algorithm}
+\SetKwInOut{Input}{input}\SetKwInOut{Output}{output}
+\SetKwFor{match}{match}{with}{end}
+\SetKwFor{case}{case}{\texttt{=>}}{}
+\SetKw{hlet}{let}
+\SetAlgoLined
+\Input{A regex $e$ and a string $s$}
+\Output{An oracle $o$ indicating the positions where each lookaround holds}
+\hlet \texttt{o = Array(}$(\looknb{e}, \size{s}+1)$\texttt{,false)}\;
+\For{i=$\looknb{e}$ \textbf{down to} 1}{
+  \hlet{look = $\mathit{rev}(e_{\Box i})$}\;
+  \hlet{bc = compile(\regex{.*?}look)}\;
+  \match{$e_{\Box i}$}{
+    \case{Lookahead or NegativeLookahead}{VM(bc, $s$, $o$, backward)}
+    \case{Lookbehind or NegativeLookbehind}{VM(bc, $s$, $o$, forward)}
+  }
+}
+\Return $o$\;
+\caption{Building the oracle, \texttt{build\_oracle}}\label{alg:oracle}
+\end{algorithm}
+
+\todo{in another section, rewrite the algorithm for the VM, highlighting what's new compared to the previous version.}
+\todo{also find a way to express that this compilation does not use Accept but WriteOracle}
+
+The algorithm for the first step of our technique is shown on Algorithm~\ref{alg:oracle}.
+Note that in this step, we ignore the output of $\mathit{VM}$.
+Instead of returning matches, each call to $\mathit{VM}$ will write to the oracle $o$ each time a match is found.
+
+\todo{explain in more details why this works, why the lazy star, why the direction change\dots}
+
+
+\subsection{Second Step: Running the main expression}
+
+Now that we know the positions at which each lookaround holds, we can simply run the main expression in a forward direction.
+Whenever a thread encounters a lookaround, it will simply access the oracle.
+This step is shown on Algorithm~\ref{alg:main}.
+The main expression $e$ is wrapped around te capture group \#0.
+When this finds a match, this returns both $c$, the register values for all capture groups defined inside the main expression,
+and $m$, indicating the last position in the string each lookaround was used to find a match.
+The only missing thing is the values of the capture groups defined inside positive lookarounds.
+We reconstruct them in the final step of the algorithm in the next section, using $get\_missing\_captures$.
+
+\begin{algorithm}
+\SetKwInOut{Input}{input}\SetKwInOut{Output}{output}
+\SetKwFor{match}{match}{with}{end}
+\SetKwFor{case}{case}{\texttt{=>}}{}
+\SetKw{hlet}{let}
+\SetAlgoLined
+\Input{A regex $e$ and a string $s$}
+\Output{Either a match (with capture values) or no match}
+\hlet{o = build\_oracle(r,s)}\;
+\hlet{bc = compile(\regex{.*?(e)}$_{\#0}$)}\;
+\hlet{result = VM(bc, $s$, $o$, forward)}\;
+\match{result}{
+  \case{No match}{No match}
+  \case{match with captures $(c,m)$}{match with get\_missing\_captures($c$,$m$)}
+  }
+\caption{Matching the main expression}\label{alg:main}
+\end{algorithm}
+
+
+
+
+\subsection{Final Step: Extracting missing capture groups}
+
+\todo{we should add initial capture values as argument to the VM, as well as initial cp and m}
+\todo{the current pseudocode does not update anything}
+
+Algorithm~\ref{alg:missing} shows how we reconstruct the missing capture groups.
+We simply run a NFA-simulation of each lookaround that was used to produce the main match.
+This time, this NFA-simulation is run forward for lookaheads and backward for lookbheinds, to comply with the capture semantics inside lookarounds.
+We start the NFA-simulation exactly at the input string position where the lookaround was used.
+
+\begin{algorithm}
+\SetKwInOut{Input}{input}\SetKwInOut{Output}{output}
+\SetKwFor{match}{match}{with}{end}
+\SetKwFor{case}{case}{\texttt{=>}}{}
+\SetKw{hlet}{let}
+\SetAlgoLined
+\Input{A regex $e$ and a string $s$, and a lookaround memory $m$ indicating when each lookaround was used in a match}
+\Output{All capture group values}
+\For{i=1 \textbf{to} $\looknb{e}$}{
+  \hlet{look = $\mathit{rev}(e_{\Box i})$}\;
+  \hlet{bc = compile(look)}\;
+  \If{m[i] = Some cp}{
+    \match{$e_{\Box i}$}{
+      \case{Lookahead}{VM(bc, $s$[cp:], $o$, forward)}
+      \case{Lookbehind}{VM(bc, $s$[:cp], $o$, backward)}
+    }
+  }
+}
+\Return $o$\;
+\caption{Getting capture groups defined in positive lookarounds \texttt{get\_missing\_captures}}\label{alg:missing}
+\end{algorithm}
+
+\section{Example of running the algorithm}
+
+\section{Complexity Analysis}
 
 \paragraph{First step complexity}
 For each lookaround, we run a NFA-simulation on the entire string.
@@ -332,27 +441,27 @@ Usig the proper size equality, this is $\bigo(\size{s} * \size{\re})$.
 
 The asymptotical space complexity of this first step is also $\bigo(\size{s} * \size{\re})$, given that both the array itself and each NFA-simulation have this complexity.
 
+\paragraph{Second step complexity}
+This step simply consists in running a NFA-simulation on the entire string and the main expression.
+Since lookarounds are simply compile to a single \bytecode{CheckOracle} instruction, this has complexity $\bigo(\size{s} * \psize{e})$.
 
-\paragraph{Remark on using lazy-DFA matchers}
-In that step capture groups do not matter, and we can freely remove them from each lookaround subexpression.
-As a result, one could use a lazy-DFA matcher instead of the NFA-simulation technique.
-The lazy-DFA approach does not order threads by priority, but instead considers unordered sets of threads.
-This allows for faster matching, at the cost of not extracting the capture groups.
-An engine like RE2 already contains both NFA-simulation and lazy-DFA matching.
+\paragraph{Third step complexity}
+This step may require as many NFA-simulations as there are lookarounds in $e$.
+For each lookaround i, this has complexity $\bigo(\size{s} * \psize{\re_{\Box i}})$.
+Then entire loop then has complexity $\bigo(\sum_{i=1}^{\looknb{r}} \size{s} * \psize{\re_{\Box i}})$.
+Usig the proper size equality, this is $\bigo(\size{s} * \size{\re})$.
+
+\paragraph{Total complexity}
+In conclusion, running the three steps of our algorithm has spatial and memory complexity $\bigo(\size{s} * \size{\re})$.
+Previously, unbounded lookarounds were only matched by backtracking regex engines, with possible exponential time complexity.
+Our algorithm shows that the VM-based NFA-simulation approach can be adapted to match an extended language of regexes with unbounded lookarounds, without changing its linear complexity.
+
+\section{Limitations}
 
 \paragraph{Remark on streaming mode}
 An engine like RE2 only ever reads the input string from its beginning to its end.
 As a result, it can also work in streaming mode, where the input string is being processed on-the-fly;
 Due to the fact that we analyze lookaheads and negative lookaheads in the backward direction, our algorithm is not compatible with streaming mode.
-
-
-
-
-\subsection{Second Step: Finding Capture Groups}
-
-\section{Complexity Analysis}
-
-\section{Limitations}
 
 \section{Conclusion}
 
