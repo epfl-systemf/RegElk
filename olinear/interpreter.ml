@@ -74,6 +74,19 @@ let get_reg (regs:cap_regs) (r:register) : int option =
 let init_regs () : cap_regs =
   IntMap.empty
 
+(** * Quantifier Registers  *)
+
+type quant_regs = int IntMap.t
+
+let set_quant (qr:quant_regs) (q:quantid) (cp:int) : quant_regs =
+  IntMap.add q cp qr
+
+let get_quant (qr:quant_regs) (q:quantid) : int option =
+  IntMap.find_opt q qr
+
+let init_quant_regs () : quant_regs =
+  IntMap.empty
+
 (** * Lookarounds Memory  *)
 (* For the second stage of the algorithm, we need to remember when (which cp) we used the oracle *)
 (* So that we can later get the capture groups defined in that lookaround *)
@@ -107,10 +120,11 @@ type thread =
     mutable pc: int;
     mutable regs: cap_regs;
     mutable mem: look_mem;
+    mutable quants: quant_regs;
   }
 
 let init_thread (initregs:cap_regs) (initmem:look_mem) : thread =
-  { pc = 0; regs = initregs; mem = initmem }
+  { pc = 0; regs = initregs; mem = initmem; quants = init_quant_regs() }
   
 (** * PC Sets  *)
 
@@ -233,10 +247,14 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | Fork (x,y) ->            (* x has higher priority *)
           t.pc <- y;
-          s.active <- {pc = x; regs = t.regs; mem = t.mem}::s.active;
+          s.active <- {pc = x; regs = t.regs; mem = t.mem; quants = t.quants}::s.active;
           advance_epsilon ~debug c s o
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
+          t.pc <- t.pc + 1;
+          advance_epsilon ~debug c s o
+       | SetQuantToCP q ->
+          t.quants <- set_quant t.quants q s.cp; (* adding the last iteration cp *)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | ClearRegister r ->
