@@ -157,9 +157,21 @@ let tests () =
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
+
+(* the example I put in the written description of the algorithm *)
+let paper_example () =
+  let lookahead_example = Raw_con(Raw_char('a'),Raw_capture(Raw_dot)) in
+  let left_branch_example = Raw_con(Raw_quant(Star,Raw_char('a')),Raw_capture(Raw_char('b'))) in
+  let right_branch_example = Raw_con(Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,lookahead_example))),Raw_capture(Raw_dot)) in
+  let reg_example : raw_regex = Raw_alt(right_branch_example,left_branch_example) in
+  let str_example = "aaab" in
+  full_match reg_example str_example
+  
   
 let main =
-  (* tests() *)
+  tests()
   (* fuzzer() *)
-  run_benchmark(lookahead_star);
+  (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
+  
+    
