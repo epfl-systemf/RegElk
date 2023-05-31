@@ -362,26 +362,47 @@ let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle)
 (* At the end of the algorithm, we get many capture groups that should be reset *)
 (* We use the quantifier registers to filter out those that are too old *)
 
-let rec filter_capture (r:regex) (regs:cap_regs ref) (qregs:quant_regs) (maxcp:int) : unit =
+let rec filter_capture (r:regex) (regs:cap_regs ref) (mem:look_mem) (qregs:quant_regs) (maxcp:int) : unit =
   match r with
   | Re_empty | Re_char _ | Re_dot -> ()
-  | Re_alt (r1,r2) -> filter_capture r1 regs qregs maxcp; filter_capture r2 regs qregs maxcp
-  | Re_con (r1,r2) -> filter_capture r1 regs qregs maxcp; filter_capture r2 regs qregs maxcp
+  | Re_alt (r1,r2) -> filter_capture r1 regs mem qregs maxcp; filter_capture r2 regs mem qregs maxcp
+  | Re_con (r1,r2) -> filter_capture r1 regs mem qregs maxcp; filter_capture r2 regs mem qregs maxcp
   | Re_quant (qid, quant, r1) ->
      let quant_val = get_quant qregs qid in (* the last time we went in *)
      let newmax = Int.max quant_val maxcp in
-     filter_capture r1 regs qregs newmax
+     filter_capture r1 regs mem qregs newmax
   | Re_capture (cid, r1) ->
      let start = get_reg !regs (start_reg cid) in
      begin match start with
-     | None -> ()               (* there is already no value for this capture group *)
+     | None -> filter_all r1 regs (* there is already no value for this capture group, we can clear everything inside *)
      | Some st ->
-        if (st < maxcp) then regs := clear_reg !regs (start_reg cid)
-           (* cleaning the value of group cid if its value is too old *)
-     end;
-     filter_capture r1 regs qregs maxcp
-  | Re_lookaround (lid, l, r1) -> filter_capture r1 regs qregs maxcp
-     
+        if (st < maxcp)
+         (* cleaning the value of group cid (and everything inside) if its value is too old *)
+        then begin regs := clear_reg !regs (start_reg cid); filter_all r1 regs end
+        else filter_capture r1 regs mem qregs maxcp
+     end
+  | Re_lookaround (lid, l, r1) ->
+     let look_val = get_mem mem lid in (* the last time we needed the lookaround to hold *)
+     begin match look_val with
+     | None -> filter_all r1 regs (* we didn't need the lookaround: clear everything inside *)
+     | Some lookv ->
+        if (lookv < maxcp)
+             (* cleaning everything inside the lookaround since it's too old *)
+        then filter_all r1 regs
+        else filter_capture r1 regs mem qregs maxcp
+     end
+      
+and filter_all (r:regex) (regs:cap_regs ref) : unit = (* clearing all capture group inside a regex *)
+  match r with
+  | Re_empty | Re_char _ | Re_dot -> ()
+  | Re_alt (r1,r2) -> filter_all r1 regs; filter_all r2 regs
+  | Re_con (r1,r2) -> filter_all r1 regs; filter_all r2 regs
+  | Re_quant (qid, quant, r1) ->
+     filter_all r1 regs
+  | Re_capture (cid, r1) ->
+     regs := clear_reg !regs (start_reg cid);
+     filter_all r1 regs
+  | Re_lookaround (lid, l, r1) -> filter_all r1 regs
        
 
 (** * Printing Results  *)

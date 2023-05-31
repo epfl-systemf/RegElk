@@ -117,6 +117,9 @@ let double_quant : (raw_regex*string) list = (* FIXED, with another way to compi
    (Raw_capture(Raw_quant(Plus,Raw_quant(LazyStar,Raw_dot))),"bacababaacbcabaabccccacca"); 
    (Raw_con(Raw_con(Raw_empty,Raw_capture(Raw_quant(Star,Raw_quant(LazyStar,Raw_dot)))),Raw_dot),"abcbbca")]
 
+let empty_group : (raw_regex*string) list =
+  [(Raw_quant(Star,Raw_alt(Raw_con(Raw_char('a'),Raw_capture(Raw_empty)),Raw_char('b'))),"ab")]
+
 let different_results : (raw_regex*string) list =
   []
 
@@ -169,7 +172,8 @@ let paper_example () =
   
   
 let main =
-  tests()
+  replay_bugs(empty_group)
+  (* tests() *)
   (* fuzzer() *)
   (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
