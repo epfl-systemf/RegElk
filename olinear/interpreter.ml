@@ -81,8 +81,11 @@ type quant_regs = int IntMap.t
 let set_quant (qr:quant_regs) (q:quantid) (cp:int) : quant_regs =
   IntMap.add q cp qr
 
-let get_quant (qr:quant_regs) (q:quantid) : int option =
-  IntMap.find_opt q qr
+(* right now this returns 0 by defult. We might change to an option *)
+let get_quant (qr:quant_regs) (q:quantid) : int  =
+  match (IntMap.find_opt q qr) with
+  | None -> 0
+  | Some x -> x
 
 let init_quant_regs () : quant_regs =
   IntMap.empty
@@ -123,8 +126,8 @@ type thread =
     mutable quants: quant_regs;
   }
 
-let init_thread (initregs:cap_regs) (initmem:look_mem) : thread =
-  { pc = 0; regs = initregs; mem = initmem; quants = init_quant_regs() }
+let init_thread (initregs:cap_regs) (initmem:look_mem) (initquants:quant_regs): thread =
+  { pc = 0; regs = initregs; mem = initmem; quants = initquants }
   
 (** * PC Sets  *)
 
@@ -174,9 +177,9 @@ type interpreter_state =
     mutable nextchar: char;             (* next character to consume *)
   }
 
-let init_state (c:code) (initcp:int) (initregs:cap_regs) (initmem:look_mem) =
+let init_state (c:code) (initcp:int) (initregs:cap_regs) (initmem:look_mem) (initquant:quant_regs) =
   { cp = initcp;
-    active = [init_thread initregs initmem];
+    active = [init_thread initregs initmem initquant];
     processed = init_pcset (size c);
     blocked = [];
     isblocked = init_pcset (size c);
@@ -333,17 +336,17 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
     (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
     
 
-let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_mem:look_mem): thread option =
+let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_mem:look_mem) (start_quant:quant_regs) : thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_mem) o dir in
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_mem start_quant) o dir in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
   
 let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_mem()) ) o dir in
+  let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_mem()) (init_quant_regs())) o dir in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
 
@@ -353,6 +356,33 @@ let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle)
   | None -> false
   | _ -> true
 
+
+
+(** * Filtering With Capture Reset  *)
+(* At the end of the algorithm, we get many capture groups that should be reset *)
+(* We use the quantifier registers to filter out those that are too old *)
+
+let rec filter_capture (r:regex) (regs:cap_regs ref) (qregs:quant_regs) (maxcp:int) : unit =
+  match r with
+  | Re_empty | Re_char _ | Re_dot -> ()
+  | Re_alt (r1,r2) -> filter_capture r1 regs qregs maxcp; filter_capture r2 regs qregs maxcp
+  | Re_con (r1,r2) -> filter_capture r1 regs qregs maxcp; filter_capture r2 regs qregs maxcp
+  | Re_quant (qid, quant, r1) ->
+     let quant_val = get_quant qregs qid in (* the last time we went in *)
+     let newmax = Int.max quant_val maxcp in
+     filter_capture r1 regs qregs newmax
+  | Re_capture (cid, r1) ->
+     let start = get_reg !regs (start_reg cid) in
+     begin match start with
+     | None -> ()               (* there is already no value for this capture group *)
+     | Some st ->
+        if (st < maxcp) then regs := clear_reg !regs (start_reg cid)
+           (* cleaning the value of group cid if its value is too old *)
+     end;
+     filter_capture r1 regs qregs maxcp
+  | Re_lookaround (lid, l, r1) -> filter_capture r1 regs qregs maxcp
+     
+       
 
 (** * Printing Results  *)
 (* extracting a capture group slice given its registers *)

@@ -53,14 +53,16 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
   let max = max_lookaround r in
   let mem = init_mem() in
   let regs = init_regs() in
+  let quants = init_quant_regs() in
   let main_regex = lazy_prefix r in (* lazy star prefix, only for the main expression *)
   let main_bytecode = compile_to_bytecode main_regex in
-  let main_result = interp ~verbose ~debug main_bytecode str o Forward 0 regs mem in
+  let main_result = interp ~verbose ~debug main_bytecode str o Forward 0 regs mem quants in
   match main_result with
   | None -> None
   | Some thread ->              (* we have a match and want to rebuild capture groups *)
      let mem = ref thread.mem in
      let regs = ref thread.regs in
+     let quants = ref thread.quants in
      for lid=1 to max do
        match (get_mem !mem lid) with
        | None -> ()             (* the lookaround wasn't needed in the match *)
@@ -70,14 +72,16 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
             let lookreg = capture_regex looktype reg in
             let bytecode = compile_to_bytecode lookreg in
             let direction = capture_direction looktype in
-            let result = interp ~verbose ~debug bytecode str o direction cp !regs !mem in
+            let result = interp ~verbose ~debug bytecode str o direction cp !regs !mem !quants in
             begin match result with
             | None -> failwith "result expected from the oracle"
             | Some t ->
                mem := t.mem;    (* updating the lookaround memory *)
-               regs := t.regs   (* updating the capture regs *)
+               regs := t.regs;   (* updating the capture regs *)
+               quants := t.quants (* updating the quantifier registers *)
             end
      done;
+     filter_capture r regs !quants 0; (* filtering old values *)
      Some (!regs)
      
   

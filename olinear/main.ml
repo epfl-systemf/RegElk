@@ -48,7 +48,7 @@ let compiler_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
-  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,5); SetQuantToCP 1; Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
   Printf.printf "%s\n" (print_code code);
   assert(true)
 
