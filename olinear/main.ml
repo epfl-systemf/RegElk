@@ -192,8 +192,13 @@ let paper_example () =
   
   
 let main =
+  let bug = (Raw_alt(Raw_con(Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_con(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)),Raw_empty)),Raw_capture(Raw_empty))),Raw_char('a')),Raw_empty), "cbacacaabbcbaacbbababcbcaaa") in
+  
+  ignore(get_linear_result ~debug:true ~verbose:true (fst bug) (snd bug));
+  Printf.printf "%s\n" (print_js (fst bug));
+  compare_engines (fst bug) (snd bug)
   (* tests() *)
-  fuzzer()
+  (* fuzzer() *)
   (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
   

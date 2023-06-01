@@ -222,6 +222,7 @@ What should we do when a thread encounters a lookaround? The main issue lies in 
 These issues disappear if we know in advance, for each lookaround, at which positions in the input string it holds.
 For instance, if we know that lookaround \regex{(?=a)} on input string \str{abac} holds at positions 0 and 2.
 Then, when compiling a regex with lookarounds to bytecode, we can simply generate for each lookaround a bytecode instruction that kills the current thread if this lookaround does not hold at the current string position.
+In our algorithm we show that it is in fact possible to know for each lookaround at which position in the string it holds, and that this can be done in time and space linear complexity, in both the size of the input string and the size of the regex.
 
 
 \paragraph{Notations:}
