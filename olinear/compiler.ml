@@ -59,10 +59,10 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      begin match quant with
      | Star ->
         let (l1, f1) = compile r1 (fresh+2) in
-        ([Fork (fresh+1, f1+1); SetQuantToCP qid] @ l1 @ [Jmp fresh], f1+1)
+        ([Fork (fresh+1, f1+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
      | LazyStar ->
         let (l1, f1) = compile r1 (fresh+2) in
-        ([Fork (f1+1, fresh+1); SetQuantToCP qid] @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
+        ([Fork (f1+1, fresh+1); SetQuantToClock qid] @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
      (* Old version, has a bug on (.*?)* *)
         (* let (l1, f1) = compile r1 (fresh+1+range+look_range) in
          * ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1) *)
@@ -70,14 +70,14 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
         (* Compiling as a concatenation *)
         (* This may duplicates capture groups numbers *)
         let (l1, f1) = compile (Re_con(r1,Re_quant(qid,Star,r1))) (fresh+1) in
-        ([SetQuantToCP qid] @ l1, f1)
+        ([SetQuantToClock qid] @ l1, f1)
      (* Old version *)
         (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
          * (l1 @ [Fork (f1+1, f1+2+range+look_range)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
      | LazyPlus ->
         (* same thing *)
         let (l1, f1) = compile (Re_con(r1,Re_quant(qid,LazyStar,r1))) (fresh+1) in
-        ([SetQuantToCP qid] @ l1, f1)
+        ([SetQuantToClock qid] @ l1, f1)
         (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
          * (l1 @ [Fork (f1+2+range+look_range, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
      end

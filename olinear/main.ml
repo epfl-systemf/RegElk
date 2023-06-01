@@ -48,7 +48,7 @@ let compiler_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
-  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,5); SetQuantToCP 1; Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,5); SetQuantToClock 1; Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
   Printf.printf "%s\n" (print_code code);
   assert(true)
 
@@ -120,6 +120,19 @@ let double_quant : (raw_regex*string) list = (* FIXED, with another way to compi
 let empty_group : (raw_regex*string) list =
   [(Raw_quant(Star,Raw_alt(Raw_con(Raw_char('a'),Raw_capture(Raw_empty)),Raw_char('b'))),"ab")]
 
+(* TO FIX!! *)
+let should_not_clear : (raw_regex*string) list =
+  [(Raw_alt(Raw_con(Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_con(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)),Raw_empty)),Raw_capture(Raw_empty))),Raw_char('a')),Raw_empty),"cbacacaabbcbaacbbababcbcaaa");
+   (Raw_alt(Raw_con(Raw_alt(Raw_empty,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_quant(LazyPlus,Raw_char('b'))))),Raw_lookaround(Lookahead,Raw_char('b'))),Raw_quant(LazyStar,Raw_char('c'))),"cbcaaaacccabbaacccaacbcbacbbabcaccbbbbc")]
+
+let different_capture : (raw_regex*string) list =
+  [(Raw_con(Raw_capture(Raw_capture(Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_con(Raw_alt(Raw_quant(LazyStar,Raw_dot),Raw_capture(Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_char('c')))))),Raw_capture(Raw_char('b')))),Raw_quant(Plus,Raw_con(Raw_char('a'),Raw_alt(Raw_con(Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot))),Raw_empty),Raw_con(Raw_capture(Raw_lookaround(NegLookbehind,Raw_quant(LazyStar,Raw_dot))),Raw_char('a')))))),Raw_char('b')),Raw_con(Raw_con(Raw_con(Raw_dot,Raw_dot),Raw_lookaround(NegLookahead,Raw_capture(Raw_char('c')))),Raw_capture(Raw_con(Raw_capture(Raw_dot),Raw_dot)))))),Raw_alt(Raw_con(Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_char('a'),Raw_empty)),Raw_quant(LazyPlus,Raw_empty)),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_lookaround(NegLookahead,Raw_con(Raw_con(Raw_lookaround(Lookahead,Raw_char('c')),Raw_lookaround(NegLookbehind,Raw_capture(Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_char('b')))))),Raw_char('a'))))))),Raw_empty)),"cabababbccaaccbabbaaacbb");
+   (Raw_capture(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_con(Raw_con(Raw_quant(LazyPlus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_char('b')))),Raw_con(Raw_char('c'),Raw_empty)),Raw_capture(Raw_alt(Raw_con(Raw_quant(LazyPlus,Raw_empty),Raw_capture(Raw_capture(Raw_quant(LazyPlus,Raw_empty)))),Raw_capture(Raw_dot)))))))),"ccbbbccababcababbbaccabccbacababbacbcababcabbaccccacbccbbbcbbcbcacacbaaacaaababccbbbbbbac");
+   (Raw_quant(Plus,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_capture(Raw_dot)))),"bbabcbbcbacababcbcbcababbbaabcaaacacb")]
+  
+let linear_stuck : (raw_regex*string) list =
+  [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_capture(Raw_con(Raw_dot,Raw_quant(Plus,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_capture(Raw_alt(Raw_alt(Raw_dot,Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_empty,Raw_capture(Raw_empty))),Raw_con(Raw_alt(Raw_capture(Raw_dot),Raw_capture(Raw_char('b'))),Raw_empty))),Raw_quant(LazyStar,Raw_capture(Raw_con(Raw_empty,Raw_alt(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_empty),Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_empty))),Raw_con(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_capture(Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_empty)),Raw_alt(Raw_capture(Raw_char('a')),Raw_dot)))),Raw_alt(Raw_char('c'),Raw_empty)))),Raw_char('b'))))))))))),Raw_con(Raw_lookaround(NegLookbehind,Raw_capture(Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_empty)))),Raw_dot)))))),Raw_empty))))))),Raw_lookaround(NegLookahead,Raw_empty))))))),Raw_empty)))))),"cbacaaaababbcaaaaababcabcabaccaaaacb")]
+  
 let different_results : (raw_regex*string) list =
   []
 
@@ -157,6 +170,7 @@ let tests () =
   replay_bugs(clear_mem);
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
+  replay_bugs(empty_group);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -172,9 +186,8 @@ let paper_example () =
   
   
 let main =
-  replay_bugs(empty_group)
   (* tests() *)
-  (* fuzzer() *)
+  fuzzer()
   (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
   
