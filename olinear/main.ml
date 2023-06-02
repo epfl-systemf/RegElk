@@ -171,6 +171,9 @@ let tests () =
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
   replay_bugs(empty_group);
+  replay_bugs(should_not_clear);
+  replay_bugs(linear_stuck);
+  (* replay_bugs(different_capture); *)
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -186,8 +189,8 @@ let paper_example () =
   
   
 let main =
-  (* tests() *)
-  fuzzer()
+  tests()
+  (* fuzzer() *)
   (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
   

@@ -241,10 +241,10 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
      let i = get_instr c t.pc in
      if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
        begin s.active <- ac; advance_epsilon ~debug c s o end
-     else
+     else begin
        s.clock <- s.clock + 1;  (* augmenting the global clock *)
        pc_add s.processed t.pc; (* adding the current pc being handled to the set of proccessed pcs *)
-       begin match i with
+       match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t (Some x) s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
