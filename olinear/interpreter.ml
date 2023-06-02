@@ -175,7 +175,7 @@ let init_state (c:code) (initcp:int) (initregs:cap_regs) (initmem:look_mem) =
 let print_thread (t:thread) : string = string_of_int t.pc
 
 let print_active (l:thread list) : string =
-  "  ACTIVE: " ^ List.fold_left (fun s t -> if (s = "") then (print_thread t) else (print_thread t) ^ ", " ^ s) "" l ^ "\n"
+  "  ACTIVE: " ^ List.fold_left (fun s t -> if (s = "") then (print_thread t) else (print_thread t) ^ ", " ^ s) "" l
 
 let print_charop (c:char option) : string =
   match c with
@@ -200,22 +200,23 @@ let print_bestmatch (b:thread option) =
   "  BEST: " ^ print_match b ^ "\n"
   
 (** * Interpreter  *)
+
+
   
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
-let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle): unit =
-  if debug then begin
-      (* Printf.printf "Epsilon active %s\n%!" (print_active s.active) *)
-    end;
+let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle) : unit =
+  if debug then Printf.printf "%s\n%!" ("Epsilon active: " ^ print_active s.active);
+    
   match s.active with
   | [] -> () (* done advancing epsilon transitions *)
   | t::ac -> (* t: highest priority active thread *)
      let i = get_instr c t.pc in
      if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
        begin s.active <- ac; advance_epsilon ~debug c s o end
-     else
+     else begin
        pc_add s.processed t.pc; (* adding the current pc being handled to the set of proccessed pcs *)
-       begin match i with
+       match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t (Some x) s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
@@ -224,17 +225,17 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           s.blocked <- add_thread t None s.blocked s.isblocked;
           s.active <- ac;
           advance_epsilon ~debug c s o
-       | Accept ->              (* updates the best match and don't consider the remain active threads *)
+       | Accept ->             (* updates the best match and don't consider the remain active threads *)
           s.active <- [];
           s.bestmatch <- Some t;
           () (* no recursive call *)
        | Jmp x ->
           t.pc <- x;
           advance_epsilon ~debug c s o
-       | Fork (x,y) ->            (* x has higher priority *)
+       | Fork (x,y) ->           (* x has higher priority *)
           t.pc <- y;
           s.active <- {pc = x; regs = t.regs; mem = t.mem}::s.active;
-          advance_epsilon ~debug c s o
+          advance_epsilon ~debug c s o;
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
           t.pc <- t.pc + 1;
@@ -265,7 +266,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           s.active <- ac;       (* no need to consider that thread anymore *)
           set_oracle o s.cp l;    (* writing to the oracle *)
           advance_epsilon ~debug c s o (* we keep searching for more matches *)
-       end
+     end
 
 let is_accepted (x:char) (o:char option): bool =
   match o with

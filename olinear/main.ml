@@ -174,9 +174,9 @@ let tests () =
   replay_bugs(clear_mem);
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
-  (* replay_bugs(should_not_clear); *)
-  (* replay_bugs(different_capture); *)
-  (* replay_bugs(linear_stuck); *)
+  (* replay_bugs(should_not_clear);
+   * replay_bugs(different_capture); *)
+  replay_bugs(linear_stuck);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -192,12 +192,35 @@ let paper_example () =
   
   
 let main =
-  let bug = (Raw_alt(Raw_con(Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_con(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)),Raw_empty)),Raw_capture(Raw_empty))),Raw_char('a')),Raw_empty), "cbacacaabbcbaacbbababcbcaaa") in
-  
-  ignore(get_linear_result ~debug:true ~verbose:true (fst bug) (snd bug));
-  Printf.printf "%s\n" (print_js (fst bug));
-  compare_engines (fst bug) (snd bug)
-  (* tests() *)
+  (* let reproducer = (Raw_alt(Raw_con(Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_con(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)),Raw_empty)),Raw_capture(Raw_empty))),Raw_char('a')),Raw_capture(Raw_empty)), "cbacacaabbcbaacbbababcbcaaa") in
+   * let repro_without_lookaround = 
+   *   let left1 = Raw_empty in
+   *   let left2 = (Raw_quant(LazyStar,Raw_capture(Raw_empty))) in
+   *   let left = Raw_alt(left1,left2) in
+   *   let a = Raw_char('a') in
+   *   let right = Raw_empty in
+   *   (Raw_alt(Raw_con(left,a), right), "ca") in
+   * 
+   * let incremental_orig = 
+   *   let left = Raw_quant(LazyStar,Raw_empty) in
+   *   let a = Raw_char('a') in
+   *   let right = Raw_empty in
+   *   (Raw_alt(Raw_con(left,a), right), "ca") in
+   * 
+   * let incremental = 
+   *   let left = Raw_quant(LazyStar,Raw_empty) in
+   *   let a = Raw_char('a') in
+   *   let right = Raw_empty in
+   *   (Raw_alt(a, right), "ca") in
+   * 
+   * 
+   * let bug = List.nth linear_stuck 0  in
+   * 
+   * ignore(get_linear_result ~debug:true ~verbose:true (fst bug) (snd bug));
+   * (\* Printf.printf "foo: %s\n" (get_experimental_result (fst bug) (snd bug)); *\)
+   * Printf.printf "%s\n" (print_js (fst bug));
+   * compare_engines (fst bug) (snd bug) *)
+  tests()
   (* fuzzer() *)
   (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
