@@ -131,7 +131,7 @@ let different_capture : (raw_regex*string) list =
    (Raw_quant(Plus,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_capture(Raw_dot)))),"bbabcbbcbacababcbcbcababbbaabcaaacacb")]
 
 (* Bugs found in the quant_regs branch *)
-(* TO FIX *)
+(* Fixed now that advance epsilon can only call itself once at most *)
 let linear_stuck : (raw_regex*string) list =
   [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_capture(Raw_con(Raw_dot,Raw_quant(Plus,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_capture(Raw_alt(Raw_alt(Raw_dot,Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_empty,Raw_capture(Raw_empty))),Raw_con(Raw_alt(Raw_capture(Raw_dot),Raw_capture(Raw_char('b'))),Raw_empty))),Raw_quant(LazyStar,Raw_capture(Raw_con(Raw_empty,Raw_alt(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_empty),Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_empty))),Raw_con(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_capture(Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_empty)),Raw_alt(Raw_capture(Raw_char('a')),Raw_dot)))),Raw_alt(Raw_char('c'),Raw_empty)))),Raw_char('b'))))))))))),Raw_con(Raw_lookaround(NegLookbehind,Raw_capture(Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_empty)))),Raw_dot)))))),Raw_empty))))))),Raw_lookaround(NegLookahead,Raw_empty))))))),Raw_empty)))))),"cbacaaaababbcaaaaababcabcabaccaaaacb");
    (Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_alt(Raw_capture(Raw_alt(Raw_dot,Raw_con(Raw_empty,Raw_quant(LazyStar,Raw_lookaround(NegLookahead,Raw_alt(Raw_capture(Raw_alt(Raw_empty,Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_capture(Raw_lookaround(Lookahead,Raw_char('a')))))))),Raw_empty)))))),Raw_quant(Star,Raw_con(Raw_quant(LazyPlus,Raw_quant(Plus,Raw_alt(Raw_capture(Raw_capture(Raw_quant(Star,Raw_quant(Plus,Raw_quant(Plus,Raw_capture(Raw_alt(Raw_con(Raw_quant(Plus,Raw_con(Raw_dot,Raw_char('a'))),Raw_capture(Raw_alt(Raw_empty,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_quant(Star,Raw_dot))))))),Raw_capture(Raw_capture(Raw_char('b')))))))))),Raw_capture(Raw_dot)))),Raw_char('b'))))))))
@@ -174,8 +174,8 @@ let tests () =
   replay_bugs(clear_mem);
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
-  (* replay_bugs(should_not_clear);
-   * replay_bugs(different_capture); *)
+  replay_bugs(should_not_clear);
+  (* replay_bugs(different_capture); *)
   replay_bugs(linear_stuck);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
@@ -211,12 +211,12 @@ let main =
    *   let left = Raw_quant(LazyStar,Raw_empty) in
    *   let a = Raw_char('a') in
    *   let right = Raw_empty in
-   *   (Raw_alt(a, right), "ca") in
+   *   (Raw_alt(Raw_con(left,a), right), "ca") in
    * 
    * 
-   * let bug = List.nth linear_stuck 0  in
+   * let bug = reproducer  in
    * 
-   * ignore(get_linear_result ~debug:true ~verbose:true (fst bug) (snd bug));
+   * (\* ignore(get_linear_result ~debug:true ~verbose:true (fst bug) (snd bug)); *\)
    * (\* Printf.printf "foo: %s\n" (get_experimental_result (fst bug) (snd bug)); *\)
    * Printf.printf "%s\n" (print_js (fst bug));
    * compare_engines (fst bug) (snd bug) *)
