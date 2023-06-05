@@ -127,8 +127,11 @@ let should_not_clear : (raw_regex*string) list =
    (Raw_capture(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_con(Raw_con(Raw_quant(LazyPlus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_char('b')))),Raw_con(Raw_char('c'),Raw_empty)),Raw_capture(Raw_alt(Raw_con(Raw_quant(LazyPlus,Raw_empty),Raw_capture(Raw_capture(Raw_quant(LazyPlus,Raw_empty)))),Raw_capture(Raw_dot)))))))),"ccbbbccababcababbbaccabccbacababbacbcababcabbaccccacbccbbbcbbcbcacacbaaacaaababccbbbbbbac")]
 
 (* here we agree with Experimental, but Experimental does not agree with Irregexp! *)
-let different_capture : (raw_regex*string) list =
-  [(Raw_quant(Plus,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_capture(Raw_dot)))),"bab")]
+(* The problem here is that we merge threads that may have a different future according to the JS semantics *)
+let empty_repetitions : (raw_regex*string) list =
+  [(Raw_quant(Plus,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_capture(Raw_dot)))),"bab");
+   (Raw_quant(Star,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_dot))),"ab"); (* simplified example *)
+   (Raw_quant(Star,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_alt(Raw_empty,Raw_char('b')))),"ab")] (* no lazy stars, just alternation *)
 
 (* FIXED by preventing advance_epsilon from calling itself twice *)
 let linear_stuck : (raw_regex*string) list =
@@ -174,9 +177,9 @@ let tests () =
   replay_bugs(empty_group);
   replay_bugs(should_not_clear);
   replay_bugs(linear_stuck);
-  (* replay_bugs(different_capture); *)
+  (* replay_bugs(empty_repetitions); *)
   replay_stuck(redos);
-  replay_stuck(different_capture);
+  replay_stuck(empty_repetitions);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
 
@@ -191,8 +194,13 @@ let paper_example () =
   
   
 let main =
+  let bug = List.nth empty_repetitions 2 in
+  ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
+  Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result (fst bug) (snd bug));
+  Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug));
+  compare_engines (fst bug) (snd bug)
   (* tests() *)
-  fuzzer()
+  (* fuzzer() *)
   (* run_benchmark(lookahead_star); *)
   (* experimental_benchmark() *)
   
