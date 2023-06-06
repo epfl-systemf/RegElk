@@ -153,4 +153,21 @@ let experimental_benchmark () =
   (* plotting the results *)
   let command = "python3 plot_single.py experimental_quadratic V8Experimental &" in
   ignore(string_of_command command)
+
+
   
+(** * Plus Quadratic  *)
+(* because Plus gets compiled to a concatenation with a star, we can get quadratic bytecode length *)
+(* Note that after 5 nested Plus, Experimental simply rejects the regex *)
+
+let rec quadratic_plus_reg : reg_param = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_dot
+  | _ -> Raw_quant(Plus,quadratic_plus_reg (reg_size - 1))
+
+let quadratic_plus_str : string =
+  String.make 999 'a'
+
+let quadratic_plus : benchmark =
+  RegSize (quadratic_plus_reg, quadratic_plus_str, 0, 20, 20, "QuadraticPlus")
+

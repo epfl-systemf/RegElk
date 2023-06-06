@@ -194,14 +194,14 @@ let paper_example () =
   
   
 let main =
-  let bug = List.nth empty_repetitions 2 in
-  ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
-  Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result (fst bug) (snd bug));
-  Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug));
-  compare_engines (fst bug) (snd bug)
-  (* tests() *)
+  (* let bug = List.nth empty_repetitions 2 in
+   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
+   * Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result (fst bug) (snd bug));
+   * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug));
+   * compare_engines (fst bug) (snd bug) *)
+  tests()
   (* fuzzer() *)
-  (* run_benchmark(lookahead_star); *)
-  (* experimental_benchmark() *)
+  (* run_benchmark(quadratic_plus); *)
+  
   
     
