@@ -85,10 +85,10 @@ type quant_clocks = int IntMap.t
 let set_quant (qc:quant_clocks) (q:quantid) (cp:int) : quant_clocks =
   IntMap.add q cp qc
 
-(* right now this returns 0 by defult. We might change to an option *)
+(* right now this returns -1 by default. We might change to an option *)
 let get_quant (qc:quant_clocks) (q:quantid) : int  =
   match (IntMap.find_opt q qc) with
-  | None -> 0
+  | None -> -1
   | Some x -> x
 
 let init_quant_clocks () : quant_clocks =
@@ -403,8 +403,8 @@ let rec filter_capture (r:regex) (regs:cap_regs ref) (cclocks: cap_clocks) (lclo
         if (lookv < maxclock)
              (* cleaning everything inside the lookaround since it's too old *)
         then filter_all r1 regs
-        else filter_capture r1 regs cclocks lclocks qclocks 0
-                            (* resetting the maxclock to 0: lookaround clocks are reset *)
+        else filter_capture r1 regs cclocks lclocks qclocks (-1)
+                            (* resetting the maxclock to -1: lookaround clocks are reset *)
      end
       
 and filter_all (r:regex) (regs:cap_regs ref) : unit = (* clearing all capture group inside a regex *)

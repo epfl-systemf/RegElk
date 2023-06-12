@@ -87,7 +87,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
                quants := t.quants (* updating the quantifier registers *)
             end
      done;
-     filter_capture r regs !capclk !lookclk !quants 0; (* filtering old values *)
+     filter_capture r regs !capclk !lookclk !quants (-1); (* filtering old values *)
      Some (!regs)
      
   
