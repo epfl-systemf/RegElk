@@ -47,9 +47,8 @@ let compiler_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
-  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
   Printf.printf "%s\n" (print_code code);
-  assert(true)
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,6); BeginLoop; Consume 'a'; EndLoop; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
 
 let interpreter_tests () =
   let o = create_oracle 1 1 in
@@ -177,9 +176,9 @@ let tests () =
   replay_bugs(empty_group);
   replay_bugs(should_not_clear);
   replay_bugs(linear_stuck);
-  (* replay_bugs(empty_repetitions); *)
+  replay_bugs(empty_repetitions);
   replay_stuck(redos);
-  replay_stuck(empty_repetitions);
+  (* replay_stuck(empty_repetitions); *)
   Printf.printf "\027[32mTests passed\027[0m\n"
 
 
@@ -194,16 +193,17 @@ let paper_example () =
   
   
 let main =
-  let lazya = Raw_alt(Raw_empty,Raw_char('a')) in
-  let lazyb = Raw_alt(Raw_empty,Raw_char('b')) in
-  let lazyc = Raw_alt(Raw_empty,Raw_char('c')) in
-  let epsilon_reg = Raw_quant(Star,Raw_con(lazya,Raw_con(lazyb,lazyc))) in
-
-  let epsilon_str = "aac" in
-
-  Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result epsilon_reg epsilon_str);
-  Printf.printf "RE2 result:\n%s\n\n" (get_re2_result epsilon_reg epsilon_str);
-  Printf.printf "JS result:\n%s\n\n" (get_js_result epsilon_reg epsilon_str);
+  (* let lazya = Raw_alt(Raw_empty,Raw_char('a')) in
+   * let lazyb = Raw_alt(Raw_empty,Raw_char('b')) in
+   * let lazyc = Raw_alt(Raw_empty,Raw_char('c')) in
+   * let epsilon_reg = Raw_quant(Star,Raw_con(lazya,Raw_con(lazyb,lazyc))) in
+   * 
+   * let epsilon_str = "aac" in
+   * 
+   * Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result epsilon_reg epsilon_str);
+   * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result epsilon_reg epsilon_str);
+   * Printf.printf "JS result:\n%s\n\n" (get_js_result epsilon_reg epsilon_str);
+   * Printf.printf "Linear result:\n%s\n\n" (get_linear_result epsilon_reg epsilon_str); *)
   
   (* let bug = List.nth empty_repetitions 2 in
    * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
@@ -211,8 +211,8 @@ let main =
    * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug));
    * compare_engines (fst bug) (snd bug) *)
   (* tests() *)
-  (* fuzzer() *)
-  (* run_benchmark(quadratic_plus); *)
+  fuzzer()
+  (* run_benchmark(nested_nullable); *)
   
   
     

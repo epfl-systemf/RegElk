@@ -22,6 +22,8 @@ type instruction =
   | CheckOracle of lookid       (* checks the oracle at the current CP. Kills the thread on a failure. Writes to the lookaround mem *)
   | NegCheckOracle of lookid    (* same, but expects a negative answer *)
   | WriteOracle of lookid       (* when we find a match, we write to the oracle at CP *)
+  | BeginLoop                   (* start of loop: we set a counter to prevent exiting it using only epsilon transitions *)
+  | EndLoop                     (* end of loop: fails if we started the loop without consuming in the string *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
 type code = instruction Array.t
@@ -65,6 +67,8 @@ let print_instruction (i:instruction) : string =
   | CheckOracle l -> "CheckOracle " ^ string_of_int l
   | NegCheckOracle l -> "NegCheckOracle " ^ string_of_int l
   | WriteOracle l -> "WriteOracle " ^ string_of_int l
+  | BeginLoop -> "BeginLoop"
+  | EndLoop -> "EndLoop"
   
 let rec print_code (c:code) : string =
   let s = ref "" in

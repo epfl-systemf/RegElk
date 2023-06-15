@@ -107,10 +107,11 @@ type thread =
     mutable pc: int;
     mutable regs: cap_regs;
     mutable mem: look_mem;
+    mutable exit_allowed : bool;
   }
 
 let init_thread (initregs:cap_regs) (initmem:look_mem) : thread =
-  { pc = 0; regs = initregs; mem = initmem }
+  { pc = 0; regs = initregs; mem = initmem; exit_allowed = false }
   
 (** * PC Sets  *)
 
@@ -140,7 +141,29 @@ let add_thread (t:thread) (x:char option) (current:(thread*(char option)) list) 
       (t,x)::current
     end
 
+(** * Boolean PC Sets  *)
+  
+(* For each PC of the bytecode, remembers if it has been handled for each possible state of the exit_allowed boolean *)
+type bpcset =
+  {
+   true_set: pcset;
+   false_set: pcset;
+  }
 
+let init_bpcset (bytecode_size: int) : bpcset =
+  { true_set = init_pcset(bytecode_size); false_set = init_pcset(bytecode_size) }
+
+let bpc_add (bpcs:bpcset) (pc:label) (exit_bool:bool) : unit =
+  match exit_bool with
+  | true -> pc_add bpcs.true_set pc
+  | false -> pc_add bpcs.false_set pc
+
+let bpc_mem (bpcs:bpcset) (pc:label) (exit_bool:bool) : bool =
+  match exit_bool with
+  | true -> pc_mem bpcs.true_set pc
+  | false -> pc_mem bpcs.false_set pc
+
+  
 (** * Interpreter States  *)
 
 (* The interpreter alternates between two different steps to keep threads synchronized:
@@ -152,7 +175,7 @@ type interpreter_state =
   {
     mutable cp: int;             (* current position in the input string *)
     mutable active: thread list;    (* ordered list of threads. high to low priority *)
-    mutable processed: pcset;       (* already processed pcs. Similar to isPcProcessed in Experimental  *)
+    mutable processed: bpcset;       (* already processed pcs. Similar to isPcProcessed in Experimental  *)
     (* mutable because we reset it each step, but its modifications during a step are done in-place *)
     mutable blocked: (thread*(char option)) list;   (* threads stuck at a Consume instruction for a given char. low to high priority. *)
     mutable isblocked: pcset;       (* already blocked pcs, to avoid duplicates *)
@@ -163,7 +186,7 @@ type interpreter_state =
 let init_state (c:code) (initcp:int) (initregs:cap_regs) (initmem:look_mem) =
   { cp = initcp;
     active = [init_thread initregs initmem];
-    processed = init_pcset (size c);
+    processed = init_bpcset (size c);
     blocked = [];
     isblocked = init_pcset (size c);
     bestmatch = None;
@@ -212,10 +235,10 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
   | [] -> () (* done advancing epsilon transitions *)
   | t::ac -> (* t: highest priority active thread *)
      let i = get_instr c t.pc in
-     if (pc_mem s.processed t.pc) then (* killing the lower priority thread if it has already been processed *)
+     if (bpc_mem s.processed t.pc t.exit_allowed) then (* killing the lower priority thread if it has already been processed *)
        begin s.active <- ac; advance_epsilon ~debug c s o end
      else begin
-       pc_add s.processed t.pc; (* adding the current pc being handled to the set of proccessed pcs *)
+       bpc_add s.processed t.pc t.exit_allowed; (* adding the current pc being handled to the set of proccessed pcs *)
        match i with
        | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t (Some x) s.blocked s.isblocked; (* also updates isblocked *)
@@ -234,7 +257,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | Fork (x,y) ->           (* x has higher priority *)
           t.pc <- y;
-          s.active <- {pc = x; regs = t.regs; mem = t.mem}::s.active;
+          s.active <- {pc = x; regs = t.regs; mem = t.mem; exit_allowed = t.exit_allowed}::s.active;
           advance_epsilon ~debug c s o;
        | SetRegisterToCP r ->
           t.regs <- set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
@@ -266,6 +289,17 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           s.active <- ac;       (* no need to consider that thread anymore *)
           set_oracle o s.cp l;    (* writing to the oracle *)
           advance_epsilon ~debug c s o (* we keep searching for more matches *)
+       | BeginLoop ->
+       (* we need to set exit_allowed to false: now exiting a loop is forbidden according to JS semantics *)
+          t.exit_allowed <- false;
+          t.pc <- t.pc + 1;
+          advance_epsilon ~debug c s o
+       | EndLoop ->
+          (* this transition is only possible if we didn't begin this loop during this epsilon transition phase *)
+          begin match t.exit_allowed with
+          | true -> t.pc <- t.pc+1; advance_epsilon ~debug c s o
+          | false -> s.active <- ac; advance_epsilon ~debug c s o (* killing the current thread *)
+          end
      end
 
 let is_accepted (x:char) (o:char option): bool =
@@ -281,7 +315,8 @@ let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
   | (t,x)::blocked' ->
      s.blocked <- blocked';
      if (is_accepted s.nextchar x) then
-       begin t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
+       begin t.exit_allowed <- true; t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
+     (* since t just consumed something, we set its exit_allowed flag to true *)
      consume ~debug c s
      
   
@@ -307,7 +342,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
      (* advancing blocked threads *)
      consume ~debug c s;
      (* resetting the processed and blocked sets *)
-     s.processed <- init_pcset (size c); (* TODO: should we cache it to avoid recomputing? Or should that be constant time when we switch to arrays? *)
+     s.processed <- init_bpcset (size c); (* TODO: should we cache it to avoid recomputing? Or should that be constant time when we switch to arrays? *)
      s.isblocked <- init_pcset (size c);
      (* advancing the current position *)
      s.cp <- incr_cp s.cp dir;

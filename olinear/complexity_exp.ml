@@ -171,3 +171,16 @@ let quadratic_plus_str : string =
 let quadratic_plus : benchmark =
   RegSize (quadratic_plus_reg, quadratic_plus_str, 0, 20, 20, "QuadraticPlus")
 
+  
+(** * Nested Nullables  *)
+  
+let rec nested_nullable_reg : reg_param = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_quant(Star,Raw_alt(Raw_empty,Raw_dot))
+  | _ -> Raw_quant(Star,Raw_alt(nested_nullable_reg (reg_size - 1),Raw_dot))
+
+let nested_null_string : string =
+  String.make 999 'a'           (* <1000, not JS compiled *)
+
+let nested_nullable : benchmark =
+  RegSize (nested_nullable_reg, nested_null_string, 0, 400, 400, "NestedNullables")

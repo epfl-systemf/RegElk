@@ -62,11 +62,11 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      let look_range = lend - lstart in
      begin match quant with
      | Star ->
-        let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-        ([Fork (fresh+1, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
+        let (l1, f1) = compile r1 (fresh+2+range+look_range) in
+        ([Fork (fresh+1, f1+2)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Jmp fresh], f1+2)
      | LazyStar ->
-        let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-        ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
+        let (l1, f1) = compile r1 (fresh+2+range+look_range) in
+        ([Fork (f1+2, fresh+1)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Fork (f1+2,fresh+1)], f1+2)
      (* Old version, has a bug on (.*?)* *)
         (* let (l1, f1) = compile r1 (fresh+1+range+look_range) in
          * ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1) *)
