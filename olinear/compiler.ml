@@ -71,13 +71,15 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
         (* let (l1, f1) = compile r1 (fresh+1+range+look_range) in
          * ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1) *)
      | Plus ->
-        (* Compiling as a concatenation *)
-        (* This may duplicates capture groups numbers *)
-        compile (Re_con(r1,Re_quant(cstart,cend,lstart,lend,Star,r1))) fresh
-     (* Old version *)
-        (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
-         * (l1 @ [Fork (f1+1, f1+2+range+look_range)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
+        let (l1,f1) = compile r1 (fresh+3+range+look_range) in
+     ([Jmp (fresh+3+range+look_range)] @ [Fork (fresh+2, f1+2)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Jmp (fresh+1)], f1+2)
+
+     (* this new versions allows the first iteration to go inside the loop body without passing through a BeginLoop instruction *)
+     (* in practice, this allows the first iteration to match something empty, but not the later ones *)
+        
+       
      | LazyPlus ->
+        (* TODO: linear size compilation *)
         (* same thing *)
         compile (Re_con(r1,Re_quant(cstart,cend,lstart,lend,LazyStar,r1))) fresh
         (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
