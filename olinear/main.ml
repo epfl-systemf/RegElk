@@ -99,8 +99,7 @@ let expected_result_oracle_errors : (raw_regex*string) list = (* FIXED! read str
    (Raw_lookaround(Lookbehind,Raw_char('a')),"cabbcabcccacbbabcb")]
 
 let idk : (raw_regex*string) list = (* FIXED, but i don't know why *)
-  [(Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
-   (Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(Raw_char('b'),Raw_capture(Raw_empty)),Raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('c')))))))),Raw_quant(Plus,Raw_con(Raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
+  [(Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(Raw_char('b'),Raw_capture(Raw_empty)),Raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('c')))))))),Raw_quant(Plus,Raw_con(Raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
   
 let clear_mem : (raw_regex*string) list = (* FIXED! clear the lookaround memory in quantifiers *)
   [(Raw_quant(Star,Raw_alt(Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_capture(Raw_char('b')))),Raw_char('b'))),"abc")] 
@@ -135,9 +134,15 @@ let empty_repetitions : (raw_regex*string) list =
 (* FIXED by preventing advance_epsilon from calling itself twice *)
 let linear_stuck : (raw_regex*string) list =
   [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_capture(Raw_con(Raw_dot,Raw_quant(Plus,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_capture(Raw_alt(Raw_alt(Raw_dot,Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_empty,Raw_capture(Raw_empty))),Raw_con(Raw_alt(Raw_capture(Raw_dot),Raw_capture(Raw_char('b'))),Raw_empty))),Raw_quant(LazyStar,Raw_capture(Raw_con(Raw_empty,Raw_alt(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_empty),Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_empty))),Raw_con(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_capture(Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_empty)),Raw_alt(Raw_capture(Raw_char('a')),Raw_dot)))),Raw_alt(Raw_char('c'),Raw_empty)))),Raw_char('b'))))))))))),Raw_con(Raw_lookaround(NegLookbehind,Raw_capture(Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_empty)))),Raw_dot)))))),Raw_empty))))))),Raw_lookaround(NegLookahead,Raw_empty))))))),Raw_empty)))))),"cbacaaaababbcaaaaababcabcabaccaaaacb")]
-  
-let different_results : (raw_regex*string) list =
-  [(Raw_alt(Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_quant(Star,Raw_empty),Raw_capture(Raw_quant(Plus,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_alt(Raw_lookaround(Lookbehind,Raw_con(Raw_char('c'),Raw_dot)),Raw_dot))),Raw_empty))),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_empty)),Raw_quant(LazyStar,Raw_capture(Raw_capture(Raw_empty)))))))))))))))))))),Raw_capture(Raw_empty)),"bacabacbcabcaacac")]
+
+(* bugs when I switched to linear compilation of the + *)
+(* Fixed the first 2 by starting the original thread with a true for exit_allowed, otherwise it fails to take empty Plusses *)
+(* But the last one is still a bug *)
+let linear_plus : (raw_regex*string) list =
+  [(Raw_alt(Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_quant(Star,Raw_empty),Raw_capture(Raw_quant(Plus,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_alt(Raw_lookaround(Lookbehind,Raw_con(Raw_char('c'),Raw_dot)),Raw_dot))),Raw_empty))),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_empty)),Raw_quant(LazyStar,Raw_capture(Raw_capture(Raw_empty)))))))))))))))))))),Raw_capture(Raw_empty)),"bacabacbcabcaacac");
+   (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
+   (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_alt(Raw_dot,Raw_capture(Raw_empty)))),"b"); (* simplified *)
+   (Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_con(Raw_lookaround(NegLookahead,Raw_capture(Raw_empty)),Raw_lookaround(Lookahead,Raw_capture(Raw_dot)))))),Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_alt(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_lookaround(Lookahead,Raw_char('b')),Raw_lookaround(Lookahead,Raw_char('c'))),Raw_capture(Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_lookaround(Lookbehind,Raw_char('c')),Raw_char('c'))),Raw_capture(Raw_con(Raw_dot,Raw_dot))))))),Raw_con(Raw_dot,Raw_alt(Raw_dot,Raw_char('b'))))),Raw_quant(Star,Raw_con(Raw_quant(Plus,Raw_capture(Raw_lookaround(NegLookbehind,Raw_char('b')))),Raw_quant(Star,Raw_con(Raw_dot,Raw_dot))))))),"accababbbabbccacabcaccaabcbbabcaaacbaaccabacababa")]
 
 
 (* JS is stuck (timeout), but not our engine *)
@@ -169,7 +174,7 @@ let tests () =
   replay_bugs(oracle_assert_errors);
   replay_bugs(expected_result_oracle_errors);
   replay_bugs(string_sub_errors);
-  (* replay_bugs(idk); *)
+  replay_bugs(idk);
   replay_bugs(clear_mem);
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
@@ -177,8 +182,8 @@ let tests () =
   replay_bugs(should_not_clear);
   replay_bugs(linear_stuck);
   replay_bugs(empty_repetitions);
+  replay_bugs(linear_plus);
   replay_stuck(redos);
-  (* replay_stuck(empty_repetitions); *)
   Printf.printf "\027[32mTests passed\027[0m\n"
 
 
@@ -204,11 +209,16 @@ let main =
    * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result epsilon_reg epsilon_str);
    * Printf.printf "JS result:\n%s\n\n" (get_js_result epsilon_reg epsilon_str);
    * Printf.printf "Linear result:\n%s\n\n" (get_linear_result epsilon_reg epsilon_str); *)
+
   
-  (* let bug = List.nth empty_repetitions 2 in
+  (* let plus_body = Raw_lookaround(Lookbehind,Raw_alt(Raw_dot,Raw_capture(Raw_empty))) in
+   * let bug_reg = Raw_quant(Plus,plus_body) in
+   * let bug_str = "b" in
+   * let bug = (bug_reg, bug_str) in
+   *                                      
    * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
-   * Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result (fst bug) (snd bug));
-   * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug));
+   * (\* Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result (fst bug) (snd bug));
+   *  * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug)); *\)
    * compare_engines (fst bug) (snd bug) *)
   tests()
   (* fuzzer() *)

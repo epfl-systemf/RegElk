@@ -111,7 +111,8 @@ type thread =
   }
 
 let init_thread (initregs:cap_regs) (initmem:look_mem) : thread =
-  { pc = 0; regs = initregs; mem = initmem; exit_allowed = false }
+  { pc = 0; regs = initregs; mem = initmem; exit_allowed = true }
+(* Initializing exit_allowed with true in case the original thread sees a + quantifier *)
   
 (** * PC Sets  *)
 
@@ -194,8 +195,11 @@ let init_state (c:code) (initcp:int) (initregs:cap_regs) (initmem:look_mem) =
   }
 
 (** * Debugging Utilities  *)
+
+let print_exit_allowed (b:bool) : string =
+  if b then "\027[32m✔\027[0m" else "\027[31m✘\027[0m"
   
-let print_thread (t:thread) : string = string_of_int t.pc
+let print_thread (t:thread) : string = string_of_int t.pc ^ print_exit_allowed t.exit_allowed
 
 let print_active (l:thread list) : string =
   "  ACTIVE: " ^ List.fold_left (fun s t -> if (s = "") then (print_thread t) else (print_thread t) ^ ", " ^ s) "" l
