@@ -74,13 +74,21 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
           let (l1, f1) = compile r1 (fresh+1+range+look_range) in
           ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
      | Plus ->
-        compile (Re_con(r1,Re_quant(nul,cstart,cend,lstart,lend,Star,r1))) fresh
+        if nul then 
+          (* quadratic bytecode size if the Plus is nullable *)
+          compile (Re_con(r1,Re_quant(nul,cstart,cend,lstart,lend,Star,r1))) fresh
+        else
+          (* linear bytecode size otherwise *)
+          let (l1, f1) = compile r1 (fresh+range+look_range) in
+          (clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (fresh,f1+1)], f1+1)
      | LazyPlus ->
-        (* TODO: linear size compilation *)
-        (* same thing *)
-        compile (Re_con(r1,Re_quant(nul,cstart,cend,lstart,lend,LazyStar,r1))) fresh
-        (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
-         * (l1 @ [Fork (f1+2+range+look_range, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
+        if nul then
+          (* quadratic bytecode size if the LazyPlus is nullable *)
+          compile (Re_con(r1,Re_quant(nul,cstart,cend,lstart,lend,LazyStar,r1))) fresh
+        else
+          (* linear bytecode size otherwise *)
+          let (l1, f1) = compile r1 (fresh+range+look_range) in
+          (clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh)], f1+1)
      end
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) in

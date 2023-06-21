@@ -125,7 +125,7 @@ let double_star_explosion : benchmark =
 
 
 (** * Possibly Quadratic  *)
-(* because of the way we clear capture gristers (same in Experimental) *)
+(* because of the way we clear capture registers (same in Experimental) *)
 (* our bytecode might be quadratic in the regex size, and thus execution time could be as well *)
   
 
@@ -169,7 +169,7 @@ let quadratic_plus_str : string =
   String.make 999 'a'
 
 let quadratic_plus : benchmark =
-  RegSize (quadratic_plus_reg, quadratic_plus_str, 0, 20, 20, "QuadraticPlus")
+  RegSize (quadratic_plus_reg, quadratic_plus_str, 0, 1000, 1000, "QuadraticPlus")
 
   
 (** * Nested Nullables  *)
