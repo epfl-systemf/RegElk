@@ -48,7 +48,7 @@ let compiler_tests () =
   let re = annotate raw in
   let code = compile_to_bytecode re in
   Printf.printf "%s\n" (print_code code);
-  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,6); BeginLoop; Consume 'a'; EndLoop; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
 
 let interpreter_tests () =
   let o = create_oracle 1 1 in
