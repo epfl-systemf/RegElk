@@ -35,6 +35,20 @@ let get_time_ocaml (r:raw_regex) (str:string) : float =
   let tend = Unix.gettimeofday() in
   tend -. tstart
 
+(* running benchmarks with the JaneStreet Core_bench library *)
+let prepare_core_benchmark (b:benchmark) =
+  let open Core in
+  let open Core_bench in
+  match b with
+  | RegSize (rp, str, min, max_js, max_ocaml, name) ->
+     let inputs = Array.init (max_ocaml-min+1) rp in
+     let matcher_fn i =
+       let r = inputs.(i) in
+       (* todo live update i and try with a sleep *)
+       Staged.stage (fun () -> ignore(get_linear_result r str)) in
+     (inputs, matcher_fn, name)
+  | _ -> failwith "TODO"
+  
 (* writes to a csv file and plots the result *)
 let run_benchmark (b:benchmark) : unit =
   match b with

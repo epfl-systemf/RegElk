@@ -194,16 +194,16 @@ let paper_example () =
   
   
 let main =
-  let lazya = Raw_alt(Raw_empty,Raw_char('a')) in
-  let lazyb = Raw_alt(Raw_empty,Raw_char('b')) in
-  let lazyc = Raw_alt(Raw_empty,Raw_char('c')) in
-  let epsilon_reg = Raw_quant(Star,Raw_con(lazya,Raw_con(lazyb,lazyc))) in
-
-  let epsilon_str = "aac" in
-
-  Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result epsilon_reg epsilon_str);
-  Printf.printf "RE2 result:\n%s\n\n" (get_re2_result epsilon_reg epsilon_str);
-  Printf.printf "JS result:\n%s\n\n" (get_js_result epsilon_reg epsilon_str);
+  (* let lazya = Raw_alt(Raw_empty,Raw_char('a')) in
+   * let lazyb = Raw_alt(Raw_empty,Raw_char('b')) in
+   * let lazyc = Raw_alt(Raw_empty,Raw_char('c')) in
+   * let epsilon_reg = Raw_quant(Star,Raw_con(lazya,Raw_con(lazyb,lazyc))) in
+   * 
+   * let epsilon_str = "aac" in
+   * 
+   * Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result epsilon_reg epsilon_str);
+   * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result epsilon_reg epsilon_str);
+   * Printf.printf "JS result:\n%s\n\n" (get_js_result epsilon_reg epsilon_str); *)
   
   (* let bug = List.nth empty_repetitions 2 in
    * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
@@ -213,6 +213,15 @@ let main =
   (* tests() *)
   (* fuzzer() *)
   (* run_benchmark(quadratic_plus); *)
-  
+  let open Core in
+  let open Core_bench in
+  let (array_args,matcher_fn,name) = prepare_core_benchmark quadratic_plus in
+  Command_unix.run (Bench.make_command [
+                   Bench.Test.create_indexed
+                     ~name
+                     ~args:(List.init (Array.length array_args) (fun i -> i))
+                     matcher_fn ])
+    
+
   
     
