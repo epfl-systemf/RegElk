@@ -69,7 +69,7 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      | LazyStar ->
         if nul then 
           let (l1, f1) = compile r1 (fresh+2+range+look_range) in
-          ([Fork (f1+2, fresh+1)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Fork (f1+2,fresh+1)], f1+2)
+          ([Fork (f1+2, fresh+1)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Jmp fresh], f1+2)
         else
           let (l1, f1) = compile r1 (fresh+1+range+look_range) in
           ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
