@@ -176,15 +176,15 @@ let tests () =
   replay_bugs(string_sub_errors);
   replay_bugs(oracle_assert_errors);
   replay_bugs(expected_result_oracle_errors);
-  (* replay_bugs(idk); *)
+  replay_bugs(idk);
   replay_bugs(clear_mem);
-  (* replay_bugs(empty_problem); *)
-  (* replay_bugs(double_quant); *)
+  replay_bugs(empty_problem);
+  replay_bugs(double_quant);
   replay_bugs(empty_group);
-  (* replay_bugs(should_not_clear); *)
-  (* replay_bugs(empty_repetitions); *)
+  replay_bugs(should_not_clear);
+  replay_bugs(empty_repetitions);
   replay_bugs(linear_stuck);
-  (* replay_bugs(linear_plus); *)
+  replay_bugs(linear_plus);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -200,6 +200,9 @@ let paper_example () =
   
   
 let main =
+  (* let bug = (Raw_quant(Star,Raw_con(Raw_alt(Raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_dot))),"ab") in
+   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)); *)
+  
   tests()
   (* fuzzer() *)
   (* run_benchmark(lookahead_star); *)

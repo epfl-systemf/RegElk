@@ -60,14 +60,14 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      | Star ->
         if nul then 
           let (l1, f1) = compile r1 (fresh+3) in
-          ([Fork (fresh+1, f1+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+          ([Fork (fresh+1, f1+2); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
         else
           let (l1, f1) = compile r1 (fresh+2) in
           ([Fork (fresh+1, f1+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
      | LazyStar ->
         if nul then 
           let (l1, f1) = compile r1 (fresh+3) in
-          ([Fork (f1+1, fresh+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+          ([Fork (f1+2, fresh+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
         else
           let (l1, f1) = compile r1 (fresh+2) in
           ([Fork (f1+1, fresh+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)

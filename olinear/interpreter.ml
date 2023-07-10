@@ -301,13 +301,9 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | ClearRegister r ->
-          t.regs <- clear_reg t.regs r;
-          t.pc <- t.pc + 1;
-          advance_epsilon ~debug c s o
+          failwith "no more dynamic clearing"
        | ClearMemory l ->
-          t.mem <- clear_mem t.mem l;
-          t.pc <- t.pc + 1;
-          advance_epsilon ~debug c s o
+          failwith "no more dynamic clearing"
        | CheckOracle l ->
           if (get_oracle o s.cp l)
           then begin
