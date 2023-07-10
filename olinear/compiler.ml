@@ -55,40 +55,38 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      let (l1, f1) = compile r1 (fresh+1) in
      let (l2, f2) = compile r2 (f1+1) in
      ([Fork (fresh+1, f1+1)] @ l1 @ [Jmp f2] @ l2, f2)
-  | Re_quant (nul, cstart, cend, lstart, lend, quant, r1) ->
-     let range = cend - cstart in
-     let look_range = lend - lstart in
+  | Re_quant (nul, qid, quant, r1) ->
      begin match quant with
      | Star ->
         if nul then 
-          let (l1, f1) = compile r1 (fresh+2+range+look_range) in
-          ([Fork (fresh+1, f1+2)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Jmp fresh], f1+2)
+          let (l1, f1) = compile r1 (fresh+3) in
+          ([Fork (fresh+1, f1+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
         else
-          let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-          ([Fork (fresh+1, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)   
+          let (l1, f1) = compile r1 (fresh+2) in
+          ([Fork (fresh+1, f1+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
      | LazyStar ->
         if nul then 
-          let (l1, f1) = compile r1 (fresh+2+range+look_range) in
-          ([Fork (f1+2, fresh+1)] @ [BeginLoop] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [EndLoop] @ [Jmp fresh], f1+2)
+          let (l1, f1) = compile r1 (fresh+3) in
+          ([Fork (f1+1, fresh+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
         else
-          let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-          ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
+          let (l1, f1) = compile r1 (fresh+2) in
+          ([Fork (f1+1, fresh+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
      | Plus ->
-        if nul then 
-          (* quadratic bytecode size if the Plus is nullable *)
-          compile (Re_con(r1,Re_quant(nul,cstart,cend,lstart,lend,Star,r1))) fresh
+        if nul then
+          (* Compiling as a concatenation *)
+          let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) in
+          ([SetQuantToClock qid] @ l1, f1)
         else
-          (* linear bytecode size otherwise *)
-          let (l1, f1) = compile r1 (fresh+range+look_range) in
-          (clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (fresh,f1+1)], f1+1)
+          let (l1, f1) = compile r1 (fresh+1) in
+          ([SetQuantToClock qid] @ l1 @ [Fork (fresh,f1+1)], f1+1)
      | LazyPlus ->
         if nul then
-          (* quadratic bytecode size if the LazyPlus is nullable *)
-          compile (Re_con(r1,Re_quant(nul,cstart,cend,lstart,lend,LazyStar,r1))) fresh
+          (* Compiling as a concatenation *)
+          let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,LazyStar,r1))) (fresh+1) in
+          ([SetQuantToClock qid] @ l1, f1)
         else
-          (* linear bytecode size otherwise *)
-          let (l1, f1) = compile r1 (fresh+range+look_range) in
-          (clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh)], f1+1)
+          let (l1, f1) = compile r1 (fresh+1) in
+          ([SetQuantToClock qid] @ l1 @ [Fork (f1+1,fresh)], f1+1)
      end
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) in
