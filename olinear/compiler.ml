@@ -10,27 +10,6 @@ open Bytecode
 (* defining registers corresponding to a given capture group *)
 let start_reg (c:capture) : register = 2 * c
 let end_reg (c:capture) : register = (2*c) + 1
-
-(* Clearing Start Registers *)
-(* Generating code to clear the start registers inside a quantifier to comply with the JS semantics *)
-let rec clear_regs (cstart:capture) (nb:int) : instruction list =
-  assert (nb >= 0);
-  if (nb = 0) then []
-  else (ClearRegister (start_reg (cstart+nb-1)))::(clear_regs cstart (nb-1))
-
-(* Clear the interval [cstart; cend[ *)
-let clear_range (cstart:capture) (cend:capture) : instruction list =
-  clear_regs cstart (cend - cstart)
-
-(** * Lookaround Memory  *)
-
-let rec clear_looks (lstart:lookid) (nb:int) : instruction list =
-  assert (nb >= 0);
-  if (nb = 0) then []
-  else (ClearMemory (lstart+nb-1))::(clear_looks lstart (nb-1))
-
-let clear_mem (lstart:lookid) (lend:lookid) : instruction list =
-  clear_looks lstart (lend - lstart)
   
   
 (** * Compilation  *)

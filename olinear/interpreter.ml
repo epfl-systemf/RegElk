@@ -300,10 +300,6 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           t.quants <- set_quant t.quants q s.clock; (* adding the last iteration cp *)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
-       | ClearRegister r ->
-          failwith "no more dynamic clearing"
-       | ClearMemory l ->
-          failwith "no more dynamic clearing"
        | CheckOracle l ->
           if (get_oracle o s.cp l)
           then begin
