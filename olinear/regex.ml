@@ -31,6 +31,23 @@ type raw_regex =
   | Raw_lookaround of lookaround * raw_regex
 
 
+(** * Nullable Regexes  *)
+(* Nullable quantifiers can be compiled differently *)
+(* here we simply identify nullable regexes *)
+
+(* There are 3 different types of nullability *)
+(* Either a regex is non-nullable, meaning that all its paths lead to a Consume *)
+(* Or it is Context-Independent Nullable, meaning that there is for sure a nullable path that does not depend on the string positiion *)
+(* Or it is context-dependent nullable, for instance if its only nullable path goes through a lookaround or anchor *)
+
+(* Note that sometimes we can classify CIN regexes as CDN (for instance if we go through a lookaround that is always true), *)
+(* but our solution for CDN regexes also works for CIN (more general but slower) *)
+                   
+type nullability =
+  | NonNullable                 (* it is impossible for the regex to be nulled *)
+  | CDNullable                  (* teh regex can be nulled depending on the current string position *)
+  | CINullable                  (* the regex can be nulled, and this does not depend on the current string position *)                        
+                        
 (** * Annotated Regexes  *)
 
 (* capture unique identifiers *)
@@ -48,42 +65,57 @@ type regex =
   | Re_con of regex * regex
   (* the first bool indicates if the body of the quantifier is nullable *)
   (* each quantifier is given an unique id *)
-  | Re_quant of bool * quantid * quantifier * regex
+  | Re_quant of nullability * quantid * quantifier * regex
   | Re_capture of capture * regex
   | Re_lookaround of lookid * lookaround * regex
 
-(** * Nullable Regexes  *)
-(* Nullable quantifiers can be compiled differently *)
-(* here we simply identify nullable regexes *)
 
-let rec nullable (r:regex) : bool =
+(** * Computing Nullability  *)
+                   
+let null_or (n1:nullability) (n2:nullability): nullability =
+  match n1 with
+  | NonNullable -> n2
+  | CDNullable -> begin match n2 with
+                  | CINullable -> CINullable
+                  | _ -> CDNullable end
+  | CINullable -> CINullable
+
+let null_and (n1:nullability)  (n2:nullability): nullability =
+  match n1 with
+  | NonNullable -> NonNullable
+  | CDNullable -> begin match n2 with
+                  | NonNullable -> NonNullable
+                  | _ -> CDNullable end
+  | CINullable -> n2
+  
+let rec nullable (r:regex) : nullability =
   match r with
-  | Re_empty -> true
-  | Re_char _ | Re_dot -> false
-  | Re_alt (r1,r2) -> (nullable r1) || (nullable r2)
-  | Re_con (r1,r2) -> (nullable r1) && (nullable r2)
+  | Re_empty -> CINullable
+  | Re_char _ | Re_dot -> NonNullable
+  | Re_alt (r1,r2) -> null_or (nullable r1) (nullable r2)
+  | Re_con (r1,r2) -> null_and (nullable r1) (nullable r2)
   | Re_quant (_,_,q,r1) ->
      begin match q with
-     | Star | LazyStar -> true
+     | Star | LazyStar -> CINullable
      | Plus | LazyPlus -> nullable r1
      end
   | Re_capture (_,r1) -> nullable r1
-  | Re_lookaround (_,_,_) -> true
+  | Re_lookaround (_,_,_) -> CDNullable
 
                     
-let rec raw_nullable (r:raw_regex) : bool =
+let rec raw_nullable (r:raw_regex) : nullability =
   match r with
-  | Raw_empty -> true
-  | Raw_char _ | Raw_dot -> false
-  | Raw_alt (r1,r2) -> (raw_nullable r1) || (raw_nullable r2)
-  | Raw_con (r1,r2) -> (raw_nullable r1) && (raw_nullable r2)
+  | Raw_empty -> CINullable
+  | Raw_char _ | Raw_dot -> NonNullable
+  | Raw_alt (r1,r2) -> null_or (raw_nullable r1) (raw_nullable r2)
+  | Raw_con (r1,r2) -> null_and (raw_nullable r1) (raw_nullable r2)
   | Raw_quant (q,r1) ->
      begin match q with
-     | Star | LazyStar -> true
+     | Star | LazyStar -> CINullable
      | Plus | LazyPlus -> raw_nullable r1
      end
   | Raw_capture (r1) -> raw_nullable r1
-  | Raw_lookaround (_,_) -> true
+  | Raw_lookaround (_,_) -> CDNullable
 
                    
 (** * Regex Pretty-printing  *)
@@ -165,7 +197,7 @@ let annotate (ra:raw_regex) : regex =
 
 (* Adds a .*? at the beginning of a regex so that it does not have to be matched at the beginning *)
 let lazy_prefix (r:regex) : regex =
-  Re_con (Re_quant (false, 0, LazyStar, Re_dot),r)
+  Re_con (Re_quant (NonNullable, 0, LazyStar, Re_dot),r)
 
 (** * Regex Manipulation  *)
 

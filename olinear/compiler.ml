@@ -37,35 +37,47 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
   | Re_quant (nul, qid, quant, r1) ->
      begin match quant with
      | Star ->
-        if nul then 
+        begin match nul with
+        | NonNullable ->
+           (* no need for BeginLoop/EndLoop instructions *)
+           let (l1, f1) = compile r1 (fresh+2) in
+           ([Fork (fresh+1, f1+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
+        | CINullable | CDNullable ->
+           (* nullable case: BeginLoop/EndLoop instructions needed for JS empty quantification semantics *)
           let (l1, f1) = compile r1 (fresh+3) in
           ([Fork (fresh+1, f1+2); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
-        else
-          let (l1, f1) = compile r1 (fresh+2) in
-          ([Fork (fresh+1, f1+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
+        end
      | LazyStar ->
-        if nul then 
-          let (l1, f1) = compile r1 (fresh+3) in
-          ([Fork (f1+2, fresh+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
-        else
-          let (l1, f1) = compile r1 (fresh+2) in
-          ([Fork (f1+1, fresh+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
+        begin match nul with
+        | NonNullable ->
+           (* no need for BeginLoop/EndLoop instructions *)
+           let (l1, f1) = compile r1 (fresh+2) in
+           ([Fork (f1+1, fresh+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
+        | CINullable | CDNullable ->
+           (* nullable case: BeginLoop/EndLoop instructions needed for JS empty quantification semantics *)
+           let (l1, f1) = compile r1 (fresh+3) in
+           ([Fork (f1+2, fresh+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+        end
      | Plus ->
-        if nul then
-          (* Compiling as a concatenation *)
-          let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) in
-          ([SetQuantToClock qid] @ l1, f1)
-        else
-          let (l1, f1) = compile r1 (fresh+1) in
-          ([SetQuantToClock qid] @ l1 @ [Fork (fresh,f1+1)], f1+1)
+        begin match nul with
+        | NonNullable ->
+           let (l1, f1) = compile r1 (fresh+1) in
+           ([SetQuantToClock qid] @ l1 @ [Fork (fresh,f1+1)], f1+1)
+        | _ ->
+           (* Compiling as a concatenation in the nullable case *)
+           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) in
+           ([SetQuantToClock qid] @ l1, f1)
+        end
      | LazyPlus ->
-        if nul then
-          (* Compiling as a concatenation *)
-          let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,LazyStar,r1))) (fresh+1) in
-          ([SetQuantToClock qid] @ l1, f1)
-        else
-          let (l1, f1) = compile r1 (fresh+1) in
-          ([SetQuantToClock qid] @ l1 @ [Fork (f1+1,fresh)], f1+1)
+        begin match nul with
+        | NonNullable ->
+           let (l1, f1) = compile r1 (fresh+1) in
+           ([SetQuantToClock qid] @ l1 @ [Fork (f1+1,fresh)], f1+1)
+        | _ -> 
+           (* Compiling as a concatenation in the nullable case *)
+           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,LazyStar,r1))) (fresh+1) in
+           ([SetQuantToClock qid] @ l1, f1)
+        end
      end
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) in
