@@ -28,7 +28,7 @@ let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
     let lookreg = lazy_prefix lookreg_rev in              (* lazy star prefix *)
     let bytecode = compile_to_write lookreg lid in
     let direction = oracle_direction looktype in
-    ignore (matcher_interp ~verbose ~debug bytecode str o direction)
+    ignore (interp_default_init ~verbose ~debug bytecode str o direction)
            (* we don't want the return value, we just want to write to the oracle *)
   done;
   o                             (* returning the modified oracle *)

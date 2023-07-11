@@ -402,7 +402,7 @@ let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:
 
 
 (* running the interpreter using the default initial state *)
-let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
+let interp_default_init ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
   let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0) o dir in
@@ -410,8 +410,8 @@ let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracl
   result
 
 (* for tests, sometimes we only want to know if there is a match *)
-let match_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): bool =
-  match (matcher_interp ~verbose ~debug c s o dir) with
+let boolean_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): bool =
+  match (interp_default_init ~verbose ~debug c s o dir) with
   | None -> false
   | _ -> true
 

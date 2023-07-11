@@ -73,7 +73,7 @@ let rec compile (r:regex) (fresh:label) (progress:bool) : instruction list * lab
            (* todo the second setquanttoclock should note that this + was nulled *)
            ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Fork (fresh+1,f1+3); SetQuantToClock (qid,true)], f1+3)
         | CDNullable ->
-           (* Compiling as a concatenation in the nullable case *)
+           (* Compiling as a concatenation in the nullable case. TODO: we can avoid duplication here *)
            let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) true in
            ([SetQuantToClock (qid,false)] @ l1, f1)
         end
@@ -88,16 +88,29 @@ let rec compile (r:regex) (fresh:label) (progress:bool) : instruction list * lab
            ([SetQuantToClock (qid,false)] @ l1, f1)
         end
      end
-  (* when progress = false *)
+  (* when progress = false, ie we only want to find the top-priority nullable path *)
   | Re_quant (nul, qid, quant, r1) ->
      begin match quant with
      | Star | LazyStar ->
-        (* you can just skip the stars, there's no way to null them by going inside *)
+        (* you can just skip the stars, there's no way to null them by going inside since they don't allow empty repetitions *)
         ([],fresh)
-     | Plus | LazyPlus ->
+     | Plus ->
         begin match nul with
         | NonNullable -> ([Fail], fresh+1) (* you won't be able to null that expression *)
-        | CINullable | CDNullable -> failwith "TODO" (* only compile the skip branch *)
+        | CINullable ->                    (* only compile the null branch *)
+           ([SetQuantToClock (qid,true)], fresh+1)
+        | CDNullable ->
+           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) false in
+           ([SetQuantToClock (qid,false)] @ l1, f1)
+             (* TODO: we want to compile the null branch only (no duplication), which requires a test *)
+        end
+     | LazyPlus ->
+        begin match nul with
+        | NonNullable -> ([Fail], fresh+1) (* you won't be able to null that expression *)            
+        | _ ->                             (* duplication *)
+           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,LazyStar,r1))) (fresh+1) false in
+           ([SetQuantToClock (qid,false)] @ l1, f1)
+             (* TODO: we can still eliminate the lazy star probably (it's going to get skipped by compilation anyway) *)
         end
      end
   | Re_capture (cid, r1) ->
