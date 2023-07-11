@@ -23,6 +23,7 @@ type instruction =
   | WriteOracle of lookid       (* when we find a match, we write to the oracle at CP *)
   | BeginLoop                   (* start of loop: we set a counter to prevent exiting it using only epsilon transitions *)
   | EndLoop                     (* end of loop: fails if we started the loop without consuming in the string *)
+  | Fail                        (* kills the current thread *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
 type code = instruction Array.t
@@ -67,6 +68,7 @@ let print_instruction (i:instruction) : string =
   | WriteOracle l -> "WriteOracle " ^ string_of_int l
   | BeginLoop -> "BeginLoop"
   | EndLoop -> "EndLoop"
+  | Fail -> "Fail"
   
 let rec print_code (c:code) : string =
   let s = ref "" in
