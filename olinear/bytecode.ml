@@ -17,7 +17,7 @@ type instruction =
   | Jmp of label
   | Fork of label * label
   | SetRegisterToCP of register
-  | SetQuantToClock of quantid     (* setting the last iteration of a quantifier *)
+  | SetQuantToClock of quantid * bool (* setting the last iteration of a quantifier. the bool indicates if it was nulling a + *)
   | CheckOracle of lookid       (* checks the oracle at the current CP. Kills the thread on a failure. Writes to the lookaround mem *)
   | NegCheckOracle of lookid    (* same, but expects a negative answer *)
   | WriteOracle of lookid       (* when we find a match, we write to the oracle at CP *)
@@ -62,7 +62,7 @@ let print_instruction (i:instruction) : string =
   | Jmp l -> "Jmp " ^ string_of_int l
   | Fork (l1,l2) -> "Fork " ^ string_of_int l1 ^ " " ^ string_of_int l2
   | SetRegisterToCP r -> "SetRegisterToCP " ^ string_of_int r
-  | SetQuantToClock q -> "SetQuantToClock " ^ string_of_int q
+  | SetQuantToClock (q,b) -> "SetQuantToClock " ^ string_of_int q ^ " " ^ string_of_bool b
   | CheckOracle l -> "CheckOracle " ^ string_of_int l
   | NegCheckOracle l -> "NegCheckOracle " ^ string_of_int l
   | WriteOracle l -> "WriteOracle " ^ string_of_int l

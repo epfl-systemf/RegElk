@@ -46,46 +46,46 @@ let rec compile (r:regex) (fresh:label) (progress:bool) : instruction list * lab
         | NonNullable ->
            (* no need for BeginLoop/EndLoop instructions *)
            let (l1, f1) = compile r1 (fresh+2) true in
-           ([Fork (fresh+1, f1+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
+           ([Fork (fresh+1, f1+1); SetQuantToClock (qid,false)] @ l1 @ [Jmp fresh], f1+1)
         | CINullable | CDNullable ->
            (* nullable case: BeginLoop/EndLoop instructions needed for JS empty quantification semantics *)
           let (l1, f1) = compile r1 (fresh+3) true in
-          ([Fork (fresh+1, f1+2); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+          ([Fork (fresh+1, f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Jmp fresh], f1+2)
         end
      | LazyStar ->
         begin match nul with
         | NonNullable ->
            (* no need for BeginLoop/EndLoop instructions *)
            let (l1, f1) = compile r1 (fresh+2) true in
-           ([Fork (f1+1, fresh+1); SetQuantToClock qid] @ l1 @ [Jmp fresh], f1+1)
+           ([Fork (f1+1, fresh+1); SetQuantToClock (qid,false)] @ l1 @ [Jmp fresh], f1+1)
         | CINullable | CDNullable ->
            (* nullable case: BeginLoop/EndLoop instructions needed for JS empty quantification semantics *)
            let (l1, f1) = compile r1 (fresh+3) true in
-           ([Fork (f1+2, fresh+1); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+           ([Fork (f1+2, fresh+1); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Jmp fresh], f1+2)
         end
      | Plus ->
         begin match nul with
         | NonNullable ->
            let (l1, f1) = compile r1 (fresh+1) true in
-           ([SetQuantToClock qid] @ l1 @ [Fork (fresh,f1+1)], f1+1)
+           ([SetQuantToClock (qid,false)] @ l1 @ [Fork (fresh,f1+1)], f1+1)
         | CINullable ->
            let (l1, f1) = compile r1 (fresh+3) true in
            (* todo the second setquanttoclock should note that this + was nulled *)
-           ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock qid] @ l1 @ [EndLoop; Fork (fresh+1,f1+3); SetQuantToClock qid], f1+3)
+           ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Fork (fresh+1,f1+3); SetQuantToClock (qid,true)], f1+3)
         | CDNullable ->
            (* Compiling as a concatenation in the nullable case *)
            let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) true in
-           ([SetQuantToClock qid] @ l1, f1)
+           ([SetQuantToClock (qid,false)] @ l1, f1)
         end
      | LazyPlus ->
         begin match nul with
         | NonNullable ->
            let (l1, f1) = compile r1 (fresh+1) true in
-           ([SetQuantToClock qid] @ l1 @ [Fork (f1+1,fresh)], f1+1)
+           ([SetQuantToClock (qid,false)] @ l1 @ [Fork (f1+1,fresh)], f1+1)
         | _ -> 
            (* Compiling as a concatenation in the nullable case *)
            let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,LazyStar,r1))) (fresh+1) true in
-           ([SetQuantToClock qid] @ l1, f1)
+           ([SetQuantToClock (qid,false)] @ l1, f1)
         end
      end
   (* when progress = false *)

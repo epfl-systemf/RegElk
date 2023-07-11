@@ -79,18 +79,24 @@ type cap_clocks = cap_regs
 
 (** * Quantifier Clocks  *)
 (* Remembering what's the global clock of the last time we went into each quantifier *)
+(* the bool indicates, when the quantifier is a +, if its last iteration consisted in nulling that + *)
 
-type quant_clocks = int IntMap.t
+type quant_clocks = (int*bool) IntMap.t
 
-let set_quant (qc:quant_clocks) (q:quantid) (cp:int) : quant_clocks =
-  IntMap.add q cp qc
+let set_quant (qc:quant_clocks) (q:quantid) (cp:int) (b:bool) : quant_clocks =
+  IntMap.add q (cp,b) qc
 
 (* right now this returns -1 by default. We might change to an option *)
 let get_quant (qc:quant_clocks) (q:quantid) : int  =
   match (IntMap.find_opt q qc) with
   | None -> -1
-  | Some x -> x
+  | Some x -> fst x
 
+let get_quant_nulled (qc:quant_clocks) (q:quantid) : bool =
+  match (IntMap.find_opt q qc) with
+  | None -> false
+  | Some x -> snd x
+            
 let init_quant_clocks () : quant_clocks =
   IntMap.empty
 
@@ -296,8 +302,8 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           t.cap_clk <- set_reg t.cap_clk r s.clock; (* saving the current clock *)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
-       | SetQuantToClock q ->
-          t.quants <- set_quant t.quants q s.clock; (* adding the last iteration cp *)
+       | SetQuantToClock (q,b) ->
+          t.quants <- set_quant t.quants q s.clock b; (* adding the last iteration cp *)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | CheckOracle l ->
