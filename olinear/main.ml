@@ -147,7 +147,12 @@ let linear_plus : (raw_regex*string) list =
 
 (* todo: we need to reconstruct the empty groups inside the nullable plus *)
 let plus_reconstruct : (raw_regex*string) list =
-  [Raw_con(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_char('a')),"a"]
+  [(Raw_con(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_char('a')),"a");
+   (Raw_quant(Plus,Raw_alt(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(NegLookahead,Raw_empty)),Raw_capture(Raw_char('b'))),Raw_alt(Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_alt(Raw_empty,Raw_dot))),Raw_alt(Raw_lookaround(NegLookbehind,Raw_dot),Raw_empty)),Raw_char('c')))),"babcaccbbabcacacabcaaaababbccaccccbabbcabccbbbcaacbbababccabacbbbabcbacbaabcbbccbabbccbaa");
+   (Raw_quant(LazyPlus,Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_dot)),Raw_con(Raw_alt(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_quant(Star,Raw_quant(Star,Raw_char('c')))),Raw_alt(Raw_lookaround(NegLookbehind,Raw_empty),Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_char('c')))))),"abaabaccbcabaccabaacabccabbccacbbccbcbacabaacbaaacbacabbaacabaccabaacbbbbccaccaacaacabccccba");
+   (Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_empty,Raw_empty)))))),"cccccacaccbccabbcabacbaacacabcacbbabcbcccacbcab");
+   (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_empty,Raw_quant(Plus,Raw_capture(Raw_empty))))),"a");
+   (Raw_quant(Plus,Raw_capture(Raw_quant(LazyStar,Raw_empty))),"ccbcbbbbcacbcabbccaaccaccaacacabaacbbbcccbbaabaabccbacccac")]
 
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =

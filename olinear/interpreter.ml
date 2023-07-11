@@ -423,8 +423,11 @@ let rec filter_capture (r:regex) (regs:cap_regs ref) (cclocks: cap_clocks) (lclo
   | Re_con (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
   | Re_quant (nul, qid, quant, r1) ->
      let quant_val = get_quant qclocks qid in (* the last time we went in *)
-     let newmax = Int.max quant_val maxclock in
-     filter_capture r1 regs cclocks lclocks qclocks newmax
+     if (quant_val < maxclock) then
+       (* the last repetition of the inner quantifier happened before the last repetition of the outer one *)
+       filter_all r1 regs
+     else
+       filter_capture r1 regs cclocks lclocks qclocks quant_val
   | Re_capture (cid, r1) ->
      let start = get_reg cclocks (start_reg cid) in
      begin match start with
