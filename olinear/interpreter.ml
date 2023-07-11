@@ -79,12 +79,13 @@ type cap_clocks = cap_regs
 
 (** * Quantifier Clocks  *)
 (* Remembering what's the global clock of the last time we went into each quantifier *)
-(* the bool indicates, when the quantifier is a +, if its last iteration consisted in nulling that + *)
+(* the option is [Some x], when that quantifier is a +, and it's last iteration consisted in *)
+(* nulling the + at cp [x] *)
+(* Otherwise it is [None], for stars or for non-nulled iterations of + *)
+type quant_clocks = (int*(int option)) IntMap.t
 
-type quant_clocks = (int*bool) IntMap.t
-
-let set_quant (qc:quant_clocks) (q:quantid) (cp:int) (b:bool) : quant_clocks =
-  IntMap.add q (cp,b) qc
+let set_quant (qc:quant_clocks) (q:quantid) (cp:int) (o:int option) : quant_clocks =
+  IntMap.add q (cp,o) qc
 
 (* right now this returns -1 by default. We might change to an option *)
 let get_quant (qc:quant_clocks) (q:quantid) : int  =
@@ -92,9 +93,9 @@ let get_quant (qc:quant_clocks) (q:quantid) : int  =
   | None -> -1
   | Some x -> fst x
 
-let get_quant_nulled (qc:quant_clocks) (q:quantid) : bool =
+let get_quant_nulled (qc:quant_clocks) (q:quantid) : int option =
   match (IntMap.find_opt q qc) with
-  | None -> false
+  | None -> None
   | Some x -> snd x
             
 let init_quant_clocks () : quant_clocks =
@@ -134,12 +135,12 @@ let get_char (str:string) (cp:int) : char option =
 type thread =
   {
     mutable pc: int;
-    mutable regs: cap_regs;
-    mutable cap_clk : cap_clocks;
-    mutable mem: look_mem;
-    mutable look_clk : look_clocks;
-    mutable quants: quant_clocks;
-    mutable exit_allowed : bool;
+    mutable regs: cap_regs; (* the value of capture groups - string indices *)
+    mutable cap_clk : cap_clocks; (* the clocks of capture groups *)
+    mutable mem: look_mem;        (* the string indices at which we last used each lookaound *)
+    mutable look_clk : look_clocks; (* the clock at which we last used each lookaround *)
+    mutable quants: quant_clocks;   (* the clock (and nulled cp) at which we last entered each quantifier *)
+    mutable exit_allowed : bool;    (* are we allowed to exit the current loop *)
   }
 
 let init_thread (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquants:quant_clocks): thread =
@@ -303,7 +304,8 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | SetQuantToClock (q,b) ->
-          t.quants <- set_quant t.quants q s.clock b; (* adding the last iteration cp *)
+          let ocp = if b then (Some s.cp) else None in (* saving the current cp if we are nulling a + *)
+          t.quants <- set_quant t.quants q s.clock ocp; (* adding the last iteration cp *)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | CheckOracle l ->
