@@ -217,7 +217,7 @@ type interpreter_state =
     mutable clock: int;                 (* global clock *)
   }
 
-let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) =
+let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) =
   { cp = initcp;
     active = [init_thread initregs initcclock initmem initlclock initquant];
     processed = init_bpcset (size c);
@@ -225,7 +225,7 @@ let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks)
     isblocked = init_pcset (size c);
     bestmatch = None;
     nextchar = 'a';             (* this won't be used before it's set *)
-    clock = 0;
+    clock = initclk;
   }
 
 (** * Debugging Utilities  *)
@@ -392,17 +392,20 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
     (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
     
 
-let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) : thread option =
+(* running the interpreter on some code, with a particular initial interpreter state *)
+let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) : thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant) o dir in
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
-  
+
+
+(* running the interpreter using the default initial state *)
 let matcher_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks())) o dir in
+  let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0) o dir in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
 

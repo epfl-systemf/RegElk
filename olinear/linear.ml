@@ -58,7 +58,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
   let quants = init_quant_clocks() in
   let main_regex = lazy_prefix r in (* lazy star prefix, only for the main expression *)
   let main_bytecode = compile_to_bytecode main_regex in
-  let main_result = interp ~verbose ~debug main_bytecode str o Forward 0 regs capclk mem lookclk quants in
+  let main_result = interp ~verbose ~debug main_bytecode str o Forward 0 regs capclk mem lookclk quants 0 in
   match main_result with
   | None -> None
   | Some thread ->              (* we have a match and want to rebuild capture groups *)
@@ -76,7 +76,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
             let lookreg = capture_regex looktype reg in
             let bytecode = compile_to_bytecode lookreg in
             let direction = capture_direction looktype in
-            let result = interp ~verbose ~debug bytecode str o direction cp !regs !capclk !mem !lookclk !quants in
+            let result = interp ~verbose ~debug bytecode str o direction cp !regs !capclk !mem !lookclk !quants 0 in
             begin match result with
             | None -> failwith "result expected from the oracle"
             | Some t ->
