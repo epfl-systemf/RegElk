@@ -12,6 +12,8 @@ open Linear
 open Sys
 open Unix
 open Gc
+
+let exp_dir = "exps/"
    
 (** * A Benchmark Framework  *)
 (* Regexes and strings parameterized with a size *)
@@ -39,7 +41,7 @@ let get_time_ocaml (r:raw_regex) (str:string) : float =
 let run_benchmark (b:benchmark) : unit =
   match b with
   | RegSize (rp, str, min, max_js, max_ocaml, name) -> 
-     let oc = open_out (name^"_ocaml.csv") in
+     let oc = open_out (exp_dir^name^"_ocaml.csv") in
      for i = min to max_ocaml do
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let reg = rp i in
@@ -49,7 +51,7 @@ let run_benchmark (b:benchmark) : unit =
      close_out oc;
      Printf.printf "      \r%!";
      Unix.sleep 1;
-     let oc = open_out (name^"_js.csv") in
+     let oc = open_out (exp_dir^name^"_js.csv") in
      for i = min to max_js do
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let reg = rp i in
@@ -58,10 +60,10 @@ let run_benchmark (b:benchmark) : unit =
      done;
      close_out oc;
      (* plotting the results *)
-     let command = "python3 plot_exps.py " ^ name ^ " RegexSize " ^ " &" in
+     let command = "python3.7 plot_exps.py " ^ name ^ " RegexSize " ^ " &" in
      ignore(string_of_command command)
   | StrSize (reg, strp, min, max_js, max_ocaml, name) ->
-     let oc = open_out (name^"_ocaml.csv") in
+     let oc = open_out (exp_dir^name^"_ocaml.csv") in
      for i = min to max_ocaml do
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let str = strp i in
@@ -71,7 +73,7 @@ let run_benchmark (b:benchmark) : unit =
      close_out oc;
      Printf.printf "      \r%!";
      Unix.sleep 1;
-     let oc = open_out (name^"_js.csv") in
+     let oc = open_out (exp_dir^name^"_js.csv") in
      for i = min to max_js do
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let str = strp i in
@@ -80,7 +82,7 @@ let run_benchmark (b:benchmark) : unit =
      done;
      close_out oc;
      (* plotting the results *)
-     let command = "python3 plot_exps.py " ^ name ^ " StringSize " ^ " &" in
+     let command = "python3.7 plot_exps.py " ^ name ^ " StringSize " ^ " &" in
      ignore(string_of_command command)
      
   
@@ -143,7 +145,7 @@ let possibly_quadratic : benchmark =
 
 (** * Checking that the V8 Experimental engine is also quadratic  *)
 let experimental_benchmark () =
-  let oc = open_out ("experimental_quadratic.csv") in
+  let oc = open_out (exp_dir^"experimental_quadratic.csv") in
   for i = 0 to 200 do
     let reg = quadratic_bytecode i in
     let texp = get_time_experimental reg quadratic_string in
@@ -151,7 +153,7 @@ let experimental_benchmark () =
   done;
   close_out oc;
   (* plotting the results *)
-  let command = "python3 plot_single.py experimental_quadratic V8Experimental &" in
+  let command = "python3.7 plot_single.py experimental_quadratic V8Experimental &" in
   ignore(string_of_command command)
 
 
@@ -169,7 +171,7 @@ let quadratic_plus_str : string =
   String.make 999 'a'
 
 let quadratic_plus : benchmark =
-  RegSize (quadratic_plus_reg, quadratic_plus_str, 0, 1000, 1000, "QuadraticPlus")
+  RegSize (quadratic_plus_reg, quadratic_plus_str, 0, 500, 500, "QuadraticPlusNN")
 
   
 (** * Nested Nullables  *)
@@ -184,3 +186,31 @@ let nested_null_string : string =
 
 let nested_nullable : benchmark =
   RegSize (nested_nullable_reg, nested_null_string, 0, 400, 400, "NestedNullables")
+
+(** * CIN Plus   *)
+(* Context independent nullable nested plus *)
+  
+let rec cin_plus_reg : reg_param = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_alt(Raw_dot,Raw_empty)
+  | _ -> Raw_quant(Plus,cin_plus_reg (reg_size - 1))
+
+let cin_plus_str : string =
+  String.make 999 'a'
+
+let cin_plus : benchmark =
+  RegSize (cin_plus_reg, cin_plus_str, 0, 25, 400, "CINPlus")
+
+(** * CDN Plus   *)
+(* Context dependent nullable nested plus *)
+  
+let rec cdn_plus_reg : reg_param = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_alt(Raw_dot,Raw_lookaround(Lookahead,Raw_dot))
+  | _ -> Raw_quant(Plus,cdn_plus_reg (reg_size - 1))
+
+let cdn_plus_str : string =
+  String.make 999 'a'
+
+let cdn_plus : benchmark =
+  RegSize (cdn_plus_reg, cdn_plus_str, 0, 25, 13, "CDNPlus")
