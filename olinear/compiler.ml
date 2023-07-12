@@ -123,7 +123,6 @@ let rec compile (r:regex) (fresh:label) (progress:bool) : instruction list * lab
      end
 
 (* adds an accept at the end of the bytecode *)
-(* And a lazy star at the beginning *)
 let compile_to_bytecode (r:regex) : code =
   let (c,_) = compile r 0 true in
   let full_c = c @ [Accept] in
@@ -134,4 +133,10 @@ let compile_to_bytecode (r:regex) : code =
 let compile_to_write (r:regex) (l:lookid): code =
   let (c,_) = compile r 0 true in
   let full_c = c @ [WriteOracle l] in
+  Array.of_list full_c
+
+(* compile the bytecide for finding the nullable path *)
+let compile_nullable (r:regex) : code =
+  let (c,_) = compile r 0 false in
+  let full_c = c @ [Accept] in
   Array.of_list full_c

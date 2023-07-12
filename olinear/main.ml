@@ -57,8 +57,8 @@ let interpreter_tests () =
   let code = compile_to_bytecode re in
   let str1 = "aab" in
   let str2 = "aaa" in
-  assert (boolean_interp ~debug:true code str1 o Forward = true);
-  assert (boolean_interp ~debug:true code str2 o Forward = false)
+  assert (boolean_interp ~debug:true re code str1 o Forward = true);
+  assert (boolean_interp ~debug:true re code str2 o Forward = false)
 
 let build_oracle_tests () =
   let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, Raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (Raw_char 'a',Raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in

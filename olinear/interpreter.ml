@@ -88,7 +88,7 @@ let set_quant (qc:quant_clocks) (q:quantid) (cp:int) (o:int option) : quant_cloc
   IntMap.add q (cp,o) qc
 
 (* right now this returns -1 by default. We might change to an option *)
-let get_quant (qc:quant_clocks) (q:quantid) : int  =
+let get_quant_clock (qc:quant_clocks) (q:quantid) : int  =
   match (IntMap.find_opt q qc) with
   | None -> -1
   | Some x -> fst x
@@ -390,28 +390,64 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
      interpreter ~debug c str s o dir
   end
     (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
-    
 
+
+(** * Reconstructing Nullable + Values  *)
+(* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
+
+let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
+  let lq = nullable_plus_quantid r in (* all the nullable + *)
+  let mem = ref thread.mem in
+  let regs = ref thread.regs in
+  let capclk = ref thread.cap_clk in
+  let lookclk = ref thread.look_clk in
+  let quants = ref thread.quants in
+  List.iter (fun qid ->
+      match (get_quant_nulled !quants qid) with
+      | None -> ()              (* this + was not nulled *)
+      | Some start_cp ->
+         let (body, quanttype) = get_quant r qid in
+         let start_clock = get_quant_clock !quants qid in
+         let bytecode = compile_nullable body in
+         (* todo: do we need a specific direction? or does it not matter since don't make progress in the string? *)
+         let result = interpreter ~debug bytecode s (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o dir in
+         begin match result with
+         | None -> failwith "expected a nullable plus"
+         | Some w ->             (* there's a winning thread when nulling *)
+            mem := w.mem;    (* updating the lookaround memory *)
+            regs := w.regs;   (* updating the capture regs *)
+            capclk := w.cap_clk; (* updating the capture clocks *)
+            lookclk := w.look_clk; (* updating the lookaround clocks *)
+            quants := w.quants (* updating the quantifier registers *)
+         end
+    ) lq;
+  {pc = thread.pc; regs = !regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
+
+(** * Running the interpreter and returning its result  *)
+  
 (* running the interpreter on some code, with a particular initial interpreter state *)
-let interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) : thread option =
+(* also reconstructs the + groups *)
+let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) : thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
   let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir in
-  if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
-  result
+  (* reconstruct + groups *)
+  let full_result = 
+    match result with
+    | None -> None
+    | Some thread -> Some (reconstruct_plus_groups ~debug thread r s o dir)
+  in
+  if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
+  full_result
 
 
 (* running the interpreter using the default initial state *)
-let interp_default_init ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
-  if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
-  if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0) o dir in
-  if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
-  result
+let interp_default_init ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
+  interp ~verbose ~debug r c s o dir (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0
 
 (* for tests, sometimes we only want to know if there is a match *)
-let boolean_interp ?(verbose = true) ?(debug=false) (c:code) (s:string) (o:oracle) (dir:direction): bool =
-  match (interp_default_init ~verbose ~debug c s o dir) with
+let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction): bool =
+  match (interp_default_init ~verbose ~debug r c s o dir) with
   | None -> false
   | _ -> true
 
@@ -427,7 +463,7 @@ let rec filter_capture (r:regex) (regs:cap_regs ref) (cclocks: cap_clocks) (lclo
   | Re_alt (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
   | Re_con (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
   | Re_quant (nul, qid, quant, r1) ->
-     let quant_val = get_quant qclocks qid in (* the last time we went in *)
+     let quant_val = get_quant_clock qclocks qid in (* the last time we went in *)
      if (quant_val < maxclock) then
        (* the last repetition of the inner quantifier happened before the last repetition of the outer one *)
        filter_all r1 regs

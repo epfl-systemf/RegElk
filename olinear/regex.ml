@@ -255,6 +255,26 @@ let get_look (r:regex) (lid:lookid) : regex * lookaround =
   | Some r -> r
   | _ -> failwith "Cannot find lookaround"
 
+(* extracting a quantifier body given its quantifier id *)
+let rec get_quantifier (r:regex) (qid:quantid) : (regex * quantifier) option =
+  match r with
+  | Re_empty | Re_char _ | Re_dot -> None
+  | Re_alt (r1, r2) | Re_con (r1, r2) ->
+     begin match (get_quantifier r1 qid) with
+     | Some qr -> Some qr
+     | None -> get_quantifier r2 qid
+     end
+  | Re_lookaround (_, _, r1) | Re_capture (_, r1) ->
+     get_quantifier r1 qid
+  | Re_quant (nul,id,quant,r1) ->
+     if (id = qid) then Some (r1, quant)
+     else get_quantifier r1 qid
+
+let get_quant (r:regex) (qid:quantid) : regex * quantifier =
+  match (get_quantifier r qid) with
+  | Some q -> q
+  | _ -> failwith "Cannot find quantifier"
+
 (* Returns the maximum used lookaround in a regex *)
 let rec max_lookaround (r:regex) : lookid =
   match r with
@@ -263,6 +283,7 @@ let rec max_lookaround (r:regex) : lookid =
   | Re_quant (_, _,_,r1) | Re_capture (_,r1) -> max_lookaround r1
   | Re_lookaround (lid, look, r1) -> max lid (max_lookaround r1)
 
+(* maximum capture group *)
 let rec max_group (r:regex) : capture =
   match r with 
   | Re_empty | Re_char _ | Re_dot -> 0
@@ -270,6 +291,24 @@ let rec max_group (r:regex) : capture =
   | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
   | Re_capture (cid, r1) -> max cid (max_group r1)
 
+(* Returns the list of nullable plus quantifier identifiers *)
+(* ordered from lowest to highest *)
+let rec nullable_plus_quantid' (r:regex) (lq:quantid list) : quantid list =
+  match r with
+  | Re_empty | Re_char _ | Re_dot -> lq
+  | Re_alt (r1, r2) | Re_con (r1, r2) ->
+     nullable_plus_quantid' r2 (nullable_plus_quantid' r1 lq)
+  | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> nullable_plus_quantid' r1 lq
+  | Re_quant(nul,qid,quant,r1) ->
+     begin match (quant,nul) with
+     | (Plus,CDNullable) | (Plus,CINullable) ->
+        nullable_plus_quantid' r1 (qid::lq)
+     | _ -> nullable_plus_quantid' r1 lq
+     end
+
+let nullable_plus_quantid (r:regex) : quantid list =
+  List.rev (nullable_plus_quantid' r [])
+     
 
 (** * Error Reporting  *)
 (* we want to be able to print exactly the AST to the console so that we can copy paste it when the fuzzer finds a crash *)
