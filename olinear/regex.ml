@@ -336,3 +336,36 @@ let rec report_raw (raw:raw_regex) : string =
   | Raw_quant (q,r1) -> "Raw_quant("^report_quant q^","^report_raw r1^")"
   | Raw_capture r1 -> "Raw_capture("^report_raw r1^")"
   | Raw_lookaround (l,r1) -> "Raw_lookaround("^report_look l^","^report_raw r1^")"
+
+
+(** * Regex Plus Statistics  *)
+(* returns (nn,cdn,cin,lnn,ln) where nn is the number of non-nullable +, *)
+(* cdn is the number of context-dependent nullable + *)
+(* cin is the number of context-independent nullable + *)
+(* lnn is the number of non-nullable lazy + *)
+(* ln is the number of nullable lazy + *)
+let rec plus_stats (r:regex) : int * int * int * int * int =
+  match r with
+  | Re_empty | Re_char _ | Re_dot -> (0,0,0,0,0)
+  | Re_alt (r1,r2) | Re_con (r1,r2) ->
+     let (nn1,cdn1,cin1,lnn1,ln1) = plus_stats r1 in
+     let (nn2,cdn2,cin2,lnn2,ln2) = plus_stats r2 in
+     (nn1+nn2,cdn1+cdn2,cin1+cin2,lnn1+lnn2,ln1+ln2)
+  | Re_lookaround (_,_,r1) | Re_capture (_,r1) ->
+     plus_stats r1
+  | Re_quant(nul,_,quant,r1) ->
+     let (nn1,cdn1,cin1,lnn1,ln1) = plus_stats r1 in
+     match quant with
+     | Star | LazyStar -> (nn1,cdn1,cin1,lnn1,ln1)
+     | Plus ->
+        begin match nul with
+        | NonNullable -> (nn1+1,cdn1,cin1,lnn1,ln1)
+        | CDNullable -> (nn1,cdn1+1,cin1,lnn1,ln1)
+        | CINullable -> (nn1,cdn1,cin1+1,lnn1,ln1)
+        end
+     | LazyPlus ->
+        begin match nul with
+        | NonNullable -> (nn1,cdn1,cin1,lnn1+1,ln1)
+        | CDNullable | CINullable -> (nn1,cdn1,cin1,lnn1,ln1+1)
+        end
+

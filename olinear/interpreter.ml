@@ -396,12 +396,15 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
 let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
-  let lq = nullable_plus_quantid r in (* all the nullable + *)
+  let lq = nullable_plus_quantid r in (* all the nullable + in order *)
   let mem = ref thread.mem in
   let regs = ref thread.regs in
   let capclk = ref thread.cap_clk in
   let lookclk = ref thread.look_clk in
   let quants = ref thread.quants in
+  (* we go from shallowest to deepest nullable + *)
+  (* running an outer + might update the quantifier memory *)
+  (* and require us to run an inner + later *)
   List.iter (fun qid ->
       match (get_quant_nulled !quants qid) with
       | None -> ()              (* this + was not nulled *)
@@ -409,7 +412,7 @@ let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) 
          let (body, quanttype) = get_quant r qid in
          let start_clock = get_quant_clock !quants qid in
          let bytecode = compile_nullable body in
-         (* todo: do we need a specific direction? or does it not matter since don't make progress in the string? *)
+         (* here the direction doesn't actually matter since we're running the null bytecode*)
          let result = interpreter ~debug bytecode s (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o dir in
          begin match result with
          | None -> failwith "expected a nullable plus"
