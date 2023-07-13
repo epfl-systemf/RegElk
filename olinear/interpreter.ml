@@ -363,6 +363,12 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           then t.pc <- t.pc+1   (* keeping the thread alive *)
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
+       | WriteNullable qid ->
+       (* we reached a match in a nulled + and need to write that to the CDN table *)
+       (* we can terminate the execution here *)
+          s.cdn <- cdn_set_true s.cdn qid;
+          s.active <- [];
+          ()                    (* no recursive call *)
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
           advance_epsilon ~debug c s o

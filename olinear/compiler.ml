@@ -132,8 +132,16 @@ let compile_to_write (r:regex) (l:lookid): code =
   let full_c = c @ [WriteOracle l] in
   Array.of_list full_c
 
-(* compile the bytecide for finding the nullable path *)
+(* compile the bytecode for finding the nullable path *)
+(* this is used to reconstruct the missing groups of nullable + *)
 let compile_nullable (r:regex) : code =
   let (c,_) = compile r 0 false in
   let full_c = c @ [Accept] in
+  Array.of_list full_c
+
+(* writes to the CDN table when a match is found *)
+(* only executes the nullable paths *)
+let compile_cdn (r:regex) (q:quantid): code =
+  let (c,_) = compile r 0 false in
+  let full_c = c @ [WriteNullable q] in
   Array.of_list full_c
