@@ -196,6 +196,24 @@ let bpc_mem (bpcs:bpcset) (pc:label) (exit_bool:bool) : bool =
   | true -> pc_mem bpcs.true_set pc
   | false -> pc_mem bpcs.false_set pc
 
+(** * CDN Table  *)
+(* For all Context-Dependent Nullable Plusses, we need to remember *)
+(* when each of them is nullable at a given cp *)
+           
+type cdn_table = unit IntMap.t
+(* when a unit is set for a given id, it means the corresponding quantifier is nullable *)
+               
+let init_cdn () : cdn_table =
+  IntMap.empty
+
+let cdn_set_true (cdn:cdn_table) (qid:quantid) : cdn_table =
+  IntMap.add qid () cdn
+
+let cdn_get (cdn:cdn_table) (qid:quantid) : bool =
+  match (IntMap.find_opt qid cdn) with
+  | Some _ -> true
+  | None -> false
+           
   
 (** * Interpreter States  *)
 
@@ -215,6 +233,7 @@ type interpreter_state =
     mutable bestmatch: thread option;   (* best match found so far, but there might be a higher priotity one still *)
     mutable nextchar: char;             (* next character to consume *)
     mutable clock: int;                 (* global clock *)
+    mutable cdn: cdn_table;             (* nullability table for cdn + *)
   }
 
 let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) =
@@ -226,6 +245,7 @@ let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks)
     bestmatch = None;
     nextchar = 'a';             (* this won't be used before it's set *)
     clock = initclk;
+    cdn = init_cdn();
   }
 
 (** * Debugging Utilities  *)
@@ -339,7 +359,10 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           | false -> s.active <- ac; advance_epsilon ~debug c s o (* killing the current thread *)
           end
        | CheckNullable qid ->
-          failwith "TODO"
+          if (cdn_get s.cdn qid)
+          then t.pc <- t.pc+1   (* keeping the thread alive *)
+          else s.active <- ac;  (* killing the thread *)
+          advance_epsilon ~debug c s o
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
           advance_epsilon ~debug c s o
@@ -384,9 +407,10 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
      s.nextchar <- chr;
      (* advancing blocked threads *)
      consume ~debug c s;
-     (* resetting the processed and blocked sets *)
-     s.processed <- init_bpcset (size c); (* TODO: should we cache it to avoid recomputing? Or should that be constant time when we switch to arrays? *)
+     (* resetting the processed, blocked sets and the CDN table *)
+     s.processed <- init_bpcset (size c); 
      s.isblocked <- init_pcset (size c);
+     s.cdn <- init_cdn();
      (* advancing the current position *)
      s.cp <- incr_cp s.cp dir;
      interpreter ~debug c str s o dir
