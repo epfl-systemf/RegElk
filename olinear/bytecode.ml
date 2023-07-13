@@ -24,7 +24,6 @@ type instruction =
   | BeginLoop                   (* start of loop: we set a counter to prevent exiting it using only epsilon transitions *)
   | EndLoop                     (* end of loop: fails if we started the loop without consuming in the string *)
   | CheckNullable of quantid    (* checks that a + is nullable *)
-  | WriteNullable of quantid    (* writes to the CDN table that a + is nullable *)
   | Fail                        (* kills the current thread *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
@@ -45,7 +44,7 @@ let size (c:code) : int =
 let nb_epsilon_transition (i:instruction) : int =
   match i with
   | Fork _ -> 2
-  | Jmp _ | CheckOracle _ | NegCheckOracle _ | CheckNullable _ | WriteNullable _ -> 1
+  | Jmp _ | CheckOracle _ | NegCheckOracle _ | CheckNullable _ -> 1
   | _ -> 0 
            
 let nb_epsilon (c:code) : int =
@@ -69,7 +68,6 @@ let print_instruction (i:instruction) : string =
   | BeginLoop -> "BeginLoop"
   | EndLoop -> "EndLoop"
   | CheckNullable q -> "CheckNullable " ^ string_of_int q
-  | WriteNullable q -> "WriteNullable " ^ string_of_int q
   | Fail -> "Fail"
   
 let rec print_code (c:code) : string =
@@ -90,3 +88,11 @@ type cdn_codes = code IntMap.t
                       
 let cdn_code_init () : cdn_codes =
   IntMap.empty
+
+let get_cdn_code (codes:cdn_codes) (qid:quantid) : code =
+  match (IntMap.find_opt qid codes) with
+  | Some c -> c
+  | None -> failwith "couldn't find this CDN code"
+
+(* both the codes and the list of CDN identifiers from highest to lowest *)
+type cdns = cdn_codes * quantid list

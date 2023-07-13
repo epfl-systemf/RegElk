@@ -363,13 +363,6 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           then t.pc <- t.pc+1   (* keeping the thread alive *)
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
-       | WriteNullable qid ->
-       (* we reached a match in a nulled + and need to write that to the CDN table *)
-       (* we can terminate the execution here *)
-          s.cdn <- cdn_set_true s.cdn qid;
-          s.active <- [];
-          s.blocked <- [];      (* no need to pursue other threads *)
-          ()                    (* no recursive call *)
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
           advance_epsilon ~debug c s o
@@ -391,15 +384,58 @@ let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
        begin t.exit_allowed <- true; t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
      (* since t just consumed something, we set its exit_allowed flag to true *)
      consume ~debug c s
-     
-  
-let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:direction) : thread option =
+
+
+(** * Null interpreter  *)
+(* an interpreter that does not read the string, but instead simply follows epsilon transuitions *)
+(* this is used either to build the CDN table (check if a plus is nullable at a given position) *)
+(* this is also used to reconstruct the capture groups of last nulled plus at the end of a match *)
+
+let null_interp ?(debug=false) (c:code) (s:interpreter_state) (o:oracle): thread option =
   if debug then
     begin
       Printf.printf "%s" (print_cp s.cp);
       Printf.printf "%s" (print_active s.active);
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
+  (* follow epsilon transitions *)  
+  advance_epsilon ~debug c s o;
+  if debug then
+    begin
+      Printf.printf "%s\n%!" (print_blocked s.blocked);
+    end;
+  s.bestmatch
+     
+(** * Building CDN table  *)
+
+let build_cdn (cdns:cdns) (cp:int) (o:oracle) : cdn_table =
+  let table = ref (init_cdn()) in
+  match cdns with
+  | (cdn_codes, cdn_list) ->
+     List.iter (fun qid ->
+         let code = get_cdn_code cdn_codes qid in
+         let init = init_state code cp (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0 in
+         init.cdn <- !table;    (* giving it what we computed so far *)
+         match (null_interp ~debug:false code init o) with
+         | Some _ ->            (* if there is a match, we mark the cdn as nullable *)
+            (* we can ignore what's really inside the winning thread *)
+            table := cdn_set_true !table qid
+         | None -> ()
+       ) cdn_list;
+     !table
+
+
+(** * Interpreting the bytecode  *)
+let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
+  if debug then
+    begin
+      Printf.printf "%s" (print_cp s.cp);
+      Printf.printf "%s" (print_active s.active);
+      Printf.printf "%s%!" (print_bestmatch s.bestmatch);
+    end;
+
+  (* building the CDN table *)
+  s.cdn <- build_cdn cdn s.cp o;
   
   (* follow epsilon transitions *)  
   advance_epsilon ~debug c s o;
@@ -425,7 +461,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
         s.cdn <- init_cdn();
         (* advancing the current position *)
         s.cp <- incr_cp s.cp dir;
-        interpreter ~debug c str s o dir
+        interpreter ~debug c str s o dir cdn
      end
    
 (** * Reconstructing Nullable + Values  *)
@@ -448,8 +484,7 @@ let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) 
          let (body, quanttype) = get_quant r qid in
          let start_clock = get_quant_clock !quants qid in
          let bytecode = compile_nullable body in
-         (* here the direction doesn't actually matter since we're running the null bytecode*)
-         let result = interpreter ~debug bytecode s (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o dir in
+         let result = null_interp ~debug bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o in
          begin match result with
          | None -> failwith "expected a nullable plus"
          | Some w ->             (* there's a winning thread when nulling *)
@@ -466,10 +501,10 @@ let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) 
   
 (* running the interpreter on some code, with a particular initial interpreter state *)
 (* also reconstructs the + groups *)
-let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) : thread option =
+let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) (cdn:cdns): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir in
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 
     match result with
@@ -481,12 +516,12 @@ let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:ora
 
 
 (* running the interpreter using the default initial state *)
-let interp_default_init ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction): thread option =
-  interp ~verbose ~debug r c s o dir (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0
+let interp_default_init ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (cdn:cdns): thread option =
+  interp ~verbose ~debug r c s o dir (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0 cdn
 
 (* for tests, sometimes we only want to know if there is a match *)
-let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction): bool =
-  match (interp_default_init ~verbose ~debug r c s o dir) with
+let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (cdn:cdns): bool =
+  match (interp_default_init ~verbose ~debug r c s o dir cdn) with
   | None -> false
   | _ -> true
 

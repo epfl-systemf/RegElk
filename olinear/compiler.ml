@@ -134,16 +134,10 @@ let compile_to_write (r:regex) (l:lookid): code =
 
 (* compile the bytecode for finding the nullable path *)
 (* this is used to reconstruct the missing groups of nullable + *)
+(* or to figure out when is a CDN nullable *)
 let compile_nullable (r:regex) : code =
   let (c,_) = compile r 0 false in
   let full_c = c @ [Accept] in
-  Array.of_list full_c
-
-(* writes to the CDN table when a match is found *)
-(* only executes the nullable paths *)
-let compile_cdn (r:regex) (q:quantid): code =
-  let (c,_) = compile r 0 false in
-  let full_c = c @ [WriteNullable q] in
   Array.of_list full_c
 
   
@@ -151,12 +145,12 @@ let compile_cdn (r:regex) (q:quantid): code =
 (* for each regex, we also compile the cdn codes of each cdn plus *)
 (* these codes will be run at each step of the interpreter *)
 (* to build up the CDN table *)
-let compile_cdn_codes (r:regex) : cdn_codes =
+let compile_cdn_codes (r:regex) : cdns =
   let codes = ref (cdn_code_init()) in
   let cdn_list = cdn_plus_list r in
   List.iter (fun qid ->
       let (body,_) = get_quant r qid in
-      let bytecode = compile_cdn body qid in
+      let bytecode = compile_nullable body in
       codes := IntMap.add qid bytecode !codes
     ) cdn_list;
-  !codes
+  (!codes, cdn_list)

@@ -55,10 +55,11 @@ let interpreter_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
+  let cdn = compile_cdn_codes re in
   let str1 = "aab" in
   let str2 = "aaa" in
-  assert (boolean_interp ~debug:true re code str1 o Forward = true);
-  assert (boolean_interp ~debug:true re code str2 o Forward = false)
+  assert (boolean_interp ~debug:true re code str1 o Forward cdn = true);
+  assert (boolean_interp ~debug:true re code str2 o Forward cdn = false)
 
 let build_oracle_tests () =
   let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, Raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (Raw_char 'a',Raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in
