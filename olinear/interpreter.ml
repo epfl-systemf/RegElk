@@ -368,6 +368,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
        (* we can terminate the execution here *)
           s.cdn <- cdn_set_true s.cdn qid;
           s.active <- [];
+          s.blocked <- [];      (* no need to pursue other threads *)
           ()                    (* no recursive call *)
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
@@ -399,31 +400,34 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
       Printf.printf "%s" (print_active s.active);
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
-  (* follow epsilon transitions *)
+  
+  (* follow epsilon transitions *)  
   advance_epsilon ~debug c s o;
   if debug then
     begin
       Printf.printf "%s\n%!" (print_blocked s.blocked);
     end;
-  (* read the next character *)
-  let x = get_char str (s.cp - cp_offset dir)  in
-  begin match x with
-  | None -> s.bestmatch         (* we reached the end of the string *)
-  | Some chr ->
-     s.nextchar <- chr;
-     (* advancing blocked threads *)
-     consume ~debug c s;
-     (* resetting the processed, blocked sets and the CDN table *)
-     s.processed <- init_bpcset (size c); 
-     s.isblocked <- init_pcset (size c);
-     s.cdn <- init_cdn();
-     (* advancing the current position *)
-     s.cp <- incr_cp s.cp dir;
-     interpreter ~debug c str s o dir
-  end
-    (* TODO: we could detect when there are no more threads and don't go to the end of the string *)
-
-
+  (* checking if there are still surviving threads *)
+  match s.blocked with
+  | [] -> s.bestmatch
+  | _ -> 
+     (* read the next character *)
+     let x = get_char str (s.cp - cp_offset dir)  in
+     begin match x with
+     | None -> s.bestmatch         (* we reached the end of the string *)
+     | Some chr ->
+        s.nextchar <- chr;
+        (* advancing blocked threads *)
+        consume ~debug c s;
+        (* resetting the processed, blocked sets and the CDN table *)
+        s.processed <- init_bpcset (size c); 
+        s.isblocked <- init_pcset (size c);
+        s.cdn <- init_cdn();
+        (* advancing the current position *)
+        s.cp <- incr_cp s.cp dir;
+        interpreter ~debug c str s o dir
+     end
+   
 (** * Reconstructing Nullable + Values  *)
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 

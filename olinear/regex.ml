@@ -308,6 +308,23 @@ let rec nullable_plus_quantid' (r:regex) (lq:quantid list) : quantid list =
 
 let nullable_plus_quantid (r:regex) : quantid list =
   List.rev (nullable_plus_quantid' r [])
+
+(* returns the list of all CDN plus *)
+(* ordered from highest to lowest *)
+let rec cdn_plus_list' (r:regex) (lq:quantid list) : quantid list =
+  match r with
+  | Re_empty | Re_char _ | Re_dot -> lq
+  | Re_alt (r1, r2) | Re_con (r1, r2) ->
+     cdn_plus_list' r2 (cdn_plus_list' r1 lq)
+  | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> cdn_plus_list' r1 lq
+  | Re_quant (nul,qid,quant,r1) ->
+     begin match (quant,nul) with
+     | (Plus,CDNullable) -> cdn_plus_list' r1 (qid::lq)
+     | _ -> cdn_plus_list' r1 lq
+     end
+
+let cdn_plus_list (r:regex) : quantid list =
+  cdn_plus_list' r []
      
 
 (** * Error Reporting  *)

@@ -145,3 +145,18 @@ let compile_cdn (r:regex) (q:quantid): code =
   let (c,_) = compile r 0 false in
   let full_c = c @ [WriteNullable q] in
   Array.of_list full_c
+
+  
+(** * Compiling CDN codes  *)
+(* for each regex, we also compile the cdn codes of each cdn plus *)
+(* these codes will be run at each step of the interpreter *)
+(* to build up the CDN table *)
+let compile_cdn_codes (r:regex) : cdn_codes =
+  let codes = ref (cdn_code_init()) in
+  let cdn_list = cdn_plus_list r in
+  List.iter (fun qid ->
+      let (body,_) = get_quant r qid in
+      let bytecode = compile_cdn body qid in
+      codes := IntMap.add qid bytecode !codes
+    ) cdn_list;
+  !codes
