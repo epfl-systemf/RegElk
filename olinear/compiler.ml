@@ -72,9 +72,8 @@ let rec compile (r:regex) (fresh:label) (progress:bool) : instruction list * lab
            let (l1, f1) = compile r1 (fresh+3) true in
            ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Fork (fresh+1,f1+3); SetQuantToClock (qid,true)], f1+3)
         | CDNullable ->
-           (* Compiling as a concatenation in the CDNullable case. TODO: we can avoid duplication here *)
-           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) true in
-           ([SetQuantToClock (qid,false)] @ l1, f1)
+           let (l1, f1) = compile r1 (fresh+3) true in
+           ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Fork (fresh+1,f1+4); CheckNullable qid; SetQuantToClock (qid,true)], f1+4)
         end
      | LazyPlus ->
         begin match nul with
@@ -98,10 +97,8 @@ let rec compile (r:regex) (fresh:label) (progress:bool) : instruction list * lab
         | NonNullable -> ([Fail], fresh+1) (* you won't be able to null that expression *)
         | CINullable ->                    (* only compile the null branch *)
            ([SetQuantToClock (qid,true)], fresh+1)
-        | CDNullable ->
-           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) false in
-           ([SetQuantToClock (qid,true)] @ l1, f1)
-             (* TODO: we want to compile the null branch only (no duplication), which requires a test *)
+        | CDNullable ->         (* only compile the null branch *)
+           ([CheckNullable qid; SetQuantToClock (qid,true)], fresh+2)
         end
      | LazyPlus ->
         begin match nul with
