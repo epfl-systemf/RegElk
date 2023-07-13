@@ -338,6 +338,8 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           | true -> t.pc <- t.pc+1; advance_epsilon ~debug c s o
           | false -> s.active <- ac; advance_epsilon ~debug c s o (* killing the current thread *)
           end
+       | CheckNullable qid ->
+          failwith "TODO"
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
           advance_epsilon ~debug c s o

@@ -12,7 +12,7 @@ type register = int
 (* when the next label isn't directly specified, we expect a falltrough order of just going to the next instruction in the list *)
 type instruction =
   | Consume of char
-  | ConsumeAll                  (* fot the dot. TODO: generalize to ranges *)
+  | ConsumeAll                  (* for the dot. TODO: generalize to ranges *)
   | Accept
   | Jmp of label
   | Fork of label * label
@@ -23,18 +23,17 @@ type instruction =
   | WriteOracle of lookid       (* when we find a match, we write to the oracle at CP *)
   | BeginLoop                   (* start of loop: we set a counter to prevent exiting it using only epsilon transitions *)
   | EndLoop                     (* end of loop: fails if we started the loop without consuming in the string *)
+  | CheckNullable of quantid    (* checks that a + is nullable *)
   | Fail                        (* kills the current thread *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
 type code = instruction Array.t
-(* TODO: a list has random access complexity O(n) *)
 (* I want a random access complexity of O(1) *)
 (* Because the code is accessed for each thread at a different pc *)
 (* This is why we use an array instead of a list *)
 
 let get_instr (c:code) (pc:label) : instruction =
   Array.get c pc
-           (* this will probably change to an array access for O(1) complexity *)
 
 let size (c:code) : int =
   Array.length c
@@ -45,7 +44,7 @@ let size (c:code) : int =
 let nb_epsilon_transition (i:instruction) : int =
   match i with
   | Fork _ -> 2
-  | Jmp _ | CheckOracle _ | NegCheckOracle _ -> 1
+  | Jmp _ | CheckOracle _ | NegCheckOracle _ | CheckNullable _ -> 1
   | _ -> 0 
            
 let nb_epsilon (c:code) : int =
@@ -68,6 +67,7 @@ let print_instruction (i:instruction) : string =
   | WriteOracle l -> "WriteOracle " ^ string_of_int l
   | BeginLoop -> "BeginLoop"
   | EndLoop -> "EndLoop"
+  | CheckNullable q -> "CheckNullable " ^ string_of_int q
   | Fail -> "Fail"
   
 let rec print_code (c:code) : string =
