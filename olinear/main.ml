@@ -161,12 +161,16 @@ let cin_examples : (raw_regex*string) list =
    (Raw_con(Raw_quant(Star,Raw_quant(Plus,Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_empty)),Raw_alt(Raw_empty,Raw_char('a'))))),Raw_char('b')),"ab");
    (Raw_con(Raw_quant(Star,Raw_con(Raw_quant(Plus,Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_empty)),Raw_alt(Raw_empty,Raw_char('a')))),Raw_char('c'))),Raw_char('b')),"accb")]
 
-(* bugs when I don't construct the CDN table *)
+(* FIXED. bugs when I did not construct the CDN table yet *)
 let cdn_empty: (raw_regex*string) list =
   [(Raw_quant(Plus,Raw_con(Raw_empty,Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_quant(Plus,Raw_char('c'))))))),"bbaaaacaabaabbbaaacacaacbccbacaacaaaaaabccbbbbbcbcccacabbbaabccccacccabacccacbcbbaacbccbcaacb");
    (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_char('c'))),"ababaaaacbcaababaaccaccacbbbccabbabbcacaa");
    (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_char('b'))),"baabacaccabacabcaaacbbbabacaabbcbbcbaccccaacbacbbababcccbcccacbabababcabbaabacbbbbcaaa");
-  (Raw_lookaround(Lookbehind,Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_alt(Raw_dot,Raw_empty))),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_empty))))))),"babbccbbabacccabbabccccabacaacacbacabcaaccabbabccaca")]
+   (Raw_lookaround(Lookbehind,Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_alt(Raw_dot,Raw_empty))),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_empty))))))),"babbccbbabacccabbabccccabacaacacbacabcaaccabbabccaca")]
+
+(* fails the assertion "expected a nullable plus" *)
+let nullable_expected: (raw_regex*string) list =
+  [(Raw_capture(Raw_con(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('b'))))))),Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_dot)))),"caabcbbcbcbcbacacaacbaccabaabbabbcbbbccbbbccac")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
@@ -209,6 +213,7 @@ let tests () =
   replay_bugs(plus_reconstruct);
   replay_bugs(cin_examples);
   replay_bugs(cdn_empty);
+  replay_bugs(nullable_expected);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
