@@ -213,4 +213,4 @@ let cdn_plus_str : string =
   String.make 999 'a'
 
 let cdn_plus : benchmark =
-  RegSize (cdn_plus_reg, cdn_plus_str, 0, 25, 13, "CDNPlus")
+  RegSize (cdn_plus_reg, cdn_plus_str, 0, 400, 400, "CDNPlus")

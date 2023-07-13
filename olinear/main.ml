@@ -230,7 +230,7 @@ let main =
   
   tests()
   (* fuzzer() *)
-  (* run_benchmark(cdn_plus); *)
+  (* run_benchmark(cin_plus); *)
   (* experimental_benchmark() *)
 
   
