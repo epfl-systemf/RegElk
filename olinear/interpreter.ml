@@ -279,6 +279,13 @@ let print_match (b:thread option) =
 
 let print_bestmatch (b:thread option) =
   "  BEST: " ^ print_match b ^ "\n"
+
+let print_cdn_table (table:cdn_table) (cdnl:quantid list) : string =
+  List.fold_left (fun str quantid ->
+      let b = cdn_get table quantid in
+      let s = string_of_int quantid ^ ":" ^ print_bool b in
+      str ^ ", " ^ s
+    ) "" cdnl
   
 (** * Interpreter  *)
 
@@ -391,7 +398,9 @@ let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
 (* this is used either to build the CDN table (check if a plus is nullable at a given position) *)
 (* this is also used to reconstruct the capture groups of last nulled plus at the end of a match *)
 
-let null_interp ?(debug=false) (c:code) (s:interpreter_state) (o:oracle): thread option =
+let null_interp ?(debug=false) ?(verbose=false) (c:code) (s:interpreter_state) (o:oracle): thread option =
+  if verbose then Printf.printf "%s CP%d\n" ("\n\027[36mNull Interpreter:\027[0m ") (s.cp);
+  if verbose then Printf.printf "%s\n" (print_code c);
   if debug then
     begin
       Printf.printf "%s" (print_cp s.cp);
@@ -436,6 +445,10 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 
   (* building the CDN table *)
   s.cdn <- build_cdn cdn s.cp o;
+  if debug then
+    begin
+      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (snd cdn));
+    end;
   
   (* follow epsilon transitions *)  
   advance_epsilon ~debug c s o;
@@ -467,7 +480,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 (** * Reconstructing Nullable + Values  *)
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
-let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
+let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
   let lq = nullable_plus_quantid r in (* all the nullable + in order *)
   let mem = ref thread.mem in
   let regs = ref thread.regs in
@@ -484,7 +497,11 @@ let reconstruct_plus_groups ?(debug=false) (thread:thread) (r:regex) (s:string) 
          let (body, quanttype) = get_quant r qid in
          let start_clock = get_quant_clock !quants qid in
          let bytecode = compile_nullable body in
-         let result = null_interp ~debug bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o in
+         let cdn = compile_cdn_codes body in
+         (* TODO: these nullable codes are a subset of what I've already compiled *)
+         (* we could try reusing the ones we had *)
+         let result = interpreter ~debug bytecode s (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o dir cdn in
+         (* TODO: replace that with a call to null_interp, removing s and dir *)
          begin match result with
          | None -> failwith "expected a nullable plus"
          | Some w ->             (* there's a winning thread when nulling *)
@@ -509,7 +526,7 @@ let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:ora
   let full_result = 
     match result with
     | None -> None
-    | Some thread -> Some (reconstruct_plus_groups ~debug thread r s o dir)
+    | Some thread -> Some (reconstruct_plus_groups ~debug ~verbose thread r s o dir)
   in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
   full_result

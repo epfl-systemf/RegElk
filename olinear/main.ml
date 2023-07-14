@@ -169,6 +169,7 @@ let cdn_empty: (raw_regex*string) list =
    (Raw_lookaround(Lookbehind,Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_alt(Raw_dot,Raw_empty))),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_empty))))))),"babbccbbabacccabbabccccabacaacacbacabcaaccabbabccaca")]
 
 (* fails the assertion "expected a nullable plus" *)
+(* FIXED, when we don't forget to build a CDN table when reconstructing the + groups *)
 let nullable_expected: (raw_regex*string) list =
   [(Raw_capture(Raw_con(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('b'))))))),Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_dot)))),"caabcbbcbcbcbacacaacbaccabaabbabbcbbbccbbbccac");
    (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_empty)))),"caccaacbaabaaabaaacccaacacbbcabbababbacabbabcacabbcaabcbcaaacbabbcccbbcbbbcabbcaccacbacbb");
@@ -233,13 +234,13 @@ let paper_example () =
   
   
 let main =
-  (* let bug = List.nth cin_examples 2 in
-   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
-   * compare_engines (fst bug) (snd bug) *)
+  (* let bug = (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)))),"ab") in
+   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)); *)
+  (* compare_engines (fst bug) (snd bug) *)
   
-  (* tests() *)
-  fuzzer()
-  (* run_benchmark(cin_plus); *)
+  tests()
+  (* fuzzer() *)
+  (* run_benchmark(cdn_plus); *)
   (* experimental_benchmark() *)
 
   
