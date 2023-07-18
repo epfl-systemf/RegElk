@@ -481,39 +481,44 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
 let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
-  let lq = nullable_plus_quantid r in (* all the nullable + in order *)
+  (* let lq = nullable_plus_quantid r in (\* all the nullable + in order *\) *)
   let mem = ref thread.mem in
   let regs = ref thread.regs in
   let capclk = ref thread.cap_clk in
   let lookclk = ref thread.look_clk in
   let quants = ref thread.quants in
-  (* we go from shallowest to deepest nullable + *)
-  (* running an outer + might update the quantifier memory *)
-  (* and require us to run an inner + later *)
-  List.iter (fun qid ->
-      match (get_quant_nulled !quants qid) with
-      | None -> ()              (* this + was not nulled *)
-      | Some start_cp ->
-         let (body, quanttype) = get_quant r qid in
-         let start_clock = get_quant_clock !quants qid in
-         let bytecode = compile_nullable body in
-         let cdn = compile_cdn_codes body in
-         (* TODO: these nullable codes are a subset of what I've already compiled *)
-         (* we could try reusing the ones we had *)
-         let result = interpreter ~debug bytecode s (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o dir cdn in
-         (* TODO: replace that with a call to null_interp, removing s and dir *)
-         begin match result with
-         | None -> failwith "expected a nullable plus"
-         | Some w ->             (* there's a winning thread when nulling *)
-            mem := w.mem;    (* updating the lookaround memory *)
-            regs := w.regs;   (* updating the capture regs *)
-            capclk := w.cap_clk; (* updating the capture clocks *)
-            lookclk := w.look_clk; (* updating the lookaround clocks *)
-            quants := w.quants (* updating the quantifier registers *)
-         end
-    ) lq;
+  (* gos through the regex, if it encounters a nulled +, it calls the null interpreter *)
+  let rec nulled_plus (reg:regex) : unit =
+    match reg with
+    | Re_empty | Re_char _ | Re_dot -> ()
+    | Re_alt (r1, r2) | Re_con (r1, r2) ->
+       nulled_plus r1; nulled_plus r2
+    | Re_capture (_,r1) -> nulled_plus r1
+    | Re_lookaround (lid,lk,r1) -> () (* todo: check if it's ok *)
+    (* from shallowest to deepest plus: *)
+    | Re_quant (nul,qid,quanttype,body) ->
+       begin match (get_quant_nulled !quants qid) with
+       | None -> nulled_plus body (* recursive call: the inner + may have been nulled *)
+       | Some start_cp ->
+          (* with no recursive calls: inner + will be reconstructed automatically *)
+          let start_clock = get_quant_clock !quants qid in
+          let bytecode = compile_reconstruct_nulled body in
+          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o in
+          begin match result with
+          | None -> failwith "expected a nullable plus"
+          | Some w ->             (* there's a winning thread when nulling *)
+             mem := w.mem;    (* updating the lookaround memory *)
+             regs := w.regs;   (* updating the capture regs *)
+             capclk := w.cap_clk; (* updating the capture clocks *)
+             lookclk := w.look_clk; (* updating the lookaround clocks *)
+             quants := w.quants (* updating the quantifier registers *)
+          end
+       end
+  in
+  nulled_plus r;
   {pc = thread.pc; regs = !regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
-
+  
+ 
 (** * Running the interpreter and returning its result  *)
   
 (* running the interpreter on some code, with a particular initial interpreter state *)
