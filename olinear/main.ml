@@ -235,8 +235,8 @@ let paper_example () =
   
 let main =
   (* let bug = (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)))),"ab") in
-   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)); *)
-  (* compare_engines (fst bug) (snd bug) *)
+   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
+   * compare_engines (fst bug) (snd bug) *)
   
   tests()
   (* fuzzer() *)

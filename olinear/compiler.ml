@@ -120,8 +120,17 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction list * l
               ([SetQuantToClock (qid,true)] @ l1, f1)
            | Progress -> failwith "unexpected progress compilation type"
            end
-        | CDNullable ->         (* only compile the null branch *)
-           ([CheckNullable qid; SetQuantToClock (qid,true)], fresh+2)
+        | CDNullable ->         
+           begin match ctype with
+           | TestNullable ->
+              (* only compile the null branch, with a test *)
+              ([CheckNullable qid; SetQuantToClock (qid,true)], fresh+2)
+           | ReconstructNulled ->
+              (* recursively compile the inner nested + *)
+              let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
+              ([SetQuantToClock (qid,true)] @ l1, f1)
+           | Progress -> failwith "unexpected progress compilation type"
+           end
         end
      | LazyPlus ->
         begin match nul with
