@@ -80,9 +80,9 @@ let full_algo_tests () =
   ignore(full_match ~verbose:true ~debug:true raw str)
 
 let compare_engines_tests() =
-  compare_engines (Raw_con (Raw_quant (Star, Raw_capture (Raw_char 'a')), Raw_char 'b')) "aaab";
-  compare_engines (Raw_char 'a') "b";
-  compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))) "ababab"
+  ignore(compare_engines (Raw_con (Raw_quant (Star, Raw_capture (Raw_char 'a')), Raw_char 'b')) "aaab");
+  ignore(compare_engines (Raw_char 'a') "b");
+  ignore(compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))) "ababab")
   
   
 (** * Gathering some errors found with the fuzzer *)
@@ -186,7 +186,7 @@ let redos : (raw_regex*string) list =
   
 (* re-checking a list of previous bugs *)
 let replay_bugs (l:(raw_regex*string) list) =
-  List.iter (fun (raw,str) -> compare_engines raw str) l
+  List.iter (fun (raw,str) -> ignore(compare_engines raw str)) l
 
 (* just checking that our engine is not stuck on the REDOS regexes *)
 let replay_stuck (l:(raw_regex*string) list) =
@@ -234,12 +234,12 @@ let paper_example () =
   
   
 let main =
-  (* let bug = (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)))),"ab") in
-   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
-   * compare_engines (fst bug) (snd bug) *)
+  (* let bug = (Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_char('a'))),Raw_char('b')),"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") in
+   * (\* ignore(get_js_result ~verbose:true ~debug:true (fst bug) (snd bug)); *\)
+   * ignore(compare_engines (fst bug) (snd bug)) *)
   
-  (* tests() *)
-  fuzzer()
+  tests()
+  (* fuzzer() *)
   (* run_benchmark(cdn_plus); *)
   (* experimental_benchmark() *)
 

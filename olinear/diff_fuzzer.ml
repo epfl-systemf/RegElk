@@ -92,11 +92,13 @@ let fuzzer () : unit =
   let total_cin = ref 0 in
   let total_lnn = ref 0 in
   let total_ln = ref 0 in
+  let total_timeout = ref 0 in
   
   for i = 0 to max_tests do 
     let raw = random_raw() in
     let str = random_string() in
-    compare_engines raw str;
+    let comp = compare_engines raw str in
+    if (not comp) then total_timeout := !total_timeout +1;
 
     let (nn,cdn,cin,lnn,ln) = plus_stats (annotate raw) in
     total_nn := !total_nn + nn;
@@ -113,4 +115,5 @@ let fuzzer () : unit =
   Printf.printf "ContextDependentNullable+:   %d\n" !total_cdn;
   Printf.printf "ContextIndependentNullable+: %d\n" !total_cin;
   Printf.printf "NonNullableLazy+:            %d\n" !total_lnn;
-  Printf.printf "NullableLazy+:               %d\n" !total_ln
+  Printf.printf "NullableLazy+:               %d\n" !total_ln;
+  Printf.printf "JS Backtracking Timeouts:    %d\n" !total_timeout
