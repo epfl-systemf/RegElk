@@ -13,9 +13,9 @@ let end_reg (c:capture) : register = (2*c) + 1
   
   
 (** * Compilation  *)
-  (* currently, we are quadratic because of list concatenation *)
-  (* our clearing of the registers and memory is also not optimal and can result in quadratic bytecode *)
-  (* experimental V8 has the same issue *)
+(* currently, we are quadratic because of list concatenation *)
+(* our clearing of the registers and memory is also not optimal and can result in quadratic bytecode *)
+(* experimental V8 has the same issue *)
 
 (* Compilation types *)
 type comp_type =
@@ -164,14 +164,18 @@ let compile_to_write (r:regex) (l:lookid): code =
   let full_c = c @ [WriteOracle l] in
   Array.of_list full_c
 
-(* compile the bytecode for finding the nullable path *)
-(* this is used to reconstruct the missing groups of nullable + *)
-(* or to figure out when is a CDN nullable *)
+(* compiles the bytecode for finding the nullable path *)
+(* This is used to figure out when are CDNs nullable and build the CDN table *)
+(* For nested CDN+, this checks into the CDN table, *)
+(* it does not recusively compiles the nested +. *)
+(* So this has to be run from the deepest CDN to the shallowest *)
 let compile_test_nullable (r:regex) : code =
   let (c,_) = compile r 0 TestNullable in
   let full_c = c @ [Accept] in
   Array.of_list full_c
 
+(* compiles the bytecode for reconstructing the missing groups from nulled + *)
+(* this recursively compiles the nested + *)
 let compile_reconstruct_nulled (r:regex) : code =
   let (c,_) = compile r 0 ReconstructNulled in
   let full_c = c @ [Accept] in

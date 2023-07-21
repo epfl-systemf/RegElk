@@ -480,7 +480,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 (** * Reconstructing Nullable + Values  *)
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
-let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
+let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle): thread =
   (* let lq = nullable_plus_quantid r in (\* all the nullable + in order *\) *)
   let mem = ref thread.mem in
   let regs = ref thread.regs in
@@ -531,7 +531,7 @@ let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:ora
   let full_result = 
     match result with
     | None -> None
-    | Some thread -> Some (reconstruct_plus_groups ~debug ~verbose thread r s o dir)
+    | Some thread -> Some (reconstruct_plus_groups ~debug ~verbose thread r s o)
   in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
   full_result
