@@ -77,22 +77,3 @@ let rec print_code (c:code) : string =
   done;
   !s
                                
-(** * CDN codes  *)
-(* here we define the set of bytecode used by the interpreter to update, at each *)
-(* string position, which CDN plus is nullable *)
-
-module IntMap = Map.Make(struct type t = int let compare = compare end)
-
-(* associates to each cdn quantifier id its nullable code *)
-type cdn_codes = code IntMap.t
-                      
-let cdn_code_init () : cdn_codes =
-  IntMap.empty
-
-let get_cdn_code (codes:cdn_codes) (qid:quantid) : code =
-  match (IntMap.find_opt qid codes) with
-  | Some c -> c
-  | None -> failwith "couldn't find this CDN code"
-
-(* both the codes and the list of CDN identifiers from highest to lowest *)
-type cdns = cdn_codes * quantid list

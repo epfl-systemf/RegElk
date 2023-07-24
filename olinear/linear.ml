@@ -5,7 +5,7 @@ open Bytecode
 open Regex
 open Compiler
 open Interpreter
-
+open Cdn
 
 (** * Bulding the Oracle  *)
 

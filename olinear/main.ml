@@ -2,6 +2,7 @@ open Oracle
 open Regex
 open Bytecode
 open Compiler
+open Cdn
 open Interpreter
 open Linear
 open Tojs
@@ -238,8 +239,8 @@ let main =
    * (\* ignore(get_js_result ~verbose:true ~debug:true (fst bug) (snd bug)); *\)
    * ignore(compare_engines (fst bug) (snd bug)) *)
   
-  tests()
-  (* fuzzer() *)
+  (* tests() *)
+  fuzzer()
   (* run_benchmark(cdn_plus); *)
   (* experimental_benchmark() *)
 

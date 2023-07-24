@@ -8,6 +8,7 @@ open Array
 open Format
 open Oracle
 open Compiler
+open Cdn
 
 (** * Direction  *)
 (* In our algorithm, the interpreter can traverse the string in a forward way or ina backward way *)
@@ -196,23 +197,6 @@ let bpc_mem (bpcs:bpcset) (pc:label) (exit_bool:bool) : bool =
   | true -> pc_mem bpcs.true_set pc
   | false -> pc_mem bpcs.false_set pc
 
-(** * CDN Table  *)
-(* For all Context-Dependent Nullable Plusses, we need to remember *)
-(* when each of them is nullable at a given cp *)
-           
-type cdn_table = unit IntMap.t
-(* when a unit is set for a given id, it means the corresponding quantifier is nullable *)
-               
-let init_cdn () : cdn_table =
-  IntMap.empty
-
-let cdn_set_true (cdn:cdn_table) (qid:quantid) : cdn_table =
-  IntMap.add qid () cdn
-
-let cdn_get (cdn:cdn_table) (qid:quantid) : bool =
-  match (IntMap.find_opt qid cdn) with
-  | Some _ -> true
-  | None -> false
            
   
 (** * Interpreter States  *)
