@@ -105,44 +105,53 @@ let rec compile_cdnf (r:regex) : cdn_formula =
      | NegLookahead | NegLookbehind -> CDN_neglook lid
      end
 
-(** TODO: adapt what's below  *)
     
-(** * CDN codes  *)
-(* here we define the set of bytecode used by the interpreter to update, at each *)
+(** * Compiling all CDN formulas of a regex  *)
+(* here we define the set of formulas used by the interpreter to update, at each *)
 (* string position, which CDN plus is nullable *)
 
-(* associates to each cdn quantifier id its nullable code *)
-type cdn_codes = code IntMap.t
-                      
-let cdn_code_init () : cdn_codes =
-  IntMap.empty
+(* associates to each cdn quantifier id its nullable formula *)
+type cdns = (quantid * cdn_formula) list
 
-let get_cdn_code (codes:cdn_codes) (qid:quantid) : code =
-  match (IntMap.find_opt qid codes) with
-  | Some c -> c
-  | None -> failwith "couldn't find this CDN code"
+let compile_cdns (r:regex) : cdns =
+  let cdn_list = cdn_plus_list r in
+  List.map (fun qid ->
+      let (body,_) = get_quant r qid in
+      let formula = compile_cdnf body in
+      (qid, formula)) cdn_list
 
-(* both the codes and the list of CDN identifiers from highest to lowest *)
-type cdns = cdn_codes * quantid list
-
-(** * Compiling CDN codes  *)
-(* for each regex, we also compile the cdn codes of each cdn plus *)
-(* these codes will be run at each step of the interpreter *)
-(* to build up the CDN table *)
-let compile_cdn_codes (r:regex) : cdns =
-  (* let codes = ref (cdn_code_init()) in
-   * let cdn_list = cdn_plus_list r in
-   * List.iter (fun qid ->
-   *     let (body,_) = get_quant r qid in
-   *     let bytecode = compile_test_nullable body in
-   *     codes := IntMap.add qid bytecode !codes
-   *   ) cdn_list;
-   * (!codes, cdn_list) *)
-  failwith "TODO"
      
 (** * Building the CDN Table  *)
-(* TODO *)
-let rec build_cdn () (cp:int) (o:oracle) : cdn_table =
+(* the interpreter performs this at each step to know which CDN is nullable *)
+let rec build_cdn (cdns:cdns) (cp:int) (o:oracle) : cdn_table =
   let table = ref (init_cdn()) in
+  List.iter(fun (qid,formula) ->
+      let eval = interpret_cdn formula cp o !table in
+      if eval then table := cdn_set_true !table qid
+    ) cdns;
   !table
-   (* TODO *)
+
+
+(** * Pretty-printing  *)
+let print_cdn_table (table:cdn_table) (cdnl:quantid list) : string =
+  List.fold_left (fun str quantid ->
+      let b = cdn_get table quantid in
+      let s = string_of_int quantid ^ ":" ^ print_bool b in
+      str ^ ", " ^ s
+    ) "" cdnl
+    
+let rec print_formula (f:cdn_formula) : string =
+  match f with
+  | CDN_true -> "⊤"
+  | CDN_false -> "⊥"
+  | CDN_and (f1,f2) -> "(" ^ print_formula f1 ^ "∧" ^ print_formula f2 ^ ")"
+  | CDN_or (f1,f2) -> "(" ^ print_formula f1 ^ "∨" ^ print_formula f2 ^ ")"
+  | CDN_quant qid -> "\027[31mQ" ^ string_of_int qid ^ "\027[0m"
+  | CDN_look lid -> "\027[36mL" ^ string_of_int lid ^ "\027[0m"
+  | CDN_neglook lid -> "~\027[36mL" ^ string_of_int lid ^ "\027[0m"
+
+let print_cdns (c:cdns) : string =
+  "\027[36mCDN formulas:\027[0m \n" ^
+  List.fold_left (fun str (qid,formula) ->
+      "Q"^string_of_int qid^": "^print_formula formula^"\n"^str
+    ) "" c

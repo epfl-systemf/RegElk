@@ -263,13 +263,6 @@ let print_match (b:thread option) =
 
 let print_bestmatch (b:thread option) =
   "  BEST: " ^ print_match b ^ "\n"
-
-let print_cdn_table (table:cdn_table) (cdnl:quantid list) : string =
-  List.fold_left (fun str quantid ->
-      let b = cdn_get table quantid in
-      let s = string_of_int quantid ^ ":" ^ print_bool b in
-      str ^ ", " ^ s
-    ) "" cdnl
   
 (** * Interpreter  *)
 
@@ -399,24 +392,6 @@ let null_interp ?(debug=false) ?(verbose=false) (c:code) (s:interpreter_state) (
     end;
   s.bestmatch
      
-(** * Building CDN table  *)
-
-let build_cdn (cdns:cdns) (cp:int) (o:oracle) : cdn_table =
-  let table = ref (init_cdn()) in
-  match cdns with
-  | (cdn_codes, cdn_list) ->
-     List.iter (fun qid ->
-         let code = get_cdn_code cdn_codes qid in
-         let init = init_state code cp (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0 in
-         init.cdn <- !table;    (* giving it what we computed so far *)
-         match (null_interp ~debug:false code init o) with
-         | Some _ ->            (* if there is a match, we mark the cdn as nullable *)
-            (* we can ignore what's really inside the winning thread *)
-            table := cdn_set_true !table qid
-         | None -> ()
-       ) cdn_list;
-     !table
-
 
 (** * Interpreting the bytecode  *)
 let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
@@ -431,7 +406,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
   s.cdn <- build_cdn cdn s.cp o;
   if debug then
     begin
-      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (snd cdn));
+      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));
     end;
   
   (* follow epsilon transitions *)  
@@ -510,6 +485,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
 let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) (cdn:cdns): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
+  if verbose then Printf.printf "%s\n" (print_cdns cdn);
   let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 

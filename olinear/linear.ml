@@ -28,7 +28,7 @@ let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
     let lookreg = lazy_prefix lookreg_rev in              (* lazy star prefix *)
     let bytecode = compile_to_write lookreg lid in
     let direction = oracle_direction looktype in
-    let lookcdn = compile_cdn_codes lookreg in
+    let lookcdn = compile_cdns lookreg in
     ignore (interp_default_init ~verbose ~debug lookreg bytecode str o direction lookcdn)
            (* we don't want the return value, we just want to write to the oracle *)
   done;
@@ -59,7 +59,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
   let quants = init_quant_clocks() in
   let main_regex = lazy_prefix r in (* lazy star prefix, only for the main expression *)
   let main_bytecode = compile_to_bytecode main_regex in
-  let main_cdn = compile_cdn_codes main_regex in
+  let main_cdn = compile_cdns main_regex in
   let main_result = interp ~verbose ~debug r main_bytecode str o Forward 0 regs capclk mem lookclk quants 0 main_cdn in
   match main_result with
   | None -> None
@@ -78,7 +78,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
             let lookreg = capture_regex looktype reg in
             let bytecode = compile_to_bytecode lookreg in
             let direction = capture_direction looktype in
-            let lookcdn = compile_cdn_codes lookreg in
+            let lookcdn = compile_cdns lookreg in
             let result = interp ~verbose ~debug lookreg bytecode str o direction cp !regs !capclk !mem !lookclk !quants 0 lookcdn in
             begin match result with
             | None -> failwith "result expected from the oracle"

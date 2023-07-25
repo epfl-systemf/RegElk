@@ -56,7 +56,7 @@ let interpreter_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
-  let cdn = compile_cdn_codes re in
+  let cdn = compile_cdns re in
   let str1 = "aab" in
   let str2 = "aaa" in
   assert (boolean_interp ~debug:true re code str1 o Forward cdn = true);
@@ -235,12 +235,13 @@ let paper_example () =
   
   
 let main =
-  (* let bug = (Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_char('a'))),Raw_char('b')),"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") in
-   * (\* ignore(get_js_result ~verbose:true ~debug:true (fst bug) (snd bug)); *\)
-   * ignore(compare_engines (fst bug) (snd bug)) *)
+  (* let bug = List.nth nullable_expected 2 in *)
+  (* ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
+  (* ignore(get_js_result ~verbose:true ~debug:true (fst bug) (snd bug)); *)
+  (* ignore(compare_engines (fst bug) (snd bug)) *)
   
-  (* tests() *)
-  fuzzer()
+  tests()
+  (* fuzzer() *)
   (* run_benchmark(cdn_plus); *)
   (* experimental_benchmark() *)
 
