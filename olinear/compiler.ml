@@ -21,15 +21,8 @@ let end_reg (c:capture) : register = (2*c) + 1
 type comp_type =
   (* normal compilation type. making progress in the input string (Consume) is allowed *)
   | Progress
-  (* To test if something is nullable. This does not recursively compile the +, but rather splits them *)
-  | TestNullable
-  (* Reconstructs the groups of a nullable paths. Recusrively compile the nested +  *)
+  (* Reconstructs the groups of a nulled regex. Recursively compile the nested +  *)
   | ReconstructNulled
-
-let progress (ct:comp_type) : bool =
-  match ct with
-  | Progress -> true
-  | _ -> false
   
 (* Recursively compiles a regex *)
 (* [fresh] is the next available instruction label *)
@@ -39,11 +32,15 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction list * l
   match r with
   | Re_empty -> ([], fresh)
   | Re_char ch ->
-     if progress(ctype) then ([Consume ch], fresh+1)
-     else ([Fail], fresh+1)
+     begin match ctype with
+     | Progress -> ([Consume ch], fresh+1)
+     | ReconstructNulled -> ([Fail], fresh+1)
+     end
   | Re_dot ->
-     if progress(ctype) then ([ConsumeAll], fresh+1)
-     else ([Fail], fresh+1)
+     begin match ctype with
+     | Progress -> ([ConsumeAll], fresh+1)
+     | ReconstructNulled -> ([Fail], fresh+1)
+     end
   | Re_con (r1, r2) ->
      let (l1, f1) = compile r1 fresh ctype in
      let (l2, f2) = compile r2 f1 ctype in
@@ -52,7 +49,7 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction list * l
      let (l1, f1) = compile r1 (fresh+1) ctype in
      let (l2, f2) = compile r2 (f1+1) ctype in
      ([Fork (fresh+1, f1+1)] @ l1 @ [Jmp f2] @ l2, f2)
-  | Re_quant (nul, qid, quant, r1) when progress(ctype) = true ->
+  | Re_quant (nul, qid, quant, r1) when ctype = Progress ->
      (* progress compilation, consuming is allowed *)
      begin match quant with
      | Star ->
@@ -100,7 +97,7 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction list * l
            ([SetQuantToClock (qid,false)] @ l1, f1)
         end
      end
-  (* when progress(ctype) = false, ie we only want to find the top-priority nullable path *)
+  (* when ctype = ReconstrutNulled, ie we only want to find the top-priority nullable path *)
   | Re_quant (nul, qid, quant, r1) ->
      begin match quant with
      | Star | LazyStar ->
@@ -110,27 +107,13 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction list * l
         begin match nul with
         | NonNullable -> ([Fail], fresh+1) (* you won't be able to null that expression *)
         | CINullable ->                    
-           begin match ctype with
-           | TestNullable ->
-              (* only compile the null branch without test *)
-              ([SetQuantToClock (qid,true)], fresh+1)
-           | ReconstructNulled ->
-              (* recursively compile the inner nested + *)
-              let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
-              ([SetQuantToClock (qid,true)] @ l1, f1)
-           | Progress -> failwith "unexpected progress compilation type"
-           end
+           (* recursively compile the inner nested + *)
+           let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
+           ([SetQuantToClock (qid,true)] @ l1, f1)
         | CDNullable ->         
-           begin match ctype with
-           | TestNullable ->
-              (* only compile the null branch, with a test *)
-              ([CheckNullable qid; SetQuantToClock (qid,true)], fresh+2)
-           | ReconstructNulled ->
-              (* recursively compile the inner nested + *)
-              let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
-              ([SetQuantToClock (qid,true)] @ l1, f1)
-           | Progress -> failwith "unexpected progress compilation type"
-           end
+           (* recursively compile the inner nested + *)
+           let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
+           ([SetQuantToClock (qid,true)] @ l1, f1)
         end
      | LazyPlus ->
         begin match nul with
@@ -162,16 +145,6 @@ let compile_to_bytecode (r:regex) : code =
 let compile_to_write (r:regex) (l:lookid): code =
   let (c,_) = compile r 0 Progress in
   let full_c = c @ [WriteOracle l] in
-  Array.of_list full_c
-
-(* compiles the bytecode for finding the nullable path *)
-(* This is used to figure out when are CDNs nullable and build the CDN table *)
-(* For nested CDN+, this checks into the CDN table, *)
-(* it does not recusively compiles the nested +. *)
-(* So this has to be run from the deepest CDN to the shallowest *)
-let compile_test_nullable (r:regex) : code =
-  let (c,_) = compile r 0 TestNullable in
-  let full_c = c @ [Accept] in
   Array.of_list full_c
 
 (* compiles the bytecode for reconstructing the missing groups from nulled + *)

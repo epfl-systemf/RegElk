@@ -177,6 +177,10 @@ let nullable_expected: (raw_regex*string) list =
    (Raw_con(Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_alt(Raw_capture(Raw_capture(Raw_lookaround(NegLookahead,Raw_char('c')))),Raw_alt(Raw_dot,Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_lookaround(Lookbehind,Raw_char('b'))))))))))),Raw_con(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)),Raw_char('b'))),"ababcbcaccbbcbbacccbcbccbbabaaaabbbbbabacacbccbabcbbbbabaacabaccabb");
    (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)))),"aaccbcbccccccbbbccccbcbaabbaccbcccaabbacacccabbccaabbcabb");
    (Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_con(Raw_char('a'),Raw_con(Raw_char('b'),Raw_char('b'))))))),"bcaaabccbaabccaaaaababbaaaaaaaaaacbabacabcbbcbbaaabcbbaccabccbcacacc")]
+
+(* testing the CDN formulas *)
+let cdn_formulas: (raw_regex*string) list =
+  [(Raw_quant(Plus,Raw_alt(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_char('a'))),Raw_con(Raw_lookaround(Lookahead,Raw_char('b')),Raw_lookaround(Lookahead,Raw_char('c'))))),"abc")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
@@ -220,6 +224,7 @@ let tests () =
   replay_bugs(cin_examples);
   replay_bugs(cdn_empty);
   replay_bugs(nullable_expected);
+  replay_bugs(cdn_formulas);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -235,8 +240,8 @@ let paper_example () =
   
   
 let main =
-  (* let bug = List.nth nullable_expected 2 in *)
-  (* ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
+  (* let bug = List.nth cdn_formulas 0 in
+   * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
   (* ignore(get_js_result ~verbose:true ~debug:true (fst bug) (snd bug)); *)
   (* ignore(compare_engines (fst bug) (snd bug)) *)
   

@@ -142,6 +142,7 @@ let print_cdn_table (table:cdn_table) (cdnl:quantid list) : string =
     
 let rec print_formula (f:cdn_formula) : string =
   match f with
+  (* if formulas have been correctly minimized, you should never see True and False *)
   | CDN_true -> "⊤"
   | CDN_false -> "⊥"
   | CDN_and (f1,f2) -> "(" ^ print_formula f1 ^ "∧" ^ print_formula f2 ^ ")"
