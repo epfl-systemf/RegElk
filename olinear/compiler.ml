@@ -34,9 +34,6 @@ let rec tl_flatten (t:'x treelist) (tail:'x list): 'x list =
      tl_flatten t1 l2
   
 (** * Regex to Bytecode Compilation  *)
-(* currently, we are quadratic because of list concatenation *)
-(* our clearing of the registers and memory is also not optimal and can result in quadratic bytecode *)
-(* experimental V8 has the same issue *)
 
 (* Compilation types *)
 type comp_type =
