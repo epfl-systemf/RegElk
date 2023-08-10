@@ -48,8 +48,9 @@ let string_of_command (command:string) : string =
 let get_js_result (raw:raw_regex) (str:string) : string =
   let js_regex = print_js raw in
   let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
-  let js_command = "node jsmatcher.js " ^ js_regex ^ " " ^ "'"^str^"'" in
-  string_of_command(js_command)
+  let js_command = "timeout 5s node jsmatcher.js " ^ js_regex ^ " " ^ "'"^str^"'" in
+  let result = string_of_command(js_command) in
+  if (String.length result = 0) then "Timeout\n\n" else result
 
 (* calling the JS timer that starts and ends its timer just before and after matching the regex *)
 let get_time_js (raw:raw_regex) (str:string) : string =
@@ -59,8 +60,14 @@ let get_time_js (raw:raw_regex) (str:string) : string =
   string_of_command(js_command)
   
 (** *  Comparing JS engine with our engine *)
-  
-let compare_engines ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : unit =
+
+type compare_result =
+  | Equal
+  | Timeout
+  | Error
+
+
+let compare_js_ocaml ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : compare_result =
   Printf.printf "\027[36mRegex:\027[0m %s || " (print_regex (annotate raw));
   Printf.printf "\027[36mJS Regex:\027[0m %s || " (print_js raw);
   Printf.printf "\027[36mString:\027[0m %s\n%!" str;
@@ -69,6 +76,15 @@ let compare_engines ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string)
   Printf.printf "\027[35mJS result:\027[0m\n%s%!" sjs;
   let sl = get_linear_result ~verbose ~debug raw str in
   Printf.printf "\027[35mLinear result:\027[0m\n%s%!" sl;
-  assert (String.compare sjs sl = 0)
+  if (String.compare sjs "Timeout\n\n" = 0) then Timeout
+  else if (String.compare sjs sl = 0) then Equal else Error
+                                                
 
+(* fails on errors, and returns false on timeouts (we couldn't verify the equality) *)
+let compare_engines ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : bool =
+  let cr = compare_js_ocaml ~verbose ~debug raw str in
+  match cr with
+  | Error -> failwith "Mismatch between backtracking and linear"
+  | Timeout -> false
+  | Equal -> true
 

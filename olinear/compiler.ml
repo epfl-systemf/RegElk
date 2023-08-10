@@ -10,81 +10,122 @@ open Bytecode
 (* defining registers corresponding to a given capture group *)
 let start_reg (c:capture) : register = 2 * c
 let end_reg (c:capture) : register = (2*c) + 1
-
-(* Clearing Start Registers *)
-(* Generating code to clear the start registers inside a quantifier to comply with the JS semantics *)
-let rec clear_regs (cstart:capture) (nb:int) : instruction list =
-  assert (nb >= 0);
-  if (nb = 0) then []
-  else (ClearRegister (start_reg (cstart+nb-1)))::(clear_regs cstart (nb-1))
-
-(* Clear the interval [cstart; cend[ *)
-let clear_range (cstart:capture) (cend:capture) : instruction list =
-  clear_regs cstart (cend - cstart)
-
-(** * Lookaround Memory  *)
-
-let rec clear_looks (lstart:lookid) (nb:int) : instruction list =
-  assert (nb >= 0);
-  if (nb = 0) then []
-  else (ClearMemory (lstart+nb-1))::(clear_looks lstart (nb-1))
-
-let clear_mem (lstart:lookid) (lend:lookid) : instruction list =
-  clear_looks lstart (lend - lstart)
   
   
 (** * Compilation  *)
-  (* currently, we are quadratic because of list concatenation *)
-  (* our clearing of the registers and memory is also not optimal and can result in quadratic bytecode *)
-  (* experimental V8 has the same issue *)
+(* currently, we are quadratic because of list concatenation *)
+(* our clearing of the registers and memory is also not optimal and can result in quadratic bytecode *)
+(* experimental V8 has the same issue *)
 
+(* Compilation types *)
+type comp_type =
+  (* normal compilation type. making progress in the input string (Consume) is allowed *)
+  | Progress
+  (* Reconstructs the groups of a nulled regex. Recursively compile the nested +  *)
+  | ReconstructNulled
   
 (* Recursively compiles a regex *)
 (* [fresh] is the next available instruction label *)
 (* also returns the next fresh label after compilation *)
-let rec compile (r:regex) (fresh:label) : instruction list * label =
+(* if the option progress is false, then this generates code that cannot make progress in the string *)
+let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction list * label =
   match r with
   | Re_empty -> ([], fresh)
-  | Re_char ch -> ([Consume ch], fresh+1)
-  | Re_dot -> ([ConsumeAll], fresh+1)
+  | Re_char ch ->
+     begin match ctype with
+     | Progress -> ([Consume ch], fresh+1)
+     | ReconstructNulled -> ([Fail], fresh+1)
+     end
+  | Re_dot ->
+     begin match ctype with
+     | Progress -> ([ConsumeAll], fresh+1)
+     | ReconstructNulled -> ([Fail], fresh+1)
+     end
   | Re_con (r1, r2) ->
-     let (l1, f1) = compile r1 fresh in
-     let (l2, f2) = compile r2 f1 in
+     let (l1, f1) = compile r1 fresh ctype in
+     let (l2, f2) = compile r2 f1 ctype in
      (l1 @ l2, f2)
   | Re_alt (r1, r2) ->
-     let (l1, f1) = compile r1 (fresh+1) in
-     let (l2, f2) = compile r2 (f1+1) in
+     let (l1, f1) = compile r1 (fresh+1) ctype in
+     let (l2, f2) = compile r2 (f1+1) ctype in
      ([Fork (fresh+1, f1+1)] @ l1 @ [Jmp f2] @ l2, f2)
-  | Re_quant (cstart, cend, lstart, lend, quant, r1) ->
-     (* TODO IMPORTANT *)
-     (* in a star, we should not only clear the capture regs but also the look memory *)
-     let range = cend - cstart in
-     let look_range = lend - lstart in
+  | Re_quant (nul, qid, quant, r1) when ctype = Progress ->
+     (* progress compilation, consuming is allowed *)
      begin match quant with
      | Star ->
-        let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-        ([Fork (fresh+1, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1)
+        begin match nul with
+        | NonNullable ->
+           (* no need for BeginLoop/EndLoop instructions *)
+           let (l1, f1) = compile r1 (fresh+2) Progress in
+           ([Fork (fresh+1, f1+1); SetQuantToClock (qid,false)] @ l1 @ [Jmp fresh], f1+1)
+        | CINullable | CDNullable ->
+           (* nullable case: BeginLoop/EndLoop instructions needed for JS empty quantification semantics *)
+          let (l1, f1) = compile r1 (fresh+3) Progress in
+          ([Fork (fresh+1, f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+        end
      | LazyStar ->
-        let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-        ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Fork (f1+1,fresh+1)], f1+1)
-     (* Old version, has a bug on (.*?)* *)
-        (* let (l1, f1) = compile r1 (fresh+1+range+look_range) in
-         * ([Fork (f1+1, fresh+1)] @ clear_range cstart cend @ clear_mem lstart lend @ l1 @ [Jmp fresh], f1+1) *)
+        begin match nul with
+        | NonNullable ->
+           (* no need for BeginLoop/EndLoop instructions *)
+           let (l1, f1) = compile r1 (fresh+2) Progress in
+           ([Fork (f1+1, fresh+1); SetQuantToClock (qid,false)] @ l1 @ [Jmp fresh], f1+1)
+        | CINullable | CDNullable ->
+           (* nullable case: BeginLoop/EndLoop instructions needed for JS empty quantification semantics *)
+           let (l1, f1) = compile r1 (fresh+3) Progress in
+           ([Fork (f1+2, fresh+1); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Jmp fresh], f1+2)
+        end
      | Plus ->
-        (* Compiling as a concatenation *)
-        (* This may duplicates capture groups numbers *)
-        compile (Re_con(r1,Re_quant(cstart,cend,lstart,lend,Star,r1))) fresh
-     (* Old version *)
-        (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
-         * (l1 @ [Fork (f1+1, f1+2+range+look_range)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
+        begin match nul with
+        | NonNullable ->
+           let (l1, f1) = compile r1 (fresh+1) Progress in
+           ([SetQuantToClock (qid,false)] @ l1 @ [Fork (fresh,f1+1)], f1+1)
+        | CINullable ->
+           let (l1, f1) = compile r1 (fresh+3) Progress in
+           ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Fork (fresh+1,f1+3); SetQuantToClock (qid,true)], f1+3)
+        | CDNullable ->
+           let (l1, f1) = compile r1 (fresh+3) Progress in
+           ([Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @ l1 @ [EndLoop; Fork (fresh+1,f1+4); CheckNullable qid; SetQuantToClock (qid,true)], f1+4)
+        end
      | LazyPlus ->
-        (* same thing *)
-        compile (Re_con(r1,Re_quant(cstart,cend,lstart,lend,LazyStar,r1))) fresh
-        (* let (l1, f1) = compile r1 fresh in (\* not clearing registers on the first iteration *\)
-         * (l1 @ [Fork (f1+2+range+look_range, f1+1)] @ clear_range cstart cend @ clear_mem lstart lend @ [Jmp fresh], f1+2+range+look_range ) *)
+        begin match nul with
+        | NonNullable ->
+           let (l1, f1) = compile r1 (fresh+1) Progress in
+           ([SetQuantToClock (qid,false)] @ l1 @ [Fork (f1+1,fresh)], f1+1)
+        | _ -> 
+           (* Compiling as a concatenation in the nullable case *)
+           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,LazyStar,r1))) (fresh+1) Progress in
+           ([SetQuantToClock (qid,false)] @ l1, f1)
+        end
+     end
+  (* when ctype = ReconstrutNulled, ie we only want to find the top-priority nullable path *)
+  | Re_quant (nul, qid, quant, r1) ->
+     begin match quant with
+     | Star | LazyStar ->
+        (* you can just skip the stars, there's no way to null them by going inside since they don't allow empty repetitions *)
+        ([],fresh)
+     | Plus ->
+        begin match nul with
+        | NonNullable -> ([Fail], fresh+1) (* you won't be able to null that expression *)
+        | CINullable ->                    
+           (* recursively compile the inner nested + *)
+           let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
+           ([SetQuantToClock (qid,true)] @ l1, f1)
+        | CDNullable ->         
+           (* recursively compile the inner nested + *)
+           let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
+           ([SetQuantToClock (qid,true)] @ l1, f1)
+        end
+     | LazyPlus ->
+        begin match nul with
+        | NonNullable -> ([Fail], fresh+1) (* you won't be able to null that expression *)            
+        | _ ->
+           let (l1, f1) = compile r1 (fresh+1) ctype in
+           (* we don't need to reenter the star, compiling r1 once is enough *)
+           ([SetQuantToClock (qid,true)] @ l1, f1)
+        end
      end
   | Re_capture (cid, r1) ->
-     let (l1, f1) = compile r1 (fresh+1) in
+     let (l1, f1) = compile r1 (fresh+1) ctype in
      ([SetRegisterToCP (start_reg cid)] @ l1 @ [SetRegisterToCP (end_reg cid)], f1+1)
   | Re_lookaround (lookid, looktype, r1) ->
      (* does not compile the lookarounds it depends on, only the current expression *)
@@ -94,15 +135,23 @@ let rec compile (r:regex) (fresh:label) : instruction list * label =
      end
 
 (* adds an accept at the end of the bytecode *)
-(* And a lazy star at the beginning *)
 let compile_to_bytecode (r:regex) : code =
-  let (c,_) = compile r 0 in
+  let (c,_) = compile r 0 Progress in
   let full_c = c @ [Accept] in
   Array.of_list full_c
 
 (* same but with a WriteOracle instruction instead of an Accept *)
 (* l is the current lookid we are compiling the regex for *)
 let compile_to_write (r:regex) (l:lookid): code =
-  let (c,_) = compile r 0 in
+  let (c,_) = compile r 0 Progress in
   let full_c = c @ [WriteOracle l] in
   Array.of_list full_c
+
+(* compiles the bytecode for reconstructing the missing groups from nulled + *)
+(* this recursively compiles the nested + *)
+let compile_reconstruct_nulled (r:regex) : code =
+  let (c,_) = compile r 0 ReconstructNulled in
+  let full_c = c @ [Accept] in
+  Array.of_list full_c
+  
+

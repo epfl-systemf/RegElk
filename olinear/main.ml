@@ -2,6 +2,7 @@ open Oracle
 open Regex
 open Bytecode
 open Compiler
+open Cdn
 open Interpreter
 open Linear
 open Tojs
@@ -47,19 +48,19 @@ let compiler_tests () =
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
-  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,4); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept]);
   Printf.printf "%s\n" (print_code code);
-  assert(true)
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,5); SetQuantToClock (1,false); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
 
 let interpreter_tests () =
   let o = create_oracle 1 1 in
   let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
   let re = annotate raw in
   let code = compile_to_bytecode re in
+  let cdn = compile_cdns re in
   let str1 = "aab" in
   let str2 = "aaa" in
-  assert (match_interp ~debug:true code str1 o Forward = true);
-  assert (match_interp ~debug:true code str2 o Forward = false)
+  assert (boolean_interp ~debug:true re code str1 o Forward cdn = true);
+  assert (boolean_interp ~debug:true re code str2 o Forward cdn = false)
 
 let build_oracle_tests () =
   let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, Raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (Raw_char 'a',Raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in
@@ -80,9 +81,9 @@ let full_algo_tests () =
   ignore(full_match ~verbose:true ~debug:true raw str)
 
 let compare_engines_tests() =
-  compare_engines (Raw_con (Raw_quant (Star, Raw_capture (Raw_char 'a')), Raw_char 'b')) "aaab";
-  compare_engines (Raw_char 'a') "b";
-  compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))) "ababab"
+  ignore(compare_engines (Raw_con (Raw_quant (Star, Raw_capture (Raw_char 'a')), Raw_char 'b')) "aaab");
+  ignore(compare_engines (Raw_char 'a') "b");
+  ignore(compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))) "ababab")
   
   
 (** * Gathering some errors found with the fuzzer *)
@@ -100,8 +101,7 @@ let expected_result_oracle_errors : (raw_regex*string) list = (* FIXED! read str
    (Raw_lookaround(Lookbehind,Raw_char('a')),"cabbcabcccacbbabcb")]
 
 let idk : (raw_regex*string) list = (* FIXED, but i don't know why *)
-  [(Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
-   (Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(Raw_char('b'),Raw_capture(Raw_empty)),Raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('c')))))))),Raw_quant(Plus,Raw_con(Raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
+  [(Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(Raw_char('b'),Raw_capture(Raw_empty)),Raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('c')))))))),Raw_quant(Plus,Raw_con(Raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
   
 let clear_mem : (raw_regex*string) list = (* FIXED! clear the lookaround memory in quantifiers *)
   [(Raw_quant(Star,Raw_alt(Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_capture(Raw_char('b')))),Raw_char('b'))),"abc")] 
@@ -118,6 +118,7 @@ let double_quant : (raw_regex*string) list = (* FIXED, with another way to compi
 
 let empty_group : (raw_regex*string) list =
   [(Raw_quant(Star,Raw_alt(Raw_con(Raw_char('a'),Raw_capture(Raw_empty)),Raw_char('b'))),"ab")]
+
 
 (* FIXED by preventing advance_epsilon from calling itself twice *)
 let should_not_clear : (raw_regex*string) list =
@@ -136,11 +137,51 @@ let empty_repetitions : (raw_regex*string) list =
 (* FIXED by preventing advance_epsilon from calling itself twice *)
 let linear_stuck : (raw_regex*string) list =
   [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_capture(Raw_con(Raw_dot,Raw_quant(Plus,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_capture(Raw_alt(Raw_alt(Raw_dot,Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_empty,Raw_capture(Raw_empty))),Raw_con(Raw_alt(Raw_capture(Raw_dot),Raw_capture(Raw_char('b'))),Raw_empty))),Raw_quant(LazyStar,Raw_capture(Raw_con(Raw_empty,Raw_alt(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_empty),Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_empty))),Raw_con(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_empty,Raw_capture(Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_empty)),Raw_alt(Raw_capture(Raw_char('a')),Raw_dot)))),Raw_alt(Raw_char('c'),Raw_empty)))),Raw_char('b'))))))))))),Raw_con(Raw_lookaround(NegLookbehind,Raw_capture(Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookahead,Raw_empty)))),Raw_dot)))))),Raw_empty))))))),Raw_lookaround(NegLookahead,Raw_empty))))))),Raw_empty)))))),"cbacaaaababbcaaaaababcabcabaccaaaacb")]
+
+(* bugs when I switched to linear compilation of the nullable + *)
+(* Fixed the first 2 by starting the original thread with a true for exit_allowed, otherwise it fails to take empty Plusses *)
+(* But the last one is still a bug *)
+let linear_plus : (raw_regex*string) list =
+  [(Raw_alt(Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_quant(Star,Raw_empty),Raw_capture(Raw_quant(Plus,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_alt(Raw_lookaround(Lookbehind,Raw_con(Raw_char('c'),Raw_dot)),Raw_dot))),Raw_empty))),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_empty)),Raw_quant(LazyStar,Raw_capture(Raw_capture(Raw_empty)))))))))))))))))))),Raw_capture(Raw_empty)),"bacabacbcabcaacac");
+   (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
+   (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_alt(Raw_dot,Raw_capture(Raw_empty)))),"b"); (* simplified *)
+   (Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_con(Raw_lookaround(NegLookahead,Raw_capture(Raw_empty)),Raw_lookaround(Lookahead,Raw_capture(Raw_dot)))))),Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_alt(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_lookaround(Lookahead,Raw_char('b')),Raw_lookaround(Lookahead,Raw_char('c'))),Raw_capture(Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_lookaround(Lookbehind,Raw_char('c')),Raw_char('c'))),Raw_capture(Raw_con(Raw_dot,Raw_dot))))))),Raw_con(Raw_dot,Raw_alt(Raw_dot,Raw_char('b'))))),Raw_quant(Star,Raw_con(Raw_quant(Plus,Raw_capture(Raw_lookaround(NegLookbehind,Raw_char('b')))),Raw_quant(Star,Raw_con(Raw_dot,Raw_dot))))))),"accababbbabbccacabcaccaabcbbabcaaacbaaccabacababa")]
+
+(* Fixed: we now reconstruct the empty groups inside the nullable plus *)
+let plus_reconstruct : (raw_regex*string) list =
+  [(Raw_con(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_char('a')),"a");
+   (Raw_quant(Plus,Raw_alt(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(NegLookahead,Raw_empty)),Raw_capture(Raw_char('b'))),Raw_alt(Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_alt(Raw_empty,Raw_dot))),Raw_alt(Raw_lookaround(NegLookbehind,Raw_dot),Raw_empty)),Raw_char('c')))),"babcaccbbabcacacabcaaaababbccaccccbabbcabccbbbcaacbbababccabacbbbabcbacbaabcbbccbabbccbaa");
+   (Raw_quant(LazyPlus,Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_dot)),Raw_con(Raw_alt(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_quant(Star,Raw_quant(Star,Raw_char('c')))),Raw_alt(Raw_lookaround(NegLookbehind,Raw_empty),Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_char('c')))))),"abaabaccbcabaccabaacabccabbccacbbccbcbacabaacbaaacbacabbaacabaccabaacbbbbccaccaacaacabccccba");
+   (Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_empty,Raw_empty)))))),"cccccacaccbccabbcabacbaacacabcacbbabcbcccacbcab");
+   (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_empty,Raw_quant(Plus,Raw_capture(Raw_empty))))),"a");
+   (Raw_quant(Plus,Raw_capture(Raw_quant(LazyStar,Raw_empty))),"ccbcbbbbcacbcabbccaaccaccaacacabaacbbbcccbbaabaabccbacccac")]
+
+(* more cin examples  *)
+let cin_examples : (raw_regex*string) list =
+  [(Raw_con(Raw_quant(Plus,Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_empty)),Raw_alt(Raw_empty,Raw_char('a')))),Raw_char('b')),"b");
+   (Raw_con(Raw_quant(Star,Raw_quant(Plus,Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_empty)),Raw_alt(Raw_empty,Raw_char('a'))))),Raw_char('b')),"ab");
+   (Raw_con(Raw_quant(Star,Raw_con(Raw_quant(Plus,Raw_alt(Raw_lookaround(Lookahead,Raw_capture(Raw_empty)),Raw_alt(Raw_empty,Raw_char('a')))),Raw_char('c'))),Raw_char('b')),"accb")]
+
+(* FIXED. bugs when I did not construct the CDN table yet *)
+let cdn_empty: (raw_regex*string) list =
+  [(Raw_quant(Plus,Raw_con(Raw_empty,Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_quant(Plus,Raw_char('c'))))))),"bbaaaacaabaabbbaaacacaacbccbacaacaaaaaabccbbbbbcbcccacabbbaabccccacccabacccacbcbbaacbccbcaacb");
+   (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_char('c'))),"ababaaaacbcaababaaccaccacbbbccabbabbcacaa");
+   (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_char('b'))),"baabacaccabacabcaaacbbbabacaabbcbbcbaccccaacbacbbababcccbcccacbabababcabbaabacbbbbcaaa");
+   (Raw_lookaround(Lookbehind,Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_alt(Raw_dot,Raw_empty))),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_empty))))))),"babbccbbabacccabbabccccabacaacacbacabcaaccabbabccaca")]
+
+(* fails the assertion "expected a nullable plus" *)
+(* FIXED, when we don't forget to build a CDN table when reconstructing the + groups *)
+let nullable_expected: (raw_regex*string) list =
+  [(Raw_capture(Raw_con(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_char('b'))))))),Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_dot)))),"caabcbbcbcbcbacacaacbaccabaabbabbcbbbccbbbccac");
+   (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_empty)))),"caccaacbaabaaabaaacccaacacbbcabbababbacabbabcacabbcaabcbcaaacbabbcccbbcbbbcabbcaccacbacbb");
+   (Raw_con(Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_alt(Raw_capture(Raw_capture(Raw_lookaround(NegLookahead,Raw_char('c')))),Raw_alt(Raw_dot,Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_lookaround(Lookbehind,Raw_char('b'))))))))))),Raw_con(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)),Raw_char('b'))),"ababcbcaccbbcbbacccbcbccbbabaaaabbbbbabacacbccbabcbbbbabaacabaccabb");
+   (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)))),"aaccbcbccccccbbbccccbcbaabbaccbcccaabbacacccabbccaabbcabb");
+   (Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_con(Raw_char('a'),Raw_con(Raw_char('b'),Raw_char('b'))))))),"bcaaabccbaabccaaaaababbaaaaaaaaaacbabacabcbbcbbaaabcbbaccabccbcacacc")]
+
+(* testing the CDN formulas *)
+let cdn_formulas: (raw_regex*string) list =
+  [(Raw_quant(Plus,Raw_alt(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_char('a'))),Raw_con(Raw_lookaround(Lookahead,Raw_char('b')),Raw_lookaround(Lookahead,Raw_char('c'))))),"abc")]
   
-let different_results : (raw_regex*string) list =
-  []
-
-
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
   [(Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_dot),Raw_quant(LazyPlus,Raw_capture(Raw_con(Raw_quant(Star,Raw_char('a')),Raw_con(Raw_alt(Raw_empty,Raw_dot),Raw_dot)))))),"cbabbccccbbcccaaaaaccabccbaabaabcaaacbca");
@@ -150,7 +191,7 @@ let redos : (raw_regex*string) list =
   
 (* re-checking a list of previous bugs *)
 let replay_bugs (l:(raw_regex*string) list) =
-  List.iter (fun (raw,str) -> compare_engines raw str) l
+  List.iter (fun (raw,str) -> ignore(compare_engines raw str)) l
 
 (* just checking that our engine is not stuck on the REDOS regexes *)
 let replay_stuck (l:(raw_regex*string) list) =
@@ -167,19 +208,24 @@ let tests () =
   build_oracle_tests();
   full_algo_tests();
   compare_engines_tests();
+  replay_bugs(string_sub_errors);
   replay_bugs(oracle_assert_errors);
   replay_bugs(expected_result_oracle_errors);
-  replay_bugs(string_sub_errors);
   replay_bugs(idk);
   replay_bugs(clear_mem);
   replay_bugs(empty_problem);
   replay_bugs(double_quant);
   replay_bugs(empty_group);
   replay_bugs(should_not_clear);
+  replay_bugs(empty_repetitions);
   replay_bugs(linear_stuck);
-  (* replay_bugs(empty_repetitions); *)
+  replay_bugs(linear_plus);
+  replay_bugs(plus_reconstruct);
+  replay_bugs(cin_examples);
+  replay_bugs(cdn_empty);
+  replay_bugs(nullable_expected);
+  replay_bugs(cdn_formulas);
   replay_stuck(redos);
-  replay_stuck(empty_repetitions);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
 
@@ -194,34 +240,17 @@ let paper_example () =
   
   
 let main =
-  (* let lazya = Raw_alt(Raw_empty,Raw_char('a')) in
-   * let lazyb = Raw_alt(Raw_empty,Raw_char('b')) in
-   * let lazyc = Raw_alt(Raw_empty,Raw_char('c')) in
-   * let epsilon_reg = Raw_quant(Star,Raw_con(lazya,Raw_con(lazyb,lazyc))) in
-   * 
-   * let epsilon_str = "aac" in
-   * 
-   * Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result epsilon_reg epsilon_str);
-   * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result epsilon_reg epsilon_str);
-   * Printf.printf "JS result:\n%s\n\n" (get_js_result epsilon_reg epsilon_str); *)
-  
-  (* let bug = List.nth empty_repetitions 2 in
-   * ignore(get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
-   * Printf.printf "Experimental result:\n%s\n\n" (get_experimental_result (fst bug) (snd bug));
-   * Printf.printf "RE2 result:\n%s\n\n" (get_re2_result (fst bug) (snd bug));
-   * compare_engines (fst bug) (snd bug) *)
   (* tests() *)
-  (* fuzzer() *)
-  (* run_benchmark(quadratic_plus); *)
-  let open Core in
-  let open Core_bench in
-  let (array_args,matcher_fn,name) = prepare_core_benchmark quadratic_plus in
-  Command_unix.run (Bench.make_command [
-                   Bench.Test.create_indexed
-                     ~name
-                     ~args:(List.init (Array.length array_args) (fun i -> i))
-                     matcher_fn ])
-    
+  fuzzer()
+  (* run_benchmark(many_forks); *)
+  (* many_forks_re2_benchmark() *)
 
-  
-    
+  (* TODO: make more JSCore benchmarks *)
+  (* let open Core in
+   *   let open Core_bench in
+   *   let (array_args,matcher_fn,name) = prepare_core_benchmark quadratic_plus in
+   *   Command_unix.run (Bench.make_command [
+   *                    Bench.Test.create_indexed
+   *                      ~name
+   *                      ~args:(List.init (Array.length array_args) (fun i -> i))
+   *                      matcher_fn ]) *)

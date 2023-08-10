@@ -4,10 +4,10 @@ import csv
 import sys
 
 columns_ocaml = ["Size", "OCaml"]
-data_ocaml = pd.read_csv(sys.argv[1]+"_ocaml.csv", names=columns_ocaml)
+data_ocaml = pd.read_csv("exps/"+sys.argv[1]+"_ocaml.csv", names=columns_ocaml)
 
 columns_js = ["Size", "JS"]
-data_js = pd.read_csv(sys.argv[1]+"_js.csv", names=columns_js)
+data_js = pd.read_csv("exps/"+sys.argv[1]+"_js.csv", names=columns_js)
 
 figure, axis = plt.subplots(3,1)
 
@@ -31,6 +31,6 @@ plt.ylabel("s")
 if (len(sys.argv) >= 3):
     plt.xlabel(sys.argv[2])
     
-plt.savefig(sys.argv[1]+".jpg",dpi=500)
+plt.savefig("exps/"+sys.argv[1]+".pdf",dpi=500)
 
 plt.show()
