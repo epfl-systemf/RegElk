@@ -8,6 +8,7 @@
 open Regex
 open Tojs
 open Toexp
+open Tore2
 open Linear
 open Sys
 open Unix
@@ -29,7 +30,7 @@ type benchmark =
    | RegSize of (reg_param * string * int * int * int * string) 
    | StrSize of (raw_regex * str_param * int * int * int * string)
 
-
+(* also measures compilation time... *)
 let get_time_ocaml (r:raw_regex) (str:string) : float =
   Gc.full_major();               (* triggering the GC *)
   let tstart = Unix.gettimeofday() in
@@ -46,7 +47,7 @@ let run_benchmark (b:benchmark) : unit =
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let reg = rp i in
        let tocaml = get_time_ocaml reg str in
-       Printf.fprintf oc "%d,%f\n" i tocaml;
+       Printf.fprintf oc "%d,%f\n%!" i tocaml;
      done;
      close_out oc;
      Printf.printf "      \r%!";
@@ -56,7 +57,7 @@ let run_benchmark (b:benchmark) : unit =
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let reg = rp i in
        let tjs = get_time_js reg str in
-       Printf.fprintf oc "%d,%s\n" i tjs;
+       Printf.fprintf oc "%d,%s\n%!" i tjs;
      done;
      close_out oc;
      (* plotting the results *)
@@ -68,7 +69,7 @@ let run_benchmark (b:benchmark) : unit =
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let str = strp i in
        let tocaml = get_time_ocaml reg str in
-       Printf.fprintf oc "%d,%f\n" i tocaml;
+       Printf.fprintf oc "%d,%f\n%!" i tocaml;
      done;
      close_out oc;
      Printf.printf "      \r%!";
@@ -78,7 +79,7 @@ let run_benchmark (b:benchmark) : unit =
        Printf.printf " %s\r%!" (string_of_int i); (* live update *)
        let str = strp i in
        let tjs = get_time_js reg str in
-       Printf.fprintf oc "%d,%s\n" i tjs;
+       Printf.fprintf oc "%d,%s\n%!" i tjs;
      done;
      close_out oc;
      (* plotting the results *)
@@ -214,3 +215,48 @@ let cdn_plus_str : string =
 
 let cdn_plus : benchmark =
   RegSize (cdn_plus_reg, cdn_plus_str, 0, 400, 400, "CDNPlus")
+
+(** * Many Forks  *)
+
+let int_to_alphabet (idx:int) : char =
+  char_of_int(int_of_char ('a') + idx mod 26)
+  
+let many_forks_reg : reg_param = 
+  let rec many_forks_reg : reg_param = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_char('a')
+  | _ -> Raw_capture(Raw_alt(many_forks_reg (reg_size-1),Raw_char(int_to_alphabet reg_size)))
+  in
+  fun reg_size ->         
+  Raw_quant(Star,many_forks_reg reg_size)
+
+let many_forks_str = String.make 9 'a'
+
+let many_forks : benchmark =
+  RegSize(many_forks_reg, many_forks_str, 0, 2000, 2000, "ManyForks")
+
+let many_forks_experimental_benchmark () =
+  let oc = open_out (exp_dir^"experimental_many_forks.csv") in
+  for i = 0 to 1000 do
+    Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+    let reg = many_forks_reg i in
+    let texp = get_time_experimental reg many_forks_str in
+    Printf.fprintf oc "%d,%s\n%!" i texp;
+  done;
+  close_out oc;
+  (* plotting the results *)
+  let command = "python3.7 plot_single.py experimental_many_forks V8Experimental &" in
+  ignore(string_of_command command)
+    
+let many_forks_re2_benchmark () =
+  let oc = open_out (exp_dir^"re2_many_forks.csv") in
+  for i = 0 to 3000 do
+    Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+    let reg = many_forks_reg i in
+    let texp = get_time_re2 reg many_forks_str in
+    Printf.fprintf oc "%d,%f\n%!" i texp;
+  done;
+  close_out oc;
+  (* plotting the results *)
+  let command = "python3.7 plot_single.py re2_many_forks RE2 &" in
+  ignore(string_of_command command)

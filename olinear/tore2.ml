@@ -4,6 +4,8 @@
 open Regex
 open Linear
 open Re2
+open Unix
+open Gc
 
 (** * RE2 Regex pretty-printing  *)
 (* printing regexes in the RE2 style so that we can compare our results to RE2 *)
@@ -48,3 +50,11 @@ let get_re2_result (raw:raw_regex) (str:string) : string =
   let re = Re2.create_exn (print_re2 raw) in
   let result = Re2.find_submatches re str in
   print_re2_result result
+
+let get_time_re2 (raw:raw_regex) (str:string) : float =
+  let re = Re2.create_exn (print_re2 raw) in
+  Gc.full_major();
+  let tstart = Unix.gettimeofday() in
+  ignore(Re2.find_submatches re str);
+  let tend = Unix.gettimeofday() in
+  tend -. tstart

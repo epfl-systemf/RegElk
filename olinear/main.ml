@@ -245,10 +245,10 @@ let main =
   (* ignore(get_js_result ~verbose:true ~debug:true (fst bug) (snd bug)); *)
   (* ignore(compare_engines (fst bug) (snd bug)) *)
   
-  tests()
-  (* fuzzer() *)
-  (* run_benchmark(cdn_plus); *)
-  (* experimental_benchmark() *)
+  (* tests() *)
+  fuzzer()
+  (* run_benchmark(many_forks); *)
+  (* many_forks_re2_benchmark() *)
 
   
     
