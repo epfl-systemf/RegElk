@@ -311,7 +311,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | CheckOracle l ->
-          if (get_oracle o s.cp l)
+          if (get_oracle o l)
           then begin
               t.pc <- t.pc + 1; (* keeping the thread alive *)
               t.mem <- set_mem t.mem l s.cp; (* remembering the cp where we last needed the oracle *)
@@ -320,14 +320,14 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
        | NegCheckOracle l ->
-          if (get_oracle o s.cp l)
+          if (get_oracle o l)
           then s.active <- ac   (* killing the thread *)
           else t.pc <- t.pc + 1;(* keeping the thread alive *)
           advance_epsilon ~debug c s o
        | WriteOracle l ->
           (* we reached a match but we want to write that into the oracle. we don't discard lower priority threads *)
           s.active <- ac;       (* no need to consider that thread anymore *)
-          set_oracle o s.cp l;    (* writing to the oracle *)
+          set_oracle o l;    (* writing to the oracle *)
           advance_epsilon ~debug c s o (* we keep searching for more matches *)
        | BeginLoop ->
        (* we need to set exit_allowed to false: now exiting a loop is forbidden according to JS semantics *)
@@ -401,7 +401,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
     end;
 
   (* building the CDN table *)
-  s.cdn <- build_cdn cdn s.cp o;
+  s.cdn <- build_cdn cdn o;
   if debug then
     begin
       Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));

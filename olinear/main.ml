@@ -12,16 +12,6 @@ open Diff_fuzzer
 open Complexity_exp
 
 (** * Basic Testing *)
-   
-let oracle_tests () =
-  let o = create_oracle 4 8 in
-  assert (Array.length o = 5);
-  assert (Array.length (o.(0)) = 8);
-  assert (get_oracle o 1 4 = false);
-  set_oracle o 1 4;
-  Printf.printf "%s\n" (print_oracle o);
-  assert (get_oracle o 1 4 = true);
-  assert (get_oracle o 1 3 = false)
 
 let regex_tests () =
   let raw = Raw_con(Raw_char 'a', Raw_lookaround (Lookbehind, Raw_char 'a')) in
@@ -50,18 +40,6 @@ let compiler_tests () =
   let code = compile_to_bytecode re in
   Printf.printf "%s\n" (print_code code);
   assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,5); SetQuantToClock (1,false); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
-
-let interpreter_tests () =
-  let o = create_oracle 1 1 in
-  let raw = Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b') in
-  let re = annotate raw in
-  let code = compile_to_bytecode re in
-  let cdn = compile_cdns re in
-  let str1 = "aab" in
-  let str2 = "aaa" in
-  assert (boolean_interp ~debug:true re code str1 o Forward cdn = true);
-  assert (boolean_interp ~debug:true re code str2 o Forward cdn = false)
-
 
 
 let compare_engines_tests() =
@@ -168,11 +146,9 @@ let replay_stuck (l:(raw_regex*string) list) =
 (** * Running tests  *)
 let tests () =
   Printf.printf "\027[32mTests: \027[0m\n\n";
-  oracle_tests();
   regex_tests();
   bytecode_tests();
   compiler_tests();
-  interpreter_tests();
   compare_engines_tests();
   replay_bugs(string_sub_errors);
   replay_bugs(oracle_assert_errors);

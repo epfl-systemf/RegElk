@@ -19,7 +19,7 @@ let reverse_type (l:lookaround) (r:regex) : regex =
 (* we do not need to do this for the main regex *)
 let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
   let max = max_lookaround r in
-  let o = create_oracle (String.length str) (max + 1) in
+  let o = create_oracle (max + 1) in
   for lid = max downto 1 do
     let (reg, looktype) = get_look r lid in
     let lookreg_nc = remove_capture reg in (* no capture *)

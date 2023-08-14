@@ -44,15 +44,16 @@ type cdn_formula =
 
 
 (** * Evaluating CDN formulas  *)
-let rec interpret_cdn (f:cdn_formula) (cp:int) (o:oracle) (t:cdn_table) : bool =
+(* the oracle contains the relevant information for all the lookarounds inside the corresponding +, at the current cp *)
+let rec interpret_cdn (f:cdn_formula) (o:oracle) (t:cdn_table) : bool =
   match f with
   | CDN_true -> true
   | CDN_false -> false
-  | CDN_and (f1, f2) -> (interpret_cdn f1 cp o t) && (interpret_cdn f2 cp o t)
-  | CDN_or (f1, f2) -> (interpret_cdn f1 cp o t) || (interpret_cdn f2 cp o t)
+  | CDN_and (f1, f2) -> (interpret_cdn f1 o t) && (interpret_cdn f2 o t)
+  | CDN_or (f1, f2) -> (interpret_cdn f1 o t) || (interpret_cdn f2 o t)
   | CDN_quant qid -> cdn_get t qid
-  | CDN_look lid -> get_oracle o cp lid
-  | CDN_neglook lid -> not (get_oracle o cp lid)
+  | CDN_look lid -> get_oracle o lid
+  | CDN_neglook lid -> not (get_oracle o lid)
   
                                 
 (** * Compiling to CDN formulas *)                            
@@ -123,10 +124,10 @@ let compile_cdns (r:regex) : cdns =
      
 (** * Building the CDN Table  *)
 (* the interpreter performs this at each step to know which CDN is nullable *)
-let rec build_cdn (cdns:cdns) (cp:int) (o:oracle) : cdn_table =
+let rec build_cdn (cdns:cdns) (o:oracle) : cdn_table =
   let table = ref (init_cdn()) in
   List.iter(fun (qid,formula) ->
-      let eval = interpret_cdn formula cp o !table in
+      let eval = interpret_cdn formula o !table in
       if eval then table := cdn_set_true !table qid
     ) cdns;
   !table
