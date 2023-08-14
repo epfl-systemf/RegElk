@@ -105,40 +105,40 @@ let run_benchmark (b:benchmark) : unit =
 (** * Lookahead in a Star  *)
    
 (* (a(?=a*b))* *)
-let lookahead_star_reg: raw_regex = 
-  Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_con(Raw_quant(Star,Raw_char('a')),Raw_char('b'))))) 
-
-let a_repeat_b : str_param = fun str_size -> 
-  (String.make str_size 'a') ^ (String.make 1 'b')
-
-let lookahead_star : benchmark =
-  StrSize (lookahead_star_reg, a_repeat_b, 0, 3000, 3000, "Lookahead_Star")
+(* let lookahead_star_reg: raw_regex = 
+ *   Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_con(Raw_quant(Star,Raw_char('a')),Raw_char('b'))))) 
+ * 
+ * let a_repeat_b : str_param = fun str_size -> 
+ *   (String.make str_size 'a') ^ (String.make 1 'b')
+ * 
+ * let lookahead_star : benchmark =
+ *   StrSize (lookahead_star_reg, a_repeat_b, 0, 3000, 3000, "Lookahead_Star") *)
   
 (** * Nested Lookaheads  *)
 
-(* a(?=a) -> a(?=a(?=a)) -> a(?=a(?=a(?=a))) -> ... *)
-let rec nested_lookahead_reg : reg_param = fun reg_size ->
-  match reg_size with
-  | 0 -> Raw_char('a')
-  | _ -> Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,nested_lookahead_reg(reg_size-1)))
-
-let nested_string : string =
-  String.make 600 'a'
-
-let lookahead_nested : benchmark =
-  RegSize (nested_lookahead_reg, nested_string, 0, 500, 500, "Lookahead_Nested")
+(* (\* a(?=a) -> a(?=a(?=a)) -> a(?=a(?=a(?=a))) -> ... *\)
+ * let rec nested_lookahead_reg : reg_param = fun reg_size ->
+ *   match reg_size with
+ *   | 0 -> Raw_char('a')
+ *   | _ -> Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,nested_lookahead_reg(reg_size-1)))
+ * 
+ * let nested_string : string =
+ *   String.make 600 'a'
+ * 
+ * let lookahead_nested : benchmark =
+ *   RegSize (nested_lookahead_reg, nested_string, 0, 500, 500, "Lookahead_Nested") *)
 
 
 (** * Double Star Explosion  *)
   (* (a* )*b explodes on aaaaa, so let's try ((a(?=.))* )*b to add a lookahead *)
-let explosion_reg : raw_regex =
-  Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_dot)))),Raw_char('b'))
-
-let a_repeat : str_param = fun str_size ->
-  String.make str_size 'a'
-
-let double_star_explosion : benchmark =
-  StrSize (explosion_reg, a_repeat, 0, 34, 300, "DoubleStarExplosion")
+(* let explosion_reg : raw_regex =
+ *   Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_dot)))),Raw_char('b'))
+ * 
+ * let a_repeat : str_param = fun str_size ->
+ *   String.make str_size 'a'
+ * 
+ * let double_star_explosion : benchmark =
+ *   StrSize (explosion_reg, a_repeat, 0, 34, 300, "DoubleStarExplosion") *)
 
 
 (** * Possibly Quadratic  *)
@@ -219,16 +219,16 @@ let cin_plus : benchmark =
 (** * CDN Plus   *)
 (* Context dependent nullable nested plus *)
   
-let rec cdn_plus_reg : reg_param = fun reg_size ->
-  match reg_size with
-  | 0 -> Raw_alt(Raw_dot,Raw_lookaround(Lookahead,Raw_dot))
-  | _ -> Raw_quant(Plus,cdn_plus_reg (reg_size - 1))
-
-let cdn_plus_str : string =
-  String.make 999 'a'
-
-let cdn_plus : benchmark =
-  RegSize (cdn_plus_reg, cdn_plus_str, 0, 400, 400, "CDNPlus")
+(* let rec cdn_plus_reg : reg_param = fun reg_size ->
+ *   match reg_size with
+ *   | 0 -> Raw_alt(Raw_dot,Raw_lookaround(Lookahead,Raw_dot))
+ *   | _ -> Raw_quant(Plus,cdn_plus_reg (reg_size - 1))
+ * 
+ * let cdn_plus_str : string =
+ *   String.make 999 'a'
+ * 
+ * let cdn_plus : benchmark =
+ *   RegSize (cdn_plus_reg, cdn_plus_str, 0, 400, 400, "CDNPlus") *)
 
 (** * Many Forks  *)
 

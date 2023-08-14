@@ -12,7 +12,6 @@ open Cdn
 (* when building the oracle, we compile lookarounds in the reverse direction (forward for lookbehind) *)
 let reverse_type (l:lookaround) (r:regex) : regex =
   match l with
-  | Lookahead | NegLookahead -> reverse_regex r
   | Lookbehind | NegLookbehind -> r
 
    
@@ -40,14 +39,13 @@ let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
 (* when building capture groups, we compile lookarounds in the expected direction *)
 let capture_regex (l:lookaround) (r:regex) : regex =
   match l with
-  | Lookahead | NegLookahead -> r
   | Lookbehind | NegLookbehind -> reverse_regex r
 
 (* negative lookarounds don't capture anything *)
 let capture_type (l:lookaround) : bool =
   match l with
-  | Lookahead | Lookbehind -> true
-  | NegLookahead | NegLookbehind -> false
+  | Lookbehind -> true
+  | NegLookbehind -> false
                                 
   
 let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracle): cap_regs option =

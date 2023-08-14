@@ -26,12 +26,10 @@ let print_direction (d:direction) : string =
 
 let oracle_direction (l:lookaround) : direction =
   match l with
-  | Lookahead | NegLookahead -> Backward
   | Lookbehind | NegLookbehind -> Forward
 
 let capture_direction (l:lookaround) : direction =
   match l with
-  | Lookahead -> Forward
   | Lookbehind -> Backward
   | _ -> failwith "No capture on negative lookarounds"
 

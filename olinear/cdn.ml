@@ -101,8 +101,8 @@ let rec compile_cdnf (r:regex) : cdn_formula =
   | Re_capture (cid, r1) -> compile_cdnf r1
   | Re_lookaround (lid, look, r1) ->
      begin match look with
-     | Lookahead | Lookbehind -> CDN_look lid
-     | NegLookahead | NegLookbehind -> CDN_neglook lid
+     | Lookbehind -> CDN_look lid
+     | NegLookbehind -> CDN_neglook lid
      end
 
     

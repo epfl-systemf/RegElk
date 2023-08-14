@@ -13,8 +13,6 @@ type quantifier =
 
 (** * Lookarounds  *)
 type lookaround =
-  | Lookahead
-  | NegLookahead
   | Lookbehind
   | NegLookbehind
 
@@ -133,8 +131,6 @@ let print_quant (q:quantifier) : string =
 
 let print_lookaround (l:lookaround) : string =
   match l with
-  | Lookahead -> "?="
-  | NegLookahead -> "?!"
   | Lookbehind -> "?<="
   | NegLookbehind -> "?<!"
                    
@@ -249,7 +245,7 @@ let rec get_lookaround (r:regex) (lid:lookid) : (regex * lookaround) option =
      if (l = lid) then Some (r1, look)
      else get_lookaround r1 lid
 
-(* we should always be able to find a lookahead in the right range *)
+(* we should always be able to find a lookaround in the right range *)
 let get_look (r:regex) (lid:lookid) : regex * lookaround =
   match (get_lookaround r lid) with
   | Some r -> r
@@ -338,8 +334,6 @@ let report_quant (q:quantifier) : string =
 
 let report_look (l:lookaround) : string =
   match l with
-  | Lookahead -> "Lookahead"
-  | NegLookahead -> "NegLookahead"
   | Lookbehind -> "Lookbehind"
   | NegLookbehind -> "NegLookbehind"
   

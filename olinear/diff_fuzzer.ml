@@ -34,11 +34,9 @@ let random_quant () : quantifier =
   | _ -> failwith "random range error"
 
 let random_look () : lookaround =
-  match (Random.int 4) with
-  | 0 -> Lookahead
-  | 1 -> NegLookahead
-  | 2 -> Lookbehind
-  | 3 -> NegLookbehind
+  match (Random.int 2) with
+  | 0 -> Lookbehind
+  | 1 -> NegLookbehind
   | _ -> failwith "random range error"
 
 (* with a maximal number of recursion [depth] *)
