@@ -171,8 +171,8 @@ let tests () =
 
 
 let main =
-  (* tests() *)
-  fuzzer()
+  tests()
+  (* fuzzer() *)
   (* run_benchmark(many_forks); *)
   (* many_forks_re2_benchmark() *)
 

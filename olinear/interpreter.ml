@@ -411,21 +411,21 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
   
 (* running the interpreter on some code, with a particular initial interpreter state *)
 (* also reconstructs the + groups *)
-let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (look_nb:int) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) : thread option =
+let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (look_nb:int) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) (entries:int list): thread option =
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock [0]) look_nb dir in
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock entries) look_nb dir in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match result));
   result
 
 
 (* running the interpreter using the default initial state *)
-let interp_default_init ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (look_nb:int) (dir:direction): thread option =
-  interp ~verbose ~debug r c s look_nb dir (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0
+let interp_default_init ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (look_nb:int) (dir:direction) (entries:int list): thread option =
+  interp ~verbose ~debug r c s look_nb dir (init_cp dir (String.length s)) (init_regs()) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0 entries
 
 (* for tests, sometimes we only want to know if there is a match *)
 let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (look_nb:int) (dir:direction): bool =
-  match (interp_default_init ~verbose ~debug r c s look_nb dir) with
+  match (interp_default_init ~verbose ~debug r c s look_nb dir [0]) with
   | None -> false
   | _ -> true
 

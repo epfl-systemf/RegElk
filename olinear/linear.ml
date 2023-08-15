@@ -13,8 +13,10 @@ open Interpreter
 let match_with_lookbehinds ?(verbose=true) ?(debug=false) (r:regex) (str:string) : cap_regs option =
   let full_regex = lazy_prefix r in (* adding a lazy prefix to the main expression *)
   let (full_code, entries) = compile_with_lookbehinds full_regex in
-  let full_result = interp ~verbose ~debug r full_code str in
-  None                          (* TODO *)
+  let full_result = interp_default_init ~verbose ~debug r full_code str (max_lookaround r) Forward entries in
+  match full_result with
+  | None -> None
+  | Some thread -> Some thread.regs
    
   
 let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : cap_regs option =

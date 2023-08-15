@@ -176,7 +176,7 @@ let compile_reconstruct_nulled (r:regex) : code =
 (* one entry label for each lookbehind graph *)
 (* and one entry label for the main graph (0) *)
 (* ordered by priority: first the entry of the deepest to the shallowest lookbehinds, then the main entry point *)
-let compile_with_lookbehinds (r:regex) : code * label list =
+let compile_with_lookbehinds (r:regex) : code * int list =
   let max = max_lookaround r in
   let (main_code,next_entry) = compile r 0 Progress in
   let entries = ref [0] in
