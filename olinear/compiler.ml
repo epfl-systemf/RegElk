@@ -173,3 +173,27 @@ let compile_reconstruct_nulled (r:regex) : code =
   Array.of_list full_c
   
 
+(* compiles the lookbehind graphs and the main expression graph *)
+(* returns a bug disconnected graph *)
+(* also returns the list of entry labels: *)
+(* one entry label for each lookbehind graph *)
+(* and one entry label for the main graph (0) *)
+(* ordered by priority: first the entry of the deepest to the shallowest lookbehinds, then the main entry point *)
+let compile_with_lookbehinds (r:regex) : code * label list =
+  let max = max_lookaround r in
+  let (main_code,next_entry) = compile r 0 Progress in
+  let entries = ref [0] in
+  let code = ref (main_code @@ Leaf [Accept]) in
+  let fresh = ref (next_entry + 1) in
+  for lid = 1 to max do
+    let (reg,_) = get_look r lid in
+    let lookreg = lazy_prefix reg in (* adding .*? prefix in front of lookbehinds *)
+    let (look_code,next_entry) = compile lookreg !fresh Progress in
+    entries := !fresh::!entries;
+    code := !code @@ look_code @@ Leaf [WriteOracle lid];
+    fresh := next_entry + 1;
+  done;
+  let codearray = Array.of_list (tl_flatten !code []) in
+  (codearray, !entries)
+                 
+                                                  
