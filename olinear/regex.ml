@@ -380,3 +380,21 @@ let rec plus_stats (r:regex) : int * int * int * int * int =
         | CDNullable | CINullable -> (nn1,cdn1,cin1,lnn1,ln1+1)
         end
 
+
+(** * Checking Regex Validity  *)
+(* In this version, we don't allow capture groups inside lookbehinds *)
+       
+let rec raw_regex_valid (r:raw_regex) : bool =
+  match r with
+  | Raw_empty | Raw_char _ | Raw_dot -> true
+  | Raw_alt(r1,r2) | Raw_con (r1,r2) -> raw_regex_valid r1 && raw_regex_valid r2
+  | Raw_quant (q,r1) -> raw_regex_valid r1
+  | Raw_capture r1 -> raw_regex_valid r1
+  | Raw_lookaround (l,r1) -> no_capture r1
+and no_capture (r:raw_regex) : bool = (* checks that there are no capture group *)
+  match r with
+  | Raw_empty | Raw_char _ | Raw_dot -> true
+  | Raw_alt(r1,r2) | Raw_con (r1,r2) -> no_capture r1 && no_capture r2
+  | Raw_quant (q,r1) -> no_capture r1
+  | Raw_capture r1 -> false
+  | Raw_lookaround (l,r1) -> no_capture r1
