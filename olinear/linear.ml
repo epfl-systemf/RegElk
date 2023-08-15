@@ -16,10 +16,14 @@ let match_with_lookbehinds ?(verbose=true) ?(debug=false) (r:regex) (str:string)
   let full_result = interp_default_init ~verbose ~debug r full_code str (max_lookaround r) Forward entries in
   match full_result with
   | None -> None
-  | Some thread -> Some thread.regs
+  | Some thread ->
+     let regs = ref thread.regs in
+     filter_capture r regs thread.cap_clk thread.look_clk thread.quants (-1); (* filtering old values *)
+     Some !regs
    
   
 let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : cap_regs option =
+  assert (raw_regex_valid raw);
   let re = annotate raw in
   let ca = match_with_lookbehinds ~verbose ~debug re str in
   if verbose then

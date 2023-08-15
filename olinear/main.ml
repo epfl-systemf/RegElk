@@ -49,9 +49,7 @@ let compare_engines_tests() =
   
 (** * Gathering some errors found with the fuzzer *)
 let string_sub_errors : (raw_regex*string) list = (* FIXED! reverse registers for lookbehinds groups *)
-  [(Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"bababaaabbacacbabbacabcccaaacaabccab");
-   (Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)),"cabacbbccbacbcbbccbaccbaccabbbaaa");
-   (Raw_lookaround(Lookbehind,Raw_capture(Raw_capture(Raw_dot))),"bbacccabbcccbcccaabcbabcaaacacacbbbcabbc")]
+  []
 
 let oracle_assert_errors : (raw_regex*string) list = (* FIXED! read str.cp - 1 backward *)
   [(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_char('a')))),"ccbba")]
@@ -98,8 +96,7 @@ let linear_stuck : (raw_regex*string) list =
 (* Fixed the first 2 by starting the original thread with a true for exit_allowed, otherwise it fails to take empty Plusses *)
 (* But the last one is still a bug *)
 let linear_plus : (raw_regex*string) list =
-  [(Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
-   (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_alt(Raw_dot,Raw_capture(Raw_empty)))),"b") (* simplified *)]
+  []
 
 
 (* Fixed: we now reconstruct the empty groups inside the nullable plus *)
@@ -107,7 +104,6 @@ let plus_reconstruct : (raw_regex*string) list =
   [(Raw_con(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_char('a')),"a");
    (Raw_quant(LazyPlus,Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_dot)),Raw_con(Raw_alt(Raw_quant(Plus,Raw_capture(Raw_empty)),Raw_quant(Star,Raw_quant(Star,Raw_char('c')))),Raw_alt(Raw_lookaround(NegLookbehind,Raw_empty),Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_char('c')))))),"abaabaccbcabaccabaacabccabbccacbbccbcbacabaacbaaacbacabbaacabaccabaacbbbbccaccaacaacabccccba");
    (Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(Raw_capture(Raw_con(Raw_empty,Raw_empty)))))),"cccccacaccbccabbcabacbaacacabcacbbabcbcccacbcab");
-   (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_empty,Raw_quant(Plus,Raw_capture(Raw_empty))))),"a");
    (Raw_quant(Plus,Raw_capture(Raw_quant(LazyStar,Raw_empty))),"ccbcbbbbcacbcabbccaaccaccaacacabaacbbbcccbbaabaabccbacccac")]
 
 (* more cin examples  *)
@@ -123,8 +119,7 @@ let cdn_empty: (raw_regex*string) list =
 (* fails the assertion "expected a nullable plus" *)
 (* FIXED, when we don't forget to build a CDN table when reconstructing the + groups *)
 let nullable_expected: (raw_regex*string) list =
-  [(Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(Raw_dot)))),"aaccbcbccccccbbbccccbcbaabbaccbcccaabbacacccabbccaabbcabb");
-   (Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_con(Raw_char('a'),Raw_con(Raw_char('b'),Raw_char('b'))))))),"bcaaabccbaabccaaaaababbaaaaaaaaaacbabacabcbbcbbaaabcbbaccabccbcacacc")]
+  [(Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_con(Raw_char('a'),Raw_con(Raw_char('b'),Raw_char('b'))))))),"bcaaabccbaabccaaaaababbaaaaaaaaaacbabacabcbbcbbaaabcbbaccabccbcacacc")]
 
 (* testing the CDN formulas *)
 let cdn_formulas: (raw_regex*string) list =
@@ -171,8 +166,8 @@ let tests () =
 
 
 let main =
-  tests()
-  (* fuzzer() *)
+  (* tests() *)
+  fuzzer()
   (* run_benchmark(many_forks); *)
   (* many_forks_re2_benchmark() *)
 

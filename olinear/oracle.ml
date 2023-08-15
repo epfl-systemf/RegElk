@@ -9,7 +9,7 @@ open Array
 type oracle = bool Array.t
 
 let create_oracle (look_nb:int): oracle =
-  Array.make look_nb false
+  Array.make (look_nb+1) false
 
 (* we only allow setting to true, there's no reason to set an entry of the table back to false *)
 let set_oracle (o:oracle) (lookid:int): unit =
