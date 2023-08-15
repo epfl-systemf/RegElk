@@ -97,12 +97,9 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction treelist
         | NonNullable ->
            let (l1, f1) = compile r1 (fresh+1) Progress in
            (Leaf [SetQuantToClock (qid,false)] @@ l1 @@ Leaf [Fork (fresh,f1+1)], f1+1)
-        | CINullable ->
-           let (l1, f1) = compile r1 (fresh+3) Progress in
-           (Leaf [Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @@ l1 @@ Leaf [EndLoop; Fork (fresh+1,f1+3); SetQuantToClock (qid,true)], f1+3)
-        | CDNullable ->
-           let (l1, f1) = compile r1 (fresh+3) Progress in
-           (Leaf [Fork (fresh+1,f1+2); BeginLoop; SetQuantToClock (qid,false)] @@ l1 @@ Leaf [EndLoop; Fork (fresh+1,f1+4); CheckNullable qid; SetQuantToClock (qid,true)], f1+4)
+        | _ -> (* Compiling as a concatenation in the nullable case *)
+           let (l1, f1) = compile (Re_con(r1,Re_quant(nul,qid,Star,r1))) (fresh+1) Progress in
+           (Leaf [SetQuantToClock (qid,false)] @@ l1, f1)
         end
      | LazyPlus ->
         begin match nul with

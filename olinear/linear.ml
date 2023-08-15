@@ -6,7 +6,6 @@ open Bytecode
 open Regex
 open Compiler
 open Interpreter
-open Cdn
 
 
 (* assumes that r is a valid regex *)

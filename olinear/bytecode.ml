@@ -24,6 +24,7 @@ type instruction =
   | BeginLoop                   (* start of loop: we set a counter to prevent exiting it using only epsilon transitions *)
   | EndLoop                     (* end of loop: fails if we started the loop without consuming in the string *)
   | CheckNullable of quantid    (* checks that a + is nullable *)
+  (* NOTE: in this version (lookbehinds only), incompatible with linear CIN/CDN, we don't generate CheckNullable instructions *)
   | Fail                        (* kills the current thread *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
