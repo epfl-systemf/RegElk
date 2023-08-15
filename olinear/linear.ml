@@ -1,4 +1,5 @@
 (** * Linear VM-based matcher for Regexes with Capture Groups and Lookarounds *)
+(* In this version, we only have lookbehinds without capture groups indide lookbehinds *)
 
 open Oracle
 open Bytecode
@@ -7,97 +8,19 @@ open Compiler
 open Interpreter
 open Cdn
 
-(** * Bulding the Oracle  *)
 
-(* when building the oracle, we compile lookarounds in the reverse direction (forward for lookbehind) *)
-let reverse_type (l:lookaround) (r:regex) : regex =
-  match l with
-  | Lookbehind | NegLookbehind -> r
-
+(* assumes that r is a valid regex *)
+(* we don't have any groups to reconstruct since lookbehinds don't have groups in them *)
+let match_with_lookbehinds ?(verbose=true) ?(debug=false) (r:regex) (str:string) : cap_regs option =
+  let full_regex = lazy_prefix r in (* adding a lazy prefix to the main expression *)
+  let (full_code, entries) = compile_with_lookbehinds full_regex in
+  let full_result = interp ~verbose ~debug r full_code str in
+  None                          (* TODO *)
    
-(* we consider lookarounds by reverse order of their identifiers *)
-(* we do not need to do this for the main regex *)
-let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
-  let max = max_lookaround r in
-  let o = create_oracle (max + 1) in
-  for lid = max downto 1 do
-    let (reg, looktype) = get_look r lid in
-    let lookreg_nc = remove_capture reg in (* no capture *)
-    let lookreg_rev = reverse_type looktype lookreg_nc in (* correct direction *)
-    let lookreg = lazy_prefix lookreg_rev in              (* lazy star prefix *)
-    let bytecode = compile_to_write lookreg lid in
-    let direction = oracle_direction looktype in
-    let lookcdn = compile_cdns lookreg in
-    ignore (interp_default_init ~verbose ~debug lookreg bytecode str o direction lookcdn)
-           (* we don't want the return value, we just want to write to the oracle *)
-  done;
-  o                             (* returning the modified oracle *)
-
-
-(** * Building Capture Groups  *)
-
-(* when building capture groups, we compile lookarounds in the expected direction *)
-let capture_regex (l:lookaround) (r:regex) : regex =
-  match l with
-  | Lookbehind | NegLookbehind -> reverse_regex r
-
-(* negative lookarounds don't capture anything *)
-let capture_type (l:lookaround) : bool =
-  match l with
-  | Lookbehind -> true
-  | NegLookbehind -> false
-                                
-  
-let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracle): cap_regs option =
-  let max = max_lookaround r in
-  let mem = init_mem() in
-  let regs = init_regs() in
-  let capclk = init_regs() in
-  let lookclk = init_mem() in
-  let quants = init_quant_clocks() in
-  let main_regex = lazy_prefix r in (* lazy star prefix, only for the main expression *)
-  let main_bytecode = compile_to_bytecode main_regex in
-  let main_cdn = compile_cdns main_regex in
-  let main_result = interp ~verbose ~debug r main_bytecode str o Forward 0 regs capclk mem lookclk quants 0 main_cdn in
-  match main_result with
-  | None -> None
-  | Some thread ->              (* we have a match and want to rebuild capture groups *)
-     let mem = ref thread.mem in
-     let regs = ref thread.regs in
-     let capclk = ref thread.cap_clk in
-     let lookclk = ref thread.look_clk in
-     let quants = ref thread.quants in
-     for lid=1 to max do
-       match (get_mem !mem lid) with
-       | None -> ()             (* the lookaround wasn't needed in the match *)
-       | Some cp ->             (* the lookaround had a match at cp *)
-          let (reg, looktype) = get_look r lid in
-          if (capture_type looktype) then (* not for negative lookarounds *)
-            let lookreg = capture_regex looktype reg in
-            let bytecode = compile_to_bytecode lookreg in
-            let direction = capture_direction looktype in
-            let lookcdn = compile_cdns lookreg in
-            let result = interp ~verbose ~debug lookreg bytecode str o direction cp !regs !capclk !mem !lookclk !quants 0 lookcdn in
-            begin match result with
-            | None -> failwith "result expected from the oracle"
-            | Some t ->
-               mem := t.mem;    (* updating the lookaround memory *)
-               regs := t.regs;   (* updating the capture regs *)
-               capclk := t.cap_clk; (* updating the capture clocks *)
-               lookclk := t.look_clk; (* updating the lookaround clocks *)
-               quants := t.quants (* updating the quantifier registers *)
-            end
-     done;
-     filter_capture r regs !capclk !lookclk !quants (-1); (* filtering old values *)
-     Some (!regs)
-     
   
 let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : cap_regs option =
   let re = annotate raw in
-  let o = build_oracle ~verbose ~debug re str in
-  if debug then
-    Printf.printf "%s\n" (print_oracle o);
-  let ca = build_capture ~verbose ~debug re str o in
+  let ca = match_with_lookbehinds ~verbose ~debug re str in
   if verbose then
     Printf.printf "%s\n" (print_result re str ca);
   ca

@@ -104,6 +104,11 @@ let init_quant_clocks () : quant_clocks =
 (* For the second stage of the algorithm, we need to remember when (which cp) we used the oracle *)
 (* So that we can later get the capture groups defined in that lookaround *)
 
+(* NOTE: in this version (lookbehinds without groups only) *)
+(* we don't reconstruct any missing groups from lookarounds *)
+(* so we could remove this from the threads *)
+  
+
 type look_mem = int IntMap.t
 
 let set_mem (lm:look_mem) (lid:lookid) (cp:int) : look_mem =
@@ -142,8 +147,8 @@ type thread =
     mutable exit_allowed : bool;    (* are we allowed to exit the current loop *)
   }
 
-let init_thread (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquants:quant_clocks): thread =
-  { pc = 0; regs = initregs; cap_clk = initcclock; mem = initmem; look_clk = initlclock; quants = initquants; exit_allowed = false }
+let init_thread (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquants:quant_clocks) (initpc:int): thread =
+  { pc = initpc; regs = initregs; cap_clk = initcclock; mem = initmem; look_clk = initlclock; quants = initquants; exit_allowed = false }
   
 (** * PC Sets  *)
 
@@ -218,9 +223,9 @@ type interpreter_state =
     mutable cdn: cdn_table;             (* nullability table for cdn + *)
   }
 
-let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) =
+let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) (entries:int list) =
   { cp = initcp;
-    active = [init_thread initregs initcclock initmem initlclock initquant];
+    active = List.map (fun initpc -> init_thread initregs initcclock initmem initlclock initquant initpc) entries;
     processed = init_bpcset (size c);
     blocked = [];
     isblocked = init_pcset (size c);
@@ -460,7 +465,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
           (* with no recursive calls: inner + will be reconstructed automatically *)
           let start_clock = get_quant_clock !quants qid in
           let bytecode = compile_reconstruct_nulled body in
-          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o in
+          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock [0]) o in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
@@ -484,7 +489,7 @@ let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:ora
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
   if verbose then Printf.printf "%s\n" (print_cdns cdn);
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir cdn in
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock [0]) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 
     match result with
