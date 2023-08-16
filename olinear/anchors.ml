@@ -42,8 +42,8 @@ let is_ascii_word_character (c:char) : bool =
 let is_boundary (ctx:char_context) : bool =
   match ctx.prevchar, ctx.nextchar with
   | None, None -> false
-  | None, Some _ -> true
-  | Some _, None -> true
+  | None, Some c -> is_ascii_word_character c
+  | Some c, None -> is_ascii_word_character c
   | Some prev, Some next ->
      (is_ascii_word_character prev) <> (is_ascii_word_character next) (* xor *)
                                     
