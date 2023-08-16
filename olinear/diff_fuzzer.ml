@@ -11,8 +11,8 @@ let _ = Random.self_init()
 
       
 (* we restrict ourselves to a small alphabet *)
-let alphabet = ['a'; 'b'; 'c'; ' ']
-(* with a space to test word boundaries *)
+let alphabet = ['a'; 'b'; '-']
+(* with a dash (non-ascii) to test word boundaries *)
 
 let max_depth = 50
 

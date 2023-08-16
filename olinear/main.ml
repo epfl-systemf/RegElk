@@ -264,8 +264,8 @@ let paper_example () =
 let main =
   (* let bug = (Raw_con(Raw_capture(Raw_con(Raw_anchor(WordBoundary),Raw_anchor(WordBoundary))),Raw_dot),"  cab bccbaac baabab bcbbaca cabca  c") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
-  tests()
-  (* fuzzer() *)
+  (* tests() *)
+  fuzzer()
   
   (* run_benchmark(many_forks); *)
   (* many_forks_re2_benchmark() *)
