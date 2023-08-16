@@ -213,8 +213,42 @@ let update_context (ctx:char_context) (newchar:char option): unit =
   ctx.prevchar <- ctx.nextchar;
   ctx.nextchar <- newchar
 
+(* when starting the interpreter from the beginning or the end of the string *)
 (* this will get updated by the interpreter before using the context for anything *)
 let init_context () : char_context =  { prevchar = None; nextchar = None }
+
+(* when starting the interpreter at any position, possibly in the middle of the string *)
+let cp_context (cp:int) (str:string) (dir:direction) : char_context =
+  let nextop = get_char str cp in
+  let prevop = get_char str (cp-1) in
+  match dir with
+  | Forward -> { prevchar = prevop ; nextchar = nextop }
+  | Backward -> { prevchar = nextop ; nextchar = prevop }
+    
+
+(** * Checking Anchor Assertions  *)
+(* https://tc39.es/ecma262/#ASCII-word-characters *)
+let is_ascii_word_character (c:char) : bool =
+  let n = int_of_char c in
+  (n>=65 && n<=90) ||           (* uppercase *)
+    (n>=97 && n<=122) ||        (* lowercase *)
+      (n>=48 && n<=57) ||       (* numbers *)
+        (n=95)                  (* '_' *)
+
+let is_boundary (ctx:char_context) : bool =
+  match ctx.prevchar, ctx.nextchar with
+  | None, None -> false
+  | None, Some _ -> true
+  | Some _, None -> true
+  | Some prev, Some next ->
+     (is_ascii_word_character prev) <> (is_ascii_word_character next) (* xor *)
+                                    
+let is_satisfied (a:anchor) (ctx:char_context) : bool =
+  match a with
+  | BeginInput -> ctx.prevchar = None
+  | EndInput -> ctx.nextchar = None
+  | WordBoundary -> is_boundary ctx
+  | NonWordBoundary -> not (is_boundary ctx)
                                                    
   
 (** * Interpreter States  *)
@@ -238,14 +272,14 @@ type interpreter_state =
     mutable cdn: cdn_table;             (* nullability table for cdn + *)
   }
 
-let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) =
+let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) (initctx:char_context) =
   { cp = initcp;
     active = [init_thread initregs initcclock initmem initlclock initquant];
     processed = init_bpcset (size c);
     blocked = [];
     isblocked = init_pcset (size c);
     bestmatch = None;
-    context = init_context();
+    context = initctx;
     clock = initclk;
     cdn = init_cdn();
   }
@@ -366,7 +400,10 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
        | AnchorAssertion a ->
-          failwith "todo anchor"
+          if (is_satisfied a s.context)
+          then t.pc <- t.pc+1   (* keeping the thread alive *)
+          else s.active <- ac;  (* killing the thread *)
+          advance_epsilon ~debug c s o
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
           advance_epsilon ~debug c s o
@@ -395,8 +432,7 @@ let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
 
 (** * Null interpreter  *)
 (* an interpreter that does not read the string, but instead simply follows epsilon transuitions *)
-(* this is used either to build the CDN table (check if a plus is nullable at a given position) *)
-(* this is also used to reconstruct the capture groups of last nulled plus at the end of a match *)
+(* this is used to reconstruct the capture groups of last nulled plus iteration at the end of a match *)
 
 let null_interp ?(debug=false) ?(verbose=false) (c:code) (s:interpreter_state) (o:oracle): thread option =
   if verbose then Printf.printf "%s CP%d\n" ("\n\027[36mNull Interpreter:\027[0m ") (s.cp);
@@ -414,7 +450,7 @@ let null_interp ?(debug=false) ?(verbose=false) (c:code) (s:interpreter_state) (
       Printf.printf "%s\n%!" (print_blocked s.blocked);
     end;
   s.bestmatch
-     
+  
 
 (** * Interpreting the bytecode  *)
 let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
@@ -462,7 +498,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 (** * Reconstructing Nullable + Values  *)
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
-let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle): thread =
+let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
   (* let lq = nullable_plus_quantid r in (\* all the nullable + in order *\) *)
   let mem = ref thread.mem in
   let regs = ref thread.regs in
@@ -486,7 +522,8 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
           (* with no recursive calls: inner + will be reconstructed automatically *)
           let start_clock = get_quant_clock !quants qid in
           let bytecode = compile_reconstruct_nulled body in
-          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock) o in
+          let ctx = cp_context start_cp s dir in 
+          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock ctx) o in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
@@ -510,12 +547,12 @@ let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:ora
   if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
   if verbose then Printf.printf "%s\n" (print_code c);
   if verbose then Printf.printf "%s\n" (print_cdns cdn);
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock) o dir cdn in
+  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock (cp_context start_cp s dir)) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 
     match result with
     | None -> None
-    | Some thread -> Some (reconstruct_plus_groups ~debug ~verbose thread r s o)
+    | Some thread -> Some (reconstruct_plus_groups ~debug ~verbose thread r s o dir)
   in
   if verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
   full_result

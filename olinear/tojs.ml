@@ -71,7 +71,7 @@ type compare_result =
 let compare_js_ocaml ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : compare_result =
   Printf.printf "\027[36mRegex:\027[0m %s || " (print_regex (annotate raw));
   Printf.printf "\027[36mJS Regex:\027[0m %s || " (print_js raw);
-  Printf.printf "\027[36mString:\027[0m %s\n%!" str;
+  Printf.printf "\027[36mString:\027[0m \"%s\"\n%!" str;
   Printf.printf "%s\n%!" (report_raw raw);
   let sjs = get_js_result raw str in
   Printf.printf "\027[35mJS result:\027[0m\n%s%!" sjs;
