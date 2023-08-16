@@ -347,6 +347,8 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           then t.pc <- t.pc+1   (* keeping the thread alive *)
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
+       | AnchorAssertion a ->
+          failwith "todo anchor"
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
           advance_epsilon ~debug c s o
