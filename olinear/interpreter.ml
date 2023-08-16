@@ -197,7 +197,25 @@ let bpc_mem (bpcs:bpcset) (pc:label) (exit_bool:bool) : bool =
   | true -> pc_mem bpcs.true_set pc
   | false -> pc_mem bpcs.false_set pc
 
-           
+
+(** * Char Contexts  *)
+(* a context here describes the surrounding characters of a position (or None, if we reached the end/begin of the input) *)
+(* this surrounding context is what the interpreter needs to evaluate anchors, and advance threads that reached a CONSUME instruction *)
+
+type char_context =
+  {
+    mutable prevchar : char option;
+    mutable nextchar : char option;
+  }
+(* NOTE: when going backward in the string, the index of nextchar is smaller than the one of prevchar *)
+
+let update_context (ctx:char_context) (newchar:char option): unit =
+  ctx.prevchar <- ctx.nextchar;
+  ctx.nextchar <- newchar
+
+(* this will get updated by the interpreter before using the context for anything *)
+let init_context () : char_context =  { prevchar = None; nextchar = None }
+                                                   
   
 (** * Interpreter States  *)
 
@@ -215,7 +233,7 @@ type interpreter_state =
     mutable blocked: (thread*(char option)) list;   (* threads stuck at a Consume instruction for a given char. low to high priority. *)
     mutable isblocked: pcset;       (* already blocked pcs, to avoid duplicates *)
     mutable bestmatch: thread option;   (* best match found so far, but there might be a higher priotity one still *)
-    mutable nextchar: char;             (* next character to consume *)
+    mutable context: char_context;             (* prev and next character at the current position *)
     mutable clock: int;                 (* global clock *)
     mutable cdn: cdn_table;             (* nullability table for cdn + *)
   }
@@ -227,7 +245,7 @@ let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks)
     blocked = [];
     isblocked = init_pcset (size c);
     bestmatch = None;
-    nextchar = 'a';             (* this won't be used before it's set *)
+    context = init_context();
     clock = initclk;
     cdn = init_cdn();
   }
@@ -354,10 +372,13 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
      end
 
-let is_accepted (x:char) (o:char option): bool =
-  match o with
-  | None -> true                (* None means accept all *)
-  | Some ch -> x = ch           (* when expecting a particular char *)
+(* read is the character we read in the string. None means we didn't read a character. This should not happen (we stop before) *)
+(* expect is the character we are expecting to unblock the thread *)
+let is_accepted (read:char option) (expect:char option): bool =
+  match read,expect with
+  | None, _ -> failwith "expected a character when consuming blocked thread"
+  | _, None -> true     (* None in the expectation means accept all *)
+  | Some r, Some e -> r = e     (* when expecting a particular char *)
      
 (* modifies the state by consuming the next character  *)
 (* calls itself recursively until there are no more blocked threads *)
@@ -366,7 +387,7 @@ let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
   | [] -> ()
   | (t,x)::blocked' ->
      s.blocked <- blocked';
-     if (is_accepted s.nextchar x) then
+     if (is_accepted s.context.nextchar x) then
        begin t.exit_allowed <- true; t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
      (* since t just consumed something, we set its exit_allowed flag to true *)
      consume ~debug c s
@@ -404,7 +425,12 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
 
+  (* reading next character and updating the character context *)
+  let newchar = get_char str (s.cp - cp_offset dir) in
+  update_context s.context newchar;
+  
   (* building the CDN table *)
+  (* TODO: add context? to evaluate CDNS that depend on anchors *)
   s.cdn <- build_cdn cdn s.cp o;
   if debug then
     begin
@@ -418,26 +444,21 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
       Printf.printf "%s\n%!" (print_blocked s.blocked);
     end;
   (* checking if there are still surviving threads *)
-  match s.blocked with
-  | [] -> s.bestmatch
-  | _ -> 
-     (* read the next character *)
-     let x = get_char str (s.cp - cp_offset dir)  in
-     begin match x with
-     | None -> s.bestmatch         (* we reached the end of the string *)
-     | Some chr ->
-        s.nextchar <- chr;
-        (* advancing blocked threads *)
-        consume ~debug c s;
-        (* resetting the processed, blocked sets and the CDN table *)
-        s.processed <- init_bpcset (size c); 
-        s.isblocked <- init_pcset (size c);
-        s.cdn <- init_cdn();
-        (* advancing the current position *)
-        s.cp <- incr_cp s.cp dir;
-        interpreter ~debug c str s o dir cdn
-     end
-   
+  match s.blocked, newchar with
+  | [], _ -> s.bestmatch        (* no more surviving threads *)
+  | _, None -> s.bestmatch      (* we reached the end of the string *)
+  | _, _ -> 
+     (* advancing blocked threads *)
+     consume ~debug c s;
+     (* resetting the processed, blocked sets and the CDN table *)
+     s.processed <- init_bpcset (size c); 
+     s.isblocked <- init_pcset (size c);
+     s.cdn <- init_cdn();
+     (* advancing the current position *)
+     s.cp <- incr_cp s.cp dir;
+     interpreter ~debug c str s o dir cdn
+
+          
 (** * Reconstructing Nullable + Values  *)
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
