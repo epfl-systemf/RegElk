@@ -213,6 +213,15 @@ let update_context (ctx:char_context) (newchar:char option): unit =
   ctx.prevchar <- ctx.nextchar;
   ctx.nextchar <- newchar
 
+let print_context (ctx:char_context) : string =
+  "\027[36mContext:\027[0m " ^
+    begin match ctx.prevchar,ctx.nextchar with
+    | None,None -> "{None,None}"
+    | None,Some x -> "{None,"^String.make 1 x^"}"
+    | Some x,None -> "{"^String.make 1 x^",None}"
+    | Some x, Some y -> "{"^String.make 1 x^","^String.make 1 y^"}"
+    end ^ "\n"
+  
 (* when starting the interpreter from the beginning or the end of the string *)
 (* this will get updated by the interpreter before using the context for anything *)
 let init_context () : char_context =  { prevchar = None; nextchar = None }
@@ -453,6 +462,7 @@ let null_interp ?(debug=false) ?(verbose=false) (c:code) (s:interpreter_state) (
   
 
 (** * Interpreting the bytecode  *)
+(* assumes that s.context is alread set to the correct thing *)
 let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
   if debug then
     begin
@@ -461,10 +471,6 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
 
-  (* reading next character and updating the character context *)
-  let newchar = get_char str (s.cp - cp_offset dir) in
-  update_context s.context newchar;
-  
   (* building the CDN table *)
   (* TODO: add context? to evaluate CDNS that depend on anchors *)
   s.cdn <- build_cdn cdn s.cp o;
@@ -480,7 +486,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
       Printf.printf "%s\n%!" (print_blocked s.blocked);
     end;
   (* checking if there are still surviving threads *)
-  match s.blocked, newchar with
+  match s.blocked, s.context.nextchar with
   | [], _ -> s.bestmatch        (* no more surviving threads *)
   | _, None -> s.bestmatch      (* we reached the end of the string *)
   | _, _ -> 
@@ -492,6 +498,10 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
      s.cdn <- init_cdn();
      (* advancing the current position *)
      s.cp <- incr_cp s.cp dir;
+     (* updating the context *)
+     let newchar = get_char str (s.cp - cp_offset dir) in
+     update_context s.context newchar;
+     (* recursive call *)
      interpreter ~debug c str s o dir cdn
 
           
@@ -544,9 +554,10 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
 (* running the interpreter on some code, with a particular initial interpreter state *)
 (* also reconstructs the + groups *)
 let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:cap_regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) (cdn:cdns): thread option =
-  if verbose then Printf.printf "%s\n" ("\n\027[36mInterpreter:\027[0m "^s);
+  if verbose then Printf.printf "%s - %s\n" ("\n\027[36mInterpreter:\027[0m "^s) (print_direction dir);
   if verbose then Printf.printf "%s\n" (print_code c);
   if verbose then Printf.printf "%s\n" (print_cdns cdn);
+  if verbose then Printf.printf "%s\n" (print_context (cp_context start_cp s dir));
   let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock (cp_context start_cp s dir)) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 

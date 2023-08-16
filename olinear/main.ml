@@ -182,10 +182,11 @@ let nullable_expected: (raw_regex*string) list =
 let cdn_formulas: (raw_regex*string) list =
   [(Raw_quant(Plus,Raw_alt(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_char('a'))),Raw_con(Raw_lookaround(Lookahead,Raw_char('b')),Raw_lookaround(Lookahead,Raw_char('c'))))),"abc")]
 
-let anchor_direction: (raw_regex*string) list =
+(* fixed by ensuring that the context is the right one when reconstructing lookaround groups *)
+let anchor_context: (raw_regex*string) list =
   [(Raw_lookaround(Lookahead,Raw_anchor(NonWordBoundary)),"cac b");
    (Raw_alt(Raw_lookaround(Lookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_anchor(BeginInput)))),Raw_con(Raw_dot,Raw_lookaround(NegLookahead,Raw_capture(Raw_lookaround(Lookahead,Raw_anchor(BeginInput))))))
-   ,"a c b aa aa b ccacc  acac  bacabba acaac bcb  ba aca bab")]
+   ,"a c b")]
 
 let anchor_cdn: (raw_regex*string) list =
   [(Raw_con(Raw_empty,Raw_quant(Plus,Raw_anchor(BeginInput))),"b  caacaac bcaabc bbcbbaa a  cacccb ab aacccbbb aabbb c bccbcaaaabaa");
@@ -234,7 +235,7 @@ let tests () =
   replay_bugs(cdn_empty);
   replay_bugs(nullable_expected);
   replay_bugs(cdn_formulas);
-  replay_bugs(anchor_direction);
+  replay_bugs(anchor_context);
   replay_bugs(anchor_cdn);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
@@ -251,7 +252,7 @@ let paper_example () =
   
   
 let main =
-  (* let bug = List.nth anchor_direction 0 in
+  (* let bug = (Raw_lookaround(Lookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_anchor(BeginInput)))),"a c b") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
   tests()
   (* fuzzer() *)
