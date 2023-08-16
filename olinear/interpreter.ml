@@ -9,9 +9,10 @@ open Format
 open Oracle
 open Compiler
 open Cdn
+open Anchors
 
 (** * Direction  *)
-(* In our algorithm, the interpreter can traverse the string in a forward way or ina backward way *)
+(* In our algorithm, the interpreter can traverse the string in a forward way or in a backward way *)
 (* Backward is used when building the oracle for lookaheads *)
 (* Or when building capture groups for lookbehinds *)
 
@@ -197,67 +198,6 @@ let bpc_mem (bpcs:bpcset) (pc:label) (exit_bool:bool) : bool =
   | true -> pc_mem bpcs.true_set pc
   | false -> pc_mem bpcs.false_set pc
 
-
-(** * Char Contexts  *)
-(* a context here describes the surrounding characters of a position (or None, if we reached the end/begin of the input) *)
-(* this surrounding context is what the interpreter needs to evaluate anchors, and advance threads that reached a CONSUME instruction *)
-
-type char_context =
-  {
-    mutable prevchar : char option;
-    mutable nextchar : char option;
-  }
-(* NOTE: when going backward in the string, the index of nextchar is smaller than the one of prevchar *)
-
-let update_context (ctx:char_context) (newchar:char option): unit =
-  ctx.prevchar <- ctx.nextchar;
-  ctx.nextchar <- newchar
-
-let print_context (ctx:char_context) : string =
-  "\027[36mContext:\027[0m " ^
-    begin match ctx.prevchar,ctx.nextchar with
-    | None,None -> "{None,None}"
-    | None,Some x -> "{None,"^String.make 1 x^"}"
-    | Some x,None -> "{"^String.make 1 x^",None}"
-    | Some x, Some y -> "{"^String.make 1 x^","^String.make 1 y^"}"
-    end ^ "\n"
-  
-(* when starting the interpreter from the beginning or the end of the string *)
-(* this will get updated by the interpreter before using the context for anything *)
-let init_context () : char_context =  { prevchar = None; nextchar = None }
-
-(* when starting the interpreter at any position, possibly in the middle of the string *)
-let cp_context (cp:int) (str:string) (dir:direction) : char_context =
-  let nextop = get_char str cp in
-  let prevop = get_char str (cp-1) in
-  match dir with
-  | Forward -> { prevchar = prevop ; nextchar = nextop }
-  | Backward -> { prevchar = nextop ; nextchar = prevop }
-    
-
-(** * Checking Anchor Assertions  *)
-(* https://tc39.es/ecma262/#ASCII-word-characters *)
-let is_ascii_word_character (c:char) : bool =
-  let n = int_of_char c in
-  (n>=65 && n<=90) ||           (* uppercase *)
-    (n>=97 && n<=122) ||        (* lowercase *)
-      (n>=48 && n<=57) ||       (* numbers *)
-        (n=95)                  (* '_' *)
-
-let is_boundary (ctx:char_context) : bool =
-  match ctx.prevchar, ctx.nextchar with
-  | None, None -> false
-  | None, Some _ -> true
-  | Some _, None -> true
-  | Some prev, Some next ->
-     (is_ascii_word_character prev) <> (is_ascii_word_character next) (* xor *)
-                                    
-let is_satisfied (a:anchor) (ctx:char_context) : bool =
-  match a with
-  | BeginInput -> ctx.prevchar = None
-  | EndInput -> ctx.nextchar = None
-  | WordBoundary -> is_boundary ctx
-  | NonWordBoundary -> not (is_boundary ctx)
                                                    
   
 (** * Interpreter States  *)
@@ -281,6 +221,15 @@ type interpreter_state =
     mutable cdn: cdn_table;             (* nullability table for cdn + *)
   }
 
+(* initializing the context *)
+(* when starting the interpreter at any position, possibly in the middle of the string *)
+let cp_context (cp:int) (str:string) (dir:direction) : char_context =
+  let nextop = get_char str cp in
+  let prevop = get_char str (cp-1) in
+  match dir with
+  | Forward -> { prevchar = prevop ; nextchar = nextop }
+  | Backward -> { prevchar = nextop ; nextchar = prevop }
+  
 let init_state (c:code) (initcp:int) (initregs:cap_regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) (initctx:char_context) =
   { cp = initcp;
     active = [init_thread initregs initcclock initmem initlclock initquant];
@@ -462,7 +411,7 @@ let null_interp ?(debug=false) ?(verbose=false) (c:code) (s:interpreter_state) (
   
 
 (** * Interpreting the bytecode  *)
-(* assumes that s.context is alread set to the correct thing *)
+(* This functions assumes that s.context already contains the correct characters *)
 let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
   if debug then
     begin
@@ -472,8 +421,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
     end;
 
   (* building the CDN table *)
-  (* TODO: add context? to evaluate CDNS that depend on anchors *)
-  s.cdn <- build_cdn cdn s.cp o;
+  s.cdn <- build_cdn cdn s.cp o s.context;
   if debug then
     begin
       Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));

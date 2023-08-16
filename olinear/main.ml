@@ -188,6 +188,7 @@ let anchor_context: (raw_regex*string) list =
    (Raw_alt(Raw_lookaround(Lookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_anchor(BeginInput)))),Raw_con(Raw_dot,Raw_lookaround(NegLookahead,Raw_capture(Raw_lookaround(Lookahead,Raw_anchor(BeginInput))))))
    ,"a c b")]
 
+(* fixed by evaluating the CDN formulas in the current context *)
 let anchor_cdn: (raw_regex*string) list =
   [(Raw_con(Raw_empty,Raw_quant(Plus,Raw_anchor(BeginInput))),"b  caacaac bcaabc bbcbbaa a  cacccb ab aacccbbb aabbb c bccbcaaaabaa");
    (Raw_quant(Plus,Raw_anchor(BeginInput))," cc c  a b acabbbaaaac babaabac bbca bba cccca cacaaabac  ")]
