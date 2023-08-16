@@ -151,6 +151,7 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction treelist
      | Lookahead | Lookbehind -> (Leaf [CheckOracle lookid], fresh+1)
      | NegLookahead | NegLookbehind -> (Leaf [NegCheckOracle lookid], fresh+1)
      end
+  | Re_anchor a -> failwith "todo"
 
 (* adds an accept at the end of the bytecode *)
 let compile_to_bytecode (r:regex) : code =

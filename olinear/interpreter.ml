@@ -446,7 +446,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
   let capclk = ref thread.cap_clk in
   let lookclk = ref thread.look_clk in
   let quants = ref thread.quants in
-  (* gos through the regex, if it encounters a nulled +, it calls the null interpreter *)
+  (* goes through the regex, if it encounters a nulled +, it calls the null interpreter *)
   let rec nulled_plus (reg:regex) : unit =
     match reg with
     | Re_empty | Re_char _ | Re_dot -> ()
@@ -454,6 +454,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
        nulled_plus r1; nulled_plus r2
     | Re_capture (_,r1) -> nulled_plus r1
     | Re_lookaround (lid,lk,r1) -> () (* todo: check if it's ok *)
+    | Re_anchor _ -> ()               (* same. we shouldn't have to re-check anything *)
     (* from shallowest to deepest plus: *)
     | Re_quant (nul,qid,quanttype,body) ->
        begin match (get_quant_nulled !quants qid) with
@@ -515,7 +516,7 @@ let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string
 
 let rec filter_capture (r:regex) (regs:cap_regs ref) (cclocks: cap_clocks) (lclocks:look_clocks) (qclocks:quant_clocks) (maxclock:int) : unit =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> ()
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> ()
   | Re_alt (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
   | Re_con (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
   | Re_quant (nul, qid, quant, r1) ->
@@ -549,7 +550,7 @@ let rec filter_capture (r:regex) (regs:cap_regs ref) (cclocks: cap_clocks) (lclo
       
 and filter_all (r:regex) (regs:cap_regs ref) : unit = (* clearing all capture group inside a regex *)
   match r with
-  | Re_empty | Re_char _ | Re_dot -> ()
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> ()
   | Re_alt (r1,r2) -> filter_all r1 regs; filter_all r2 regs
   | Re_con (r1,r2) -> filter_all r1 regs; filter_all r2 regs
   | Re_quant (nul, qid, quant, r1) ->

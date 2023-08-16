@@ -41,6 +41,7 @@ type cdn_formula =
   | CDN_quant of quantid
   | CDN_look of lookid
   | CDN_neglook of lookid
+  | CDN_anchor of anchor
 
 
 (** * Evaluating CDN formulas  *)
@@ -53,6 +54,7 @@ let rec interpret_cdn (f:cdn_formula) (cp:int) (o:oracle) (t:cdn_table) : bool =
   | CDN_quant qid -> cdn_get t qid
   | CDN_look lid -> get_oracle o cp lid
   | CDN_neglook lid -> not (get_oracle o cp lid)
+  | CDN_anchor _ -> failwith "todo"
   
                                 
 (** * Compiling to CDN formulas *)                            
@@ -104,6 +106,7 @@ let rec compile_cdnf (r:regex) : cdn_formula =
      | Lookahead | Lookbehind -> CDN_look lid
      | NegLookahead | NegLookbehind -> CDN_neglook lid
      end
+  | Re_anchor a -> CDN_anchor a
 
     
 (** * Compiling all CDN formulas of a regex  *)
@@ -150,6 +153,7 @@ let rec print_formula (f:cdn_formula) : string =
   | CDN_quant qid -> "\027[31mQ" ^ string_of_int qid ^ "\027[0m"
   | CDN_look lid -> "\027[36mL" ^ string_of_int lid ^ "\027[0m"
   | CDN_neglook lid -> "~\027[36mL" ^ string_of_int lid ^ "\027[0m"
+  | CDN_anchor a -> print_anchor a
 
 let print_cdns (c:cdns) : string =
   "\027[36mCDN formulas:\027[0m \n" ^
