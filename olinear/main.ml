@@ -240,10 +240,9 @@ let paper_example () =
   
   
 let main =
-  (* tests() *)
+  tests()
   (* fuzzer() *)
-  let re = Re_anchor (BeginInput) in
-  ignore (compile re 0 Progress)
+  
   (* run_benchmark(many_forks); *)
   (* many_forks_re2_benchmark() *)
 
