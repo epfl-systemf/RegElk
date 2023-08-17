@@ -9,6 +9,7 @@ open Regex
 open Tojs
 open Toexp
 open Tore2
+open Torust
 open Linear
 open Sys
 open Unix
@@ -273,4 +274,17 @@ let many_forks_re2_benchmark () =
   close_out oc;
   (* plotting the results *)
   let command = "python3.7 plot_single.py re2_many_forks RE2 &" in
+  ignore(string_of_command command)
+
+let many_forks_rust_benchmark () =
+  let oc = open_out (exp_dir^"rust_many_forks.csv") in
+  for i = 0 to 82 do
+    Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+    let reg = many_forks_reg i in
+    let texp = get_time_rust reg many_forks_str in
+    Printf.fprintf oc "%d,%s\n%!" i texp;
+  done;
+  close_out oc;
+  (* plotting the results *)
+  let command = "python3.7 plot_single.py rust_many_forks Rust &" in
   ignore(string_of_command command)

@@ -8,6 +8,7 @@ open Linear
 open Tojs
 open Tore2
 open Toexp
+open Torust
 open Diff_fuzzer
 open Complexity_exp
 
@@ -241,9 +242,9 @@ let paper_example () =
   
 let main =
   (* tests() *)
-  fuzzer()
+  (* fuzzer() *)
   (* run_benchmark(many_forks); *)
-  (* many_forks_re2_benchmark() *)
+  many_forks_rust_benchmark()
 
   (* TODO: make more JSCore benchmarks *)
   (* let open Core in
