@@ -18,6 +18,20 @@ type lookaround =
   | Lookbehind
   | NegLookbehind
 
+(** * Anchors  *)
+(* Also called 0-width assertion *)
+(* Assertions about the current position that can be determined only from the immediate context (characters around the cp) *)
+(* never consumes anything *)
+
+type anchor =
+  | EndInput
+  | BeginInput
+  | WordBoundary
+  | NonWordBoundary
+(* note that if we implemented some flags, like multiline, then we should add other anchors, like EndLine and BeginLine *)
+(* for now we do not implement such a flag *)
+  
+
 (** * Raw Regexes  *)
 (* Input regexes, before they get annotated with capture groups identifiers and lookaround identifiers *)
 type raw_regex =
@@ -29,6 +43,7 @@ type raw_regex =
   | Raw_quant of quantifier * raw_regex
   | Raw_capture of raw_regex
   | Raw_lookaround of lookaround * raw_regex
+  | Raw_anchor of anchor
 
 
 (** * Nullable Regexes  *)
@@ -68,6 +83,7 @@ type regex =
   | Re_quant of nullability * quantid * quantifier * regex
   | Re_capture of capture * regex
   | Re_lookaround of lookid * lookaround * regex
+  | Re_anchor of anchor
 
 
 (** * Computing Nullability  *)
@@ -101,6 +117,7 @@ let rec nullable (r:regex) : nullability =
      end
   | Re_capture (_,r1) -> nullable r1
   | Re_lookaround (_,_,_) -> CDNullable
+  | Re_anchor _ -> CDNullable
 
                     
 let rec raw_nullable (r:raw_regex) : nullability =
@@ -116,6 +133,7 @@ let rec raw_nullable (r:raw_regex) : nullability =
      end
   | Raw_capture (r1) -> raw_nullable r1
   | Raw_lookaround (_,_) -> CDNullable
+  | Raw_anchor _ -> CDNullable
 
                    
 (** * Regex Pretty-printing  *)
@@ -137,6 +155,13 @@ let print_lookaround (l:lookaround) : string =
   | NegLookahead -> "?!"
   | Lookbehind -> "?<="
   | NegLookbehind -> "?<!"
+
+let print_anchor (a:anchor) : string =
+  match a with
+  | BeginInput -> "^"
+  | EndInput -> "$"
+  | WordBoundary -> "\\b"
+  | NonWordBoundary -> "\\B"
                    
 let rec print_raw (ra:raw_regex) : string =
   match ra with
@@ -148,6 +173,7 @@ let rec print_raw (ra:raw_regex) : string =
   | Raw_quant (q, r1) -> print_raw r1 ^ print_quant q
   | Raw_capture r1 -> "(" ^ print_raw r1 ^ ")"
   | Raw_lookaround (l, r1) -> "(" ^ print_lookaround l ^ print_raw r1 ^ ")"
+  | Raw_anchor a -> print_anchor a
 
 let rec print_regex (r:regex) : string =
   match r with
@@ -159,6 +185,7 @@ let rec print_regex (r:regex) : string =
   | Re_quant (_, qid, q, r1) -> print_regex r1 ^ print_quant q ^ "\027[31m" ^ string_of_int qid ^ "\027[0m"
   | Re_capture (cid, r1) -> "(" ^ print_regex r1 ^ ")" ^ "\027[33m" ^ string_of_int cid ^ "\027[0m"
   | Re_lookaround (lid, l, r1) -> "(" ^ "\027[36m" ^ string_of_int lid ^ "\027[0m" ^ print_lookaround l ^ print_regex r1 ^ ")"
+  | Re_anchor a -> print_anchor a
 
                                 
 (** * Annotating Regexes  *)
@@ -187,6 +214,7 @@ let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) (q:quantid) : regex
   | Raw_lookaround (look, r1) ->
      let (ar1, c1, l1, q1) = annotate_regex r1 c (l+1) q in
      (Re_lookaround (l, look, ar1), c1, l1, q1)
+  | Raw_anchor a -> (Re_anchor a, c, l, q)
 
 (* adding annotations and adding a capture group on the entire regex *)
 (* the external capture group starts at 0 *)
@@ -198,6 +226,7 @@ let annotate (ra:raw_regex) : regex =
 (* Adds a .*? at the beginning of a regex so that it does not have to be matched at the beginning *)
 let lazy_prefix (r:regex) : regex =
   Re_con (Re_quant (NonNullable, 0, LazyStar, Re_dot),r)
+(* TODO: if there is a BeginInput at the beginning of the regex, we could remove the lazy star *)
 
 (** * Regex Manipulation  *)
 
@@ -205,6 +234,13 @@ let lazy_prefix (r:regex) : regex =
 (* Note that we only need to reverse the concatenation *)
 (* For the alternation, the left subexpr still has priority over the right one when looking for groups *)
 (* For instance, in [ab(?<=(ab|b))] over "ab", group 1 contains "ab", not "b" *)
+(* we also need to reverse anchors: the end of input becomes the beginning and vice-versa *)
+let reverse_anchor (a:anchor) : anchor =
+  match a with
+  | BeginInput -> EndInput
+  | EndInput -> BeginInput
+  | _ -> a
+  
 let rec reverse_regex (r:regex) : regex =
   match r with
   | Re_empty | Re_char _ | Re_dot -> r
@@ -213,6 +249,7 @@ let rec reverse_regex (r:regex) : regex =
   | Re_quant (nul, qid, quant, r1) -> Re_quant (nul, qid, quant, reverse_regex r1)
   | Re_capture (cid, r1) -> Re_capture (cid, reverse_regex r1)
   | Re_lookaround (lid, look, r1) -> Re_lookaround (lid, look, reverse_regex r1)
+  | Re_anchor a -> Re_anchor (reverse_anchor a)
 
 
 (* during the 1st stage of the algorithm, we don't care about extracting capture groups *)
@@ -220,7 +257,7 @@ let rec reverse_regex (r:regex) : regex =
 (* We also remove the annotations in the quantifiers because there is no need to clear capture registers *)
 let rec remove_capture (r:regex) : regex =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> r
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> r
   | Re_alt (r1, r2) -> Re_alt (remove_capture r1, remove_capture r2)
   | Re_con (r1, r2) -> Re_con (remove_capture r1, remove_capture r2)
   | Re_quant (nul, qid, quant, r1) ->
@@ -237,7 +274,7 @@ let rec remove_capture (r:regex) : regex =
 (* Extracting the lookaround type and inner subexpression of a given lookaround identifier *)
 let rec get_lookaround (r:regex) (lid:lookid) : (regex * lookaround) option =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> None
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> None
   | Re_alt (r1, r2) | Re_con (r1, r2) -> (* the order does not matter since each identifier is unique *)
      begin match (get_lookaround r1 lid) with
      | Some le -> Some le
@@ -258,7 +295,7 @@ let get_look (r:regex) (lid:lookid) : regex * lookaround =
 (* extracting a quantifier body given its quantifier id *)
 let rec get_quantifier (r:regex) (qid:quantid) : (regex * quantifier) option =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> None
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> None
   | Re_alt (r1, r2) | Re_con (r1, r2) ->
      begin match (get_quantifier r1 qid) with
      | Some qr -> Some qr
@@ -278,7 +315,7 @@ let get_quant (r:regex) (qid:quantid) : regex * quantifier =
 (* Returns the maximum used lookaround in a regex *)
 let rec max_lookaround (r:regex) : lookid =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> 0
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_lookaround r1) (max_lookaround r2)
   | Re_quant (_, _,_,r1) | Re_capture (_,r1) -> max_lookaround r1
   | Re_lookaround (lid, look, r1) -> max lid (max_lookaround r1)
@@ -286,7 +323,7 @@ let rec max_lookaround (r:regex) : lookid =
 (* maximum capture group *)
 let rec max_group (r:regex) : capture =
   match r with 
-  | Re_empty | Re_char _ | Re_dot -> 0
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_group r1) (max_group r2)
   | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
   | Re_capture (cid, r1) -> max cid (max_group r1)
@@ -295,7 +332,7 @@ let rec max_group (r:regex) : capture =
 (* ordered from lowest to highest *)
 let rec nullable_plus_quantid' (r:regex) (lq:quantid list) : quantid list =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> lq
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> lq
   | Re_alt (r1, r2) | Re_con (r1, r2) ->
      nullable_plus_quantid' r2 (nullable_plus_quantid' r1 lq)
   | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> nullable_plus_quantid' r1 lq
@@ -313,7 +350,7 @@ let nullable_plus_quantid (r:regex) : quantid list =
 (* ordered from highest to lowest *)
 let rec cdn_plus_list' (r:regex) (lq:quantid list) : quantid list =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> lq
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> lq
   | Re_alt (r1, r2) | Re_con (r1, r2) ->
      cdn_plus_list' r2 (cdn_plus_list' r1 lq)
   | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> cdn_plus_list' r1 lq
@@ -342,6 +379,13 @@ let report_look (l:lookaround) : string =
   | NegLookahead -> "NegLookahead"
   | Lookbehind -> "Lookbehind"
   | NegLookbehind -> "NegLookbehind"
+
+let report_anchor (a:anchor) : string =
+  match a with
+  | BeginInput -> "BeginInput"
+  | EndInput -> "EndInput"
+  | WordBoundary -> "WordBoundary"
+  | NonWordBoundary -> "NonWordBoundary"
   
 let rec report_raw (raw:raw_regex) : string =
   match raw with
@@ -353,6 +397,7 @@ let rec report_raw (raw:raw_regex) : string =
   | Raw_quant (q,r1) -> "Raw_quant("^report_quant q^","^report_raw r1^")"
   | Raw_capture r1 -> "Raw_capture("^report_raw r1^")"
   | Raw_lookaround (l,r1) -> "Raw_lookaround("^report_look l^","^report_raw r1^")"
+  | Raw_anchor a -> "Raw_anchor("^report_anchor a^")"
 
 
 (** * Regex Plus Statistics  *)
@@ -363,7 +408,7 @@ let rec report_raw (raw:raw_regex) : string =
 (* ln is the number of nullable lazy + *)
 let rec plus_stats (r:regex) : int * int * int * int * int =
   match r with
-  | Re_empty | Re_char _ | Re_dot -> (0,0,0,0,0)
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> (0,0,0,0,0)
   | Re_alt (r1,r2) | Re_con (r1,r2) ->
      let (nn1,cdn1,cin1,lnn1,ln1) = plus_stats r1 in
      let (nn2,cdn2,cin2,lnn2,ln2) = plus_stats r2 in

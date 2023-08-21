@@ -25,6 +25,7 @@ let rec print_exp (ra:raw_regex) : string =
   | Raw_quant (q, r1) -> noncap(print_exp r1) ^ print_quant q
   | Raw_capture r1 -> "(" ^ print_exp r1 ^ ")"
   | Raw_lookaround (l, r1) -> failwith "Experimental does not support lookarounds"
+  | Raw_anchor a -> print_anchor a
 
 
 (** * Calling the JS Experimental Matcher  *)

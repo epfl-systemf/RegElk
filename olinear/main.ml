@@ -182,6 +182,25 @@ let nullable_expected: (raw_regex*string) list =
 (* testing the CDN formulas *)
 let cdn_formulas: (raw_regex*string) list =
   [(Raw_quant(Plus,Raw_alt(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_char('a'))),Raw_con(Raw_lookaround(Lookahead,Raw_char('b')),Raw_lookaround(Lookahead,Raw_char('c'))))),"abc")]
+
+(* fixed by ensuring that the context is the right one when reconstructing lookaround groups *)
+let anchor_context: (raw_regex*string) list =
+  [(Raw_lookaround(Lookahead,Raw_anchor(NonWordBoundary)),"cac b");
+   (Raw_alt(Raw_lookaround(Lookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_anchor(BeginInput)))),Raw_con(Raw_dot,Raw_lookaround(NegLookahead,Raw_capture(Raw_lookaround(Lookahead,Raw_anchor(BeginInput))))))
+   ,"a c b")]
+
+(* fixed by evaluating the CDN formulas in the current context *)
+let anchor_cdn: (raw_regex*string) list =
+  [(Raw_con(Raw_empty,Raw_quant(Plus,Raw_anchor(BeginInput))),"b  caacaac bcaabc bbcbbaa a  cacccb ab aacccbbb aabbb c bccbcaaaabaa");
+   (Raw_quant(Plus,Raw_anchor(BeginInput))," cc c  a b acabbbaaaac babaabac bbca bba cccca cacaaabac  ")]
+
+(* fixed: beginning and end of string are not word boundaries if the character next to it is not an ascii character *)
+let anchor_mismatch: (raw_regex*string) list =
+  [(Raw_con(Raw_capture(Raw_con(Raw_anchor(WordBoundary),Raw_anchor(WordBoundary))),Raw_dot),"  cab bccbaac baabab bcbbaca cabca  c");
+   (Raw_con(Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_alt(Raw_con(Raw_capture(Raw_dot),Raw_capture(Raw_alt(Raw_capture(Raw_capture(Raw_capture(Raw_char('a')))),Raw_capture(Raw_anchor(BeginInput))))),Raw_capture(Raw_quant(Star,Raw_capture(Raw_lookaround(NegLookbehind,Raw_char('c'))))))),Raw_quant(LazyStar,Raw_char(' '))),Raw_quant(LazyStar,Raw_dot)),Raw_alt(Raw_alt(Raw_lookaround(NegLookahead,Raw_anchor(WordBoundary)),Raw_lookaround(NegLookahead,Raw_empty)),Raw_char('a')))," abccb ab bb abcaaaa cca cbb a aaccbcab");
+   (Raw_alt(Raw_alt(Raw_alt(Raw_capture(Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_con(Raw_dot,Raw_capture(Raw_capture(Raw_dot)))))),Raw_char('a')),Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_anchor(WordBoundary)),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)))))),Raw_con(Raw_capture(Raw_empty),Raw_anchor(BeginInput)))," a  b bbc ");
+   (Raw_alt(Raw_char('c'),Raw_lookaround(Lookbehind,Raw_con(Raw_anchor(BeginInput),Raw_lookaround(NegLookbehind,Raw_capture(Raw_anchor(WordBoundary))))))," c  cc bcac c  a a  a  ababab  acbca  cbcb b cccccc cc  a  b  bcbaaaaaaa baaa");
+   (Raw_con(Raw_lookaround(NegLookahead,Raw_capture(Raw_capture(Raw_anchor(NonWordBoundary)))),Raw_dot)," cc cccc aabaaaa ba abcaabcbbb cacccc  bccbcb cababbabccac ")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
@@ -226,6 +245,9 @@ let tests () =
   replay_bugs(cdn_empty);
   replay_bugs(nullable_expected);
   replay_bugs(cdn_formulas);
+  replay_bugs(anchor_context);
+  replay_bugs(anchor_cdn);
+  replay_bugs(anchor_mismatch);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -241,10 +263,13 @@ let paper_example () =
   
   
 let main =
+  (* let bug = (Raw_con(Raw_capture(Raw_con(Raw_anchor(WordBoundary),Raw_anchor(WordBoundary))),Raw_dot),"  cab bccbaac baabab bcbbaca cabca  c") in
+   * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
   (* tests() *)
-  (* fuzzer() *)
+
+  fuzzer()
   (* run_benchmark(many_forks); *)
-  many_forks_rust_benchmark()
+  (* many_forks_rust_benchmark() *)
 
   (* TODO: make more JSCore benchmarks *)
   (* let open Core in

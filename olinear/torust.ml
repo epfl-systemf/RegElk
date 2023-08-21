@@ -25,6 +25,7 @@ let rec print_rust (ra:raw_regex) : string =
   | Raw_quant (q, r1) -> noncap(print_rust r1) ^ print_quant q
   | Raw_capture r1 -> "(" ^ print_rust r1 ^ ")"
   | Raw_lookaround (l, r1) -> failwith "Rust does not support lookarounds"
+  | Raw_anchor a -> print_anchor a (* Rust has the same anchor syntax *)
    
 (** * Calling Rust and getting it's result  *)
 

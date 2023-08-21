@@ -24,6 +24,7 @@ type instruction =
   | BeginLoop                   (* start of loop: we set a counter to prevent exiting it using only epsilon transitions *)
   | EndLoop                     (* end of loop: fails if we started the loop without consuming in the string *)
   | CheckNullable of quantid    (* checks that a + is nullable *)
+  | AnchorAssertion of anchor   (* checks that an anchor is satisfied *)
   | Fail                        (* kills the current thread *)
                      (* Missing instruction from Experimental: 0-width assertion *)
 
@@ -68,6 +69,7 @@ let print_instruction (i:instruction) : string =
   | BeginLoop -> "BeginLoop"
   | EndLoop -> "EndLoop"
   | CheckNullable q -> "CheckNullable " ^ string_of_int q
+  | AnchorAssertion a -> "AnchorAssertion " ^ print_anchor a
   | Fail -> "Fail"
   
 let rec print_code (c:code) : string =
