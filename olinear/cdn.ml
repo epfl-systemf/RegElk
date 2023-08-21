@@ -13,7 +13,7 @@ open Bytecode
 open Anchors
 
 (** * CDN Table  *)
-(* For all Context-Dependent Nullable Plusses, we need to remember *)
+(* For all Context-Dependent Nullable Plus, we need to remember *)
 (* when each of them is nullable at a given cp *)
    
 module IntMap = Map.Make(struct type t = int let compare = compare end)        
@@ -86,21 +86,11 @@ let rec compile_cdnf (r:regex) : cdn_formula =
      | _, _ -> CDN_and (f1, f2)
      end
   | Re_quant (nul, qid, quant, r1) ->
-     begin match quant with
-     | Star | LazyStar -> CDN_true
-     | Plus ->
-        begin match nul with
-        | NonNullable -> CDN_false
-        | CINullable -> CDN_true
-        | CDNullable -> CDN_quant qid
-        end
-     | LazyPlus ->
-        begin match nul with
-        | NonNullable -> CDN_false
-        | CINullable -> CDN_true
-        | CDNullable -> compile_cdnf r1
-        end
-     end
+     if quant.min = 0 then CDN_true (* you can skip repetitions entirely *)
+     else if nul = NonNullable then CDN_false (* min>0 and the body consumes *)
+     else if nul = CINullable then CDN_true   (* you can consume the empty string with your min repetitions *)
+     else if (quant.max = None && quant.greedy && nul = CDNullable) then CDN_quant qid (* CDN + *)
+     else compile_cdnf r1       (* otherwise compute the formula for the body. *)
   | Re_capture (cid, r1) -> compile_cdnf r1
   | Re_lookaround (lid, look, r1) ->
      begin match look with
