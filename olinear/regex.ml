@@ -2,14 +2,34 @@
 (* Defining the type of regexes that we match, including both capture groups and lookarounds *)
 
 (** * Quantifiers  *)
-(* By default, Star and Plus are greedy and try to consume as much of the string as possible *)
-(* TODO: add QuestionMark? But how do we annotate it given that we don't need to clear registers? *)
-(* We can annotate them anyway but decide during code generation not to clear any registers *)
+
+(* Usual quantifiers *)
+(* all of these can be compiled for regex-linear matching, except lazyplus *)
 type quantifier =
   | Star
   | LazyStar
   | Plus
   | LazyPlus
+  | QuestionMark
+  | LazyQuestionMark
+
+(* The more generic type of quantifiers, that can do non-linear counted repetition *)
+(* In the general case, this may require repeating the bytecode of the body, and non-regex-linear matching *)
+type counted_quantifier = {
+    min: int;
+    max: int option;            (* None represents infinity *)
+    greedy: bool;
+  }
+
+(* turning the usual quantifiers into the more generic type *)
+let quant_canonicalize (q:quantifier) : counted_quantifier =
+  match q with
+  | Star -> { min = 0; max = None; greedy = true }
+  | LazyStar -> { min = 0; max = None; greedy = false }
+  | Plus -> { min = 1; max = None; greedy = true }
+  | LazyPlus -> { min = 1; max = None; greedy = false }
+  | QuestionMark -> { min = 0; max = Some 1; greedy = true }
+  | LazyQuestionMark -> { min = 0; max = Some 1; greedy = false }
 
 (** * Lookarounds  *)
 type lookaround =
@@ -41,6 +61,7 @@ type raw_regex =
   | Raw_alt of raw_regex * raw_regex
   | Raw_con of raw_regex * raw_regex
   | Raw_quant of quantifier * raw_regex
+  | Raw_count of counted_quantifier * raw_regex
   | Raw_capture of raw_regex
   | Raw_lookaround of lookaround * raw_regex
   | Raw_anchor of anchor
@@ -78,9 +99,9 @@ type regex =
   | Re_dot                      (* any character. TODO: should I generalize to ranges? *)
   | Re_alt of regex * regex
   | Re_con of regex * regex
-  (* the first bool indicates if the body of the quantifier is nullable *)
   (* each quantifier is given an unique id *)
-  | Re_quant of nullability * quantid * quantifier * regex
+  (* all quantifiers are transformed into counted quantifiers *)
+  | Re_quant of nullability * quantid * counted_quantifier * regex
   | Re_capture of capture * regex
   | Re_lookaround of lookid * lookaround * regex
   | Re_anchor of anchor
@@ -111,10 +132,7 @@ let rec nullable (r:regex) : nullability =
   | Re_alt (r1,r2) -> null_or (nullable r1) (nullable r2)
   | Re_con (r1,r2) -> null_and (nullable r1) (nullable r2)
   | Re_quant (_,_,q,r1) ->
-     begin match q with
-     | Star | LazyStar -> CINullable
-     | Plus | LazyPlus -> nullable r1
-     end
+     if (q.min = 0) then CINullable else nullable r1
   | Re_capture (_,r1) -> nullable r1
   | Re_lookaround (_,_,_) -> CDNullable
   | Re_anchor _ -> CDNullable
@@ -128,9 +146,11 @@ let rec raw_nullable (r:raw_regex) : nullability =
   | Raw_con (r1,r2) -> null_and (raw_nullable r1) (raw_nullable r2)
   | Raw_quant (q,r1) ->
      begin match q with
-     | Star | LazyStar -> CINullable
+     | Star | LazyStar | QuestionMark | LazyQuestionMark -> CINullable
      | Plus | LazyPlus -> raw_nullable r1
      end
+  | Raw_count (q,r1) ->
+     if (q.min = 0) then CINullable else raw_nullable r1
   | Raw_capture (r1) -> raw_nullable r1
   | Raw_lookaround (_,_) -> CDNullable
   | Raw_anchor _ -> CDNullable
@@ -140,7 +160,7 @@ let rec raw_nullable (r:raw_regex) : nullability =
 
 (* WARNING: this is wrong in the sense that we don't print non-capturing groups *)
 (* Meaning that there will be no difference between [{ab} alt c] and [a alt {bc}] *)
-(* If I want to add these non-capturing groups, I should find a way to only add those that are needed *)
+(* If you want to send this to an engine, add non-capturing groups first (see tojs.ml for instance) *)
 
 let print_quant (q:quantifier) : string =
   match q with
@@ -148,6 +168,18 @@ let print_quant (q:quantifier) : string =
   | LazyStar -> "*?"
   | Plus -> "+"
   | LazyPlus -> "+?"
+  | QuestionMark -> "?"
+  | LazyQuestionMark -> "??"
+
+(* Prints things like {4,5}, {6,} or {3,8}? *)
+let print_counted_quant (q:counted_quantifier) : string =
+  let min = string_of_int q.min in
+  let max = begin match q.max with
+            | None -> ""
+            | Some m -> string_of_int m end in
+  let lzy = if q.greedy then "" else "?" in
+  "{"^min^","^max^"}"^lzy
+                  
 
 let print_lookaround (l:lookaround) : string =
   match l with
@@ -171,6 +203,7 @@ let rec print_raw (ra:raw_regex) : string =
   | Raw_alt (r1, r2) -> print_raw r1 ^ "|" ^ print_raw r2
   | Raw_con (r1, r2) -> print_raw r1 ^ print_raw r2
   | Raw_quant (q, r1) -> print_raw r1 ^ print_quant q
+  | Raw_count (q, r1) -> print_raw r1 ^ print_counted_quant q
   | Raw_capture r1 -> "(" ^ print_raw r1 ^ ")"
   | Raw_lookaround (l, r1) -> "(" ^ print_lookaround l ^ print_raw r1 ^ ")"
   | Raw_anchor a -> print_anchor a
@@ -182,7 +215,7 @@ let rec print_regex (r:regex) : string =
   | Re_dot -> "."
   | Re_alt (r1, r2) -> print_regex r1 ^ "|" ^ print_regex r2
   | Re_con (r1, r2) -> print_regex r1 ^ print_regex r2
-  | Re_quant (_, qid, q, r1) -> print_regex r1 ^ print_quant q ^ "\027[31m" ^ string_of_int qid ^ "\027[0m"
+  | Re_quant (_, qid, q, r1) -> print_regex r1 ^ print_counted_quant q ^ "\027[31m" ^ string_of_int qid ^ "\027[0m"
   | Re_capture (cid, r1) -> "(" ^ print_regex r1 ^ ")" ^ "\027[33m" ^ string_of_int cid ^ "\027[0m"
   | Re_lookaround (lid, l, r1) -> "(" ^ "\027[36m" ^ string_of_int lid ^ "\027[0m" ^ print_lookaround l ^ print_regex r1 ^ ")"
   | Re_anchor a -> print_anchor a
@@ -192,6 +225,7 @@ let rec print_regex (r:regex) : string =
 
 (* Adds annotation, identifiers for each capture group and lookaround *)
 (* Also returning the next fresh capture identifier and next fresh lookaround identifier *)
+(* Also canonicalizes every quantifier *)
 let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) (q:quantid) : regex * capture * lookid  * quantid =
   match ra with
   | Raw_empty -> (Re_empty, c, l, q)
@@ -206,6 +240,9 @@ let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) (q:quantid) : regex
      let (ar2, c2, l2, q2) = annotate_regex r2 c1 l1 q1 in
      (Re_con (ar1, ar2), c2, l2, q2)
   | Raw_quant (quant, r1) ->
+     let (ar1, c1, l1, q1) = annotate_regex r1 c l (q+1) in
+     (Re_quant (nullable ar1, q, quant_canonicalize quant, ar1), c1, l1, q1)
+  | Raw_count (quant, r1) ->
      let (ar1, c1, l1, q1) = annotate_regex r1 c l (q+1) in
      (Re_quant (nullable ar1, q, quant, ar1), c1, l1, q1)
   | Raw_capture r1 ->
@@ -225,7 +262,7 @@ let annotate (ra:raw_regex) : regex =
 
 (* Adds a .*? at the beginning of a regex so that it does not have to be matched at the beginning *)
 let lazy_prefix (r:regex) : regex =
-  Re_con (Re_quant (NonNullable, 0, LazyStar, Re_dot),r)
+  Re_con (Re_quant (NonNullable, 0,{min=0;max=None;greedy=false}, Re_dot), r)
 (* TODO: if there is a BeginInput at the beginning of the regex, we could remove the lazy star *)
 
 (** * Regex Manipulation  *)
@@ -263,8 +300,9 @@ let rec remove_capture (r:regex) : regex =
   | Re_quant (nul, qid, quant, r1) ->
      Re_quant (nul, qid, quant, remove_capture r1)
   (* TODO: we could have, instead of a quant identifier, an option *)
-  (* when it's None, it means we don't have to remember the last iteration *)
-  (* this would be useful in the first stage, or for the lazy star at the beginning *)
+  (* when it's None, it means we don't have to remember the last iteration in a memory *)
+  (* this would be useful in the first stage, or when the body has no capture group, *)
+  (* or for the lazy star at the beginning *)
   | Re_capture (cid, r1) -> remove_capture r1 (* removing the group entirely *)
   | Re_lookaround (lid, look, r1) -> Re_lookaround (lid, look, remove_capture r1)
 
@@ -293,7 +331,7 @@ let get_look (r:regex) (lid:lookid) : regex * lookaround =
   | _ -> failwith "Cannot find lookaround"
 
 (* extracting a quantifier body given its quantifier id *)
-let rec get_quantifier (r:regex) (qid:quantid) : (regex * quantifier) option =
+let rec get_quantifier (r:regex) (qid:quantid) : (regex * counted_quantifier) option =
   match r with
   | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> None
   | Re_alt (r1, r2) | Re_con (r1, r2) ->
@@ -307,7 +345,7 @@ let rec get_quantifier (r:regex) (qid:quantid) : (regex * quantifier) option =
      if (id = qid) then Some (r1, quant)
      else get_quantifier r1 qid
 
-let get_quant (r:regex) (qid:quantid) : regex * quantifier =
+let get_quant (r:regex) (qid:quantid) : regex * counted_quantifier =
   match (get_quantifier r qid) with
   | Some q -> q
   | _ -> failwith "Cannot find quantifier"
@@ -330,6 +368,7 @@ let rec max_group (r:regex) : capture =
 
 (* Returns the list of nullable plus quantifier identifiers *)
 (* ordered from lowest to highest *)
+(* we consider every counted repetition that ends in a nullable greedy plus (min>0,max=None,greedy) *)
 let rec nullable_plus_quantid' (r:regex) (lq:quantid list) : quantid list =
   match r with
   | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> lq
@@ -337,9 +376,10 @@ let rec nullable_plus_quantid' (r:regex) (lq:quantid list) : quantid list =
      nullable_plus_quantid' r2 (nullable_plus_quantid' r1 lq)
   | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> nullable_plus_quantid' r1 lq
   | Re_quant(nul,qid,quant,r1) ->
-     begin match (quant,nul) with
-     | (Plus,CDNullable) | (Plus,CINullable) ->
-        nullable_plus_quantid' r1 (qid::lq)
+     begin match nul with
+     | CDNullable | CINullable ->
+        if (quant.min > 0 && quant.max = None && quant.greedy) then nullable_plus_quantid' r1 (qid::lq)
+        else nullable_plus_quantid' r1 lq
      | _ -> nullable_plus_quantid' r1 lq
      end
 
@@ -348,17 +388,17 @@ let nullable_plus_quantid (r:regex) : quantid list =
 
 (* returns the list of all CDN plus *)
 (* ordered from highest to lowest *)
+(* we consider every counted repetition that ends in a nullable greedy plus (min>0,max=None,greedy) *)
 let rec cdn_plus_list' (r:regex) (lq:quantid list) : quantid list =
-  match r with
-  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> lq
-  | Re_alt (r1, r2) | Re_con (r1, r2) ->
-     cdn_plus_list' r2 (cdn_plus_list' r1 lq)
-  | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> cdn_plus_list' r1 lq
-  | Re_quant (nul,qid,quant,r1) ->
-     begin match (quant,nul) with
-     | (Plus,CDNullable) -> cdn_plus_list' r1 (qid::lq)
-     | _ -> cdn_plus_list' r1 lq
-     end
+match r with
+| Re_empty | Re_char _ | Re_dot | Re_anchor _ -> lq
+| Re_alt (r1, r2) | Re_con (r1, r2) ->
+   cdn_plus_list' r2 (cdn_plus_list' r1 lq)
+| Re_lookaround (_,_,r1) | Re_capture (_, r1) -> cdn_plus_list' r1 lq
+| Re_quant (nul,qid,quant,r1) ->
+   if (nul = CDNullable && quant.min > 0 && quant.max = None && quant.greedy)
+   then cdn_plus_list' r1 (qid::lq)
+   else cdn_plus_list' r1 lq
 
 let cdn_plus_list (r:regex) : quantid list =
   cdn_plus_list' r []
@@ -372,6 +412,16 @@ let report_quant (q:quantifier) : string =
   | LazyStar -> "LazyStar"
   | Plus -> "Plus"
   | LazyPlus -> "LazyPlus"
+  | QuestionMark -> "QuestionMark"
+  | LazyQuestionMark -> "LazyQuestionMark"
+
+let report_counted_quant (q:counted_quantifier) : string =
+  let min = string_of_int q.min in
+  let max = begin match q.max with
+            | None -> "None"
+            | Some x -> "Some "^string_of_int x end in
+  let greedy = string_of_bool q.greedy in
+  "{min="^min^";max="^max^";greedy="^greedy^"}"
 
 let report_look (l:lookaround) : string =
   match l with
@@ -395,6 +445,7 @@ let rec report_raw (raw:raw_regex) : string =
   | Raw_alt (r1,r2) -> "Raw_alt("^report_raw r1^","^report_raw r2^")"
   | Raw_con (r1,r2) -> "Raw_con("^report_raw r1^","^report_raw r2^")"
   | Raw_quant (q,r1) -> "Raw_quant("^report_quant q^","^report_raw r1^")"
+  | Raw_count (q,r1) -> "Raw_counted_quant("^report_counted_quant q^","^report_raw r1^")"
   | Raw_capture r1 -> "Raw_capture("^report_raw r1^")"
   | Raw_lookaround (l,r1) -> "Raw_lookaround("^report_look l^","^report_raw r1^")"
   | Raw_anchor a -> "Raw_anchor("^report_anchor a^")"
@@ -417,17 +468,15 @@ let rec plus_stats (r:regex) : int * int * int * int * int =
      plus_stats r1
   | Re_quant(nul,_,quant,r1) ->
      let (nn1,cdn1,cin1,lnn1,ln1) = plus_stats r1 in
-     match quant with
-     | Star | LazyStar -> (nn1,cdn1,cin1,lnn1,ln1)
-     | Plus ->
-        begin match nul with
-        | NonNullable -> (nn1+1,cdn1,cin1,lnn1,ln1)
-        | CDNullable -> (nn1,cdn1+1,cin1,lnn1,ln1)
-        | CINullable -> (nn1,cdn1,cin1+1,lnn1,ln1)
-        end
-     | LazyPlus ->
-        begin match nul with
-        | NonNullable -> (nn1,cdn1,cin1,lnn1+1,ln1)
-        | CDNullable | CINullable -> (nn1,cdn1,cin1,lnn1,ln1+1)
-        end
-
+     if (quant.min > 0 && quant.max = None && quant.greedy && nul = NonNullable)
+     then (nn1+1,cdn1,cin1,lnn1,ln1)
+     else if (quant.min > 0 && quant.max = None && quant.greedy && nul = CDNullable)
+     then (nn1,cdn1+1,cin1,lnn1,ln1)
+     else if (quant.min > 0 && quant.max = None && quant.greedy && nul = CINullable)
+     then (nn1,cdn1,cin1+1,lnn1,ln1)
+     else if (quant.min > 0 && quant.max = None && not quant.greedy && nul = NonNullable)
+     then (nn1,cdn1,cin1,lnn1+1,ln1)
+     else if (quant.min > 0 && quant.max = None && not quant.greedy && (nul = CDNullable || nul = CINullable))
+     then (nn1,cdn1,cin1,lnn1,ln1+1)
+     else (nn1,cdn1,cin1,lnn1,ln1) (* not a plus *)
+     
