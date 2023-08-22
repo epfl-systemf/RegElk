@@ -24,6 +24,7 @@ let rec print_re2 (ra:raw_regex) : string =
   | Raw_alt (r1, r2) -> noncap(print_re2 r1) ^ "|" ^ noncap(print_re2 r2)
   | Raw_con (r1, r2) -> noncap(print_re2 r1) ^ noncap(print_re2 r2)
   | Raw_quant (q, r1) -> noncap(print_re2 r1) ^ print_quant q
+  | Raw_count (q, r1) -> noncap(print_re2 r1) ^ print_counted_quant q
   | Raw_capture r1 -> "(" ^ print_re2 r1 ^ ")"
   | Raw_lookaround (l, r1) -> failwith "RE2 does not support lookarounds"
   | Raw_anchor a -> print_anchor a (* RE2 has the same syntax if we don't activate the multiline or unicode flags *)

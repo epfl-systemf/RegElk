@@ -22,6 +22,7 @@ let rec print_js (ra:raw_regex) : string =
   | Raw_alt (r1, r2) -> noncap(print_js r1) ^ "|" ^ noncap(print_js r2)
   | Raw_con (r1, r2) -> noncap(print_js r1) ^ noncap(print_js r2)
   | Raw_quant (q, r1) -> noncap(print_js r1) ^ print_quant q
+  | Raw_count (q, r1) -> noncap(print_js r1) ^ print_counted_quant q
   | Raw_capture r1 -> "(" ^ print_js r1 ^ ")"
   | Raw_lookaround (l, r1) -> "(" ^ print_lookaround l ^ print_js r1 ^ ")"
   | Raw_anchor a -> print_anchor a
