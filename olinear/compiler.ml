@@ -156,9 +156,9 @@ and repeat_optional (nb:int) (qid:quantid) (r:regex) (fresh:label) (ctype:comp_t
   else
     let (body_code, new_fresh) = compile r (fresh+3) ctype in
     let (next_code, next_fresh) = repeat_optional (nb-1) qid r (new_fresh+1) ctype greedy in
-    let fork = if greedy then Fork(fresh+1,next_fresh+1)
-               else Fork(next_fresh+1,fresh+1) in
-    (Leaf [fork; SetQuantToClock (qid,false); BeginLoop] @@ body_code @@ Leaf [EndLoop] @@ next_code,next_fresh+1)
+    let fork = if greedy then Fork(fresh+1,next_fresh)
+               else Fork(next_fresh,fresh+1) in
+    (Leaf [fork; SetQuantToClock (qid,false); BeginLoop] @@ body_code @@ Leaf [EndLoop] @@ next_code,next_fresh)
   
     
                  

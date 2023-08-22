@@ -50,7 +50,7 @@ let compiler_tests () =
   let re = annotate raw in
   let code = compile_to_bytecode re in
   Printf.printf "%s\n" (print_code code);
-  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,5); SetQuantToClock (1,false); Consume 'a'; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
+  assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,7); SetQuantToClock (1,false); BeginLoop; Consume 'a'; EndLoop; Jmp 1; Consume 'b'; SetRegisterToCP 1; Accept])
 
 let interpreter_tests () =
   let o = create_oracle 1 1 in
@@ -202,7 +202,7 @@ let anchor_mismatch: (raw_regex*string) list =
    (Raw_alt(Raw_char('c'),Raw_lookaround(Lookbehind,Raw_con(Raw_anchor(BeginInput),Raw_lookaround(NegLookbehind,Raw_capture(Raw_anchor(WordBoundary))))))," c  cc bcac c  a a  a  ababab  acbca  cbcb b cccccc cc  a  b  bcbaaaaaaa baaa");
    (Raw_con(Raw_lookaround(NegLookahead,Raw_capture(Raw_capture(Raw_anchor(NonWordBoundary)))),Raw_dot)," cc cccc aabaaaa ba abcaabcbbb cacccc  bccbcb cababbabccac ")]
 
-(* failure index out of bounds *)
+(* fixed, by making sure the forks in [repeat_optional] point to the correct next instruction *)
 let counted_oob: (raw_regex*string) list =
   [(Raw_alt(Raw_capture(Raw_alt(Raw_anchor(WordBoundary),Raw_capture(Raw_char('b')))),Raw_count({min=5;max=Some 9;greedy=true},Raw_char('a'))),"ab--bbaabab-aab-b-a-aa-b-baa-bab-ba-ab-a--b-ba-a-ab-b--abbbbb-aabbbbba-b-aa---aa-");
    (Raw_alt(Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_dot)),Raw_capture(Raw_count({min=8;max=Some 12;greedy=true},Raw_lookaround(Lookbehind,Raw_empty)))),"ab-a-aa-a-bb-baaba-a-aabbabaabb-b-aaabaa-ba-");
@@ -256,6 +256,7 @@ let tests () =
   replay_bugs(anchor_context);
   replay_bugs(anchor_cdn);
   replay_bugs(anchor_mismatch);
+  replay_bugs(counted_oob);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
@@ -271,11 +272,13 @@ let paper_example () =
   
   
 let main =
-  (* let bug = (Raw_con(Raw_capture(Raw_con(Raw_anchor(WordBoundary),Raw_anchor(WordBoundary))),Raw_dot),"  cab bccbaac baabab bcbbaca cabca  c") in
+  (* let bug = (Raw_count({min=1;max=Some 3;greedy=false},Raw_dot),"ab") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
-  (* tests() *)
 
+    
+  (* tests() *)
   fuzzer()
+    
   (* run_benchmark(many_forks); *)
   (* many_forks_rust_benchmark() *)
 
