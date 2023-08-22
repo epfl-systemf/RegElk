@@ -201,6 +201,14 @@ let anchor_mismatch: (raw_regex*string) list =
    (Raw_alt(Raw_alt(Raw_alt(Raw_capture(Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_con(Raw_dot,Raw_capture(Raw_capture(Raw_dot)))))),Raw_char('a')),Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_anchor(WordBoundary)),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)))))),Raw_con(Raw_capture(Raw_empty),Raw_anchor(BeginInput)))," a  b bbc ");
    (Raw_alt(Raw_char('c'),Raw_lookaround(Lookbehind,Raw_con(Raw_anchor(BeginInput),Raw_lookaround(NegLookbehind,Raw_capture(Raw_anchor(WordBoundary))))))," c  cc bcac c  a a  a  ababab  acbca  cbcb b cccccc cc  a  b  bcbaaaaaaa baaa");
    (Raw_con(Raw_lookaround(NegLookahead,Raw_capture(Raw_capture(Raw_anchor(NonWordBoundary)))),Raw_dot)," cc cccc aabaaaa ba abcaabcbbb cacccc  bccbcb cababbabccac ")]
+
+(* failure index out of bounds *)
+let counted_oob: (raw_regex*string) list =
+  [(Raw_alt(Raw_capture(Raw_alt(Raw_anchor(WordBoundary),Raw_capture(Raw_char('b')))),Raw_count({min=5;max=Some 9;greedy=true},Raw_char('a'))),"ab--bbaabab-aab-b-a-aa-b-baa-bab-ba-ab-a--b-ba-a-ab-b--abbbbb-aabbbbba-b-aa---aa-");
+   (Raw_alt(Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_dot)),Raw_capture(Raw_count({min=8;max=Some 12;greedy=true},Raw_lookaround(Lookbehind,Raw_empty)))),"ab-a-aa-a-bb-baaba-a-aabbabaabb-b-aaabaa-ba-");
+   (Raw_count({min=3;max=Some 12;greedy=true},Raw_lookaround(Lookbehind,Raw_alt(Raw_quant(LazyPlus,Raw_dot),Raw_alt(Raw_count({min=4;max=None;greedy=true},Raw_anchor(BeginInput)),Raw_con(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_count({min=8;max=None;greedy=true},Raw_con(Raw_capture(Raw_char('a')),Raw_alt(Raw_capture(Raw_count({min=5;max=Some 5;greedy=false},Raw_quant(Plus,Raw_alt(Raw_anchor(WordBoundary),Raw_lookaround(NegLookahead,Raw_lookaround(NegLookahead,Raw_empty)))))),Raw_capture(Raw_empty)))),Raw_empty),Raw_char('-'))),Raw_anchor(WordBoundary)))))),"a");
+   (Raw_lookaround(Lookahead,Raw_alt(Raw_count({min=1;max=Some 3;greedy=true},Raw_dot),Raw_empty)),"a-abb-bbbb----bbaa--aabb-abaab---b-bab-b--ba--a--bb-babb-b");
+   (Raw_count({min=4;max=Some 8;greedy=false},Raw_dot),"abbb--a-ab-aa--ba--bb-aaa")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =

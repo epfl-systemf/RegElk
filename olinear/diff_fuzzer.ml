@@ -20,6 +20,8 @@ let max_string = 100
 
 let max_tests = 1000
 
+let max_counted = 10
+
 (** * Creating Random Regexes  *)
    
 let random_char () : char =
@@ -27,12 +29,21 @@ let random_char () : char =
   List.nth alphabet idx
 
 let random_quant () : quantifier =
-  match (Random.int 4) with
+  match (Random.int 6) with
   | 0 -> Star
   | 1 -> LazyStar
   | 2 -> Plus
   | 3 -> LazyPlus
+  | 4 -> QuestionMark
+  | 5 -> LazyQuestionMark
   | _ -> failwith "random range error"
+       
+let random_counted_quant () : counted_quantifier =
+  let min = Random.int max_counted in
+  let greedy = Random.bool () in
+  let max = if Random.bool() then None else Some (min + Random.int max_counted) in
+  { min=min; max=max; greedy=greedy }
+          
 
 let random_look () : lookaround =
   match (Random.int 4) with
@@ -53,7 +64,7 @@ let random_anchor () : anchor =
 (* with a maximal number of recursion [depth] *)
 (* the [look] boolean specifies if lookarounds are allowed *)
 let rec random_regex (depth:int) (look:bool): raw_regex =
-  let max = if look then 11 else 9 in
+  let max = if look then 12 else 10 in
   let rand = if (depth=0) then Random.int 3 else Random.int max in
   match rand with
   | 0 -> Raw_empty
@@ -72,10 +83,14 @@ let rec random_regex (depth:int) (look:bool): raw_regex =
      let r1 = random_regex (depth-1) look in
      let q = random_quant() in
      Raw_quant(q, r1)
-  | 7 | 8 ->
+  | 7 ->
+     let r1 = random_regex (depth-1) look in
+     let q = random_counted_quant() in
+     Raw_count(q, r1)
+  | 8 | 9 ->
      let r1 = random_regex (depth-1) look in
      Raw_capture(r1)
-  | 9 | 10 ->
+  | 10 | 11 ->
      let r1 = random_regex (depth-1) look in
      let l = random_look() in
      Raw_lookaround(l, r1)

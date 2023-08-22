@@ -445,7 +445,7 @@ let rec report_raw (raw:raw_regex) : string =
   | Raw_alt (r1,r2) -> "Raw_alt("^report_raw r1^","^report_raw r2^")"
   | Raw_con (r1,r2) -> "Raw_con("^report_raw r1^","^report_raw r2^")"
   | Raw_quant (q,r1) -> "Raw_quant("^report_quant q^","^report_raw r1^")"
-  | Raw_count (q,r1) -> "Raw_counted_quant("^report_counted_quant q^","^report_raw r1^")"
+  | Raw_count (q,r1) -> "Raw_count("^report_counted_quant q^","^report_raw r1^")"
   | Raw_capture r1 -> "Raw_capture("^report_raw r1^")"
   | Raw_lookaround (l,r1) -> "Raw_lookaround("^report_look l^","^report_raw r1^")"
   | Raw_anchor a -> "Raw_anchor("^report_anchor a^")"
