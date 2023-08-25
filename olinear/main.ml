@@ -15,9 +15,9 @@ open Tests
 
   
 let main =
-  (* let bug = (Raw_count({min=1;max=Some 3;greedy=false},Raw_dot),"ab") in
+  (* let bug = (Raw_dot,"ab") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
-
+  
     
   (* tests() *)
   fuzzer()

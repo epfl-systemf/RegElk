@@ -49,11 +49,12 @@ let capture_type (l:lookaround) : bool =
   | Lookahead | Lookbehind -> true
   | NegLookahead | NegLookbehind -> false
                                 
-  
-let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracle): cap_regs option =
+
+(* returns the register array if there is a match *)
+let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracle): (int Array.t) option =
   let max = max_lookaround r in
   let mem = init_mem() in
-  let regs = init_regs() in
+  let regs = Interpreter.Regs.init_regs(max+1) in
   let capclk = init_regs() in
   let lookclk = init_mem() in
   let quants = init_quant_clocks() in
@@ -65,7 +66,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
   | None -> None
   | Some thread ->              (* we have a match and want to rebuild capture groups *)
      let mem = ref thread.mem in
-     let regs = ref thread.regs in
+     let regs = thread.regs in
      let capclk = ref thread.cap_clk in
      let lookclk = ref thread.look_clk in
      let quants = ref thread.quants in
@@ -79,22 +80,21 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
             let bytecode = compile_to_bytecode lookreg in
             let direction = capture_direction looktype in
             let lookcdn = compile_cdns lookreg in
-            let result = interp ~verbose ~debug lookreg bytecode str o direction cp !regs !capclk !mem !lookclk !quants 0 lookcdn in
+            let result = interp ~verbose ~debug lookreg bytecode str o direction cp regs !capclk !mem !lookclk !quants 0 lookcdn in
             begin match result with
             | None -> failwith "result expected from the oracle"
             | Some t ->
                mem := t.mem;    (* updating the lookaround memory *)
-               regs := t.regs;   (* updating the capture regs *)
                capclk := t.cap_clk; (* updating the capture clocks *)
                lookclk := t.look_clk; (* updating the lookaround clocks *)
                quants := t.quants (* updating the quantifier registers *)
             end
      done;
-     filter_capture r regs !capclk !lookclk !quants (-1); (* filtering old values *)
-     Some (!regs)
+     let match_capture = filter_reset r regs !capclk !lookclk !quants (-1) in (* filtering old values *)
+     Some (match_capture)
      
   
-let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : cap_regs option =
+let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : (int Array.t) option =
   let re = annotate raw in
   let o = build_oracle ~verbose ~debug re str in
   if debug then
