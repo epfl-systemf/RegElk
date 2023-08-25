@@ -58,7 +58,17 @@ let cp_offset (dir:direction) : int =
 
 
 (** * Capture Registers  *)
-   
+
+(* just printing the contents of an Array for debugging purposes *)
+let debug_regs (regs:int Array.t) : string =
+      let s = ref "" in
+      for c = 0 to (Array.length regs)-1 do
+        s := !s ^ string_of_int c ^ ": " ^ string_of_int (regs.(c)) ^ " | "
+      done;
+      !s
+
+
+              
 (* each thread stores capture registers for the capture groups it has matched so far *)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
@@ -312,7 +322,7 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | Fork (x,y) ->           (* x has higher priority *)
           t.pc <- y;
-          s.active <- {pc = x; regs = t.regs; cap_clk = t.cap_clk; mem = t.mem; look_clk = t.look_clk; quants = t.quants; exit_allowed = t.exit_allowed}::s.active;
+          s.active <- {pc = x; regs = Regs.copy t.regs; cap_clk = t.cap_clk; mem = t.mem; look_clk = t.look_clk; quants = t.quants; exit_allowed = t.exit_allowed}::s.active;
           advance_epsilon ~debug c s o
        | SetRegisterToCP r ->
           t.regs <- Regs.set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
@@ -461,7 +471,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
   (* let lq = nullable_plus_quantid r in (\* all the nullable + in order *\) *)
   let mem = ref thread.mem in
-  let regs = ref thread.regs in
+  let regs = thread.regs in
   let capclk = ref thread.cap_clk in
   let lookclk = ref thread.look_clk in
   let quants = ref thread.quants in
@@ -483,12 +493,11 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
           let start_clock = get_quant_clock !quants qid in
           let bytecode = compile_reconstruct_nulled body in
           let ctx = cp_context start_cp s dir in 
-          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock ctx) o in
+          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp regs !capclk !mem !lookclk !quants start_clock ctx) o in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
              mem := w.mem;    (* updating the lookaround memory *)
-             regs := w.regs;   (* updating the capture regs *)
              capclk := w.cap_clk; (* updating the capture clocks *)
              lookclk := w.look_clk; (* updating the lookaround clocks *)
              quants := w.quants (* updating the quantifier registers *)
@@ -496,7 +505,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
        end
   in
   nulled_plus r;
-  {pc = thread.pc; regs = !regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
+  {pc = thread.pc; regs = regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
   
  
 (** * Running the interpreter and returning its result  *)
@@ -595,7 +604,7 @@ let filter_reset (r:regex) (regs:Regs.regs) (cclocks: cap_clocks) (lclocks:look_
 let get_op (c:int Array.t) (reg:int) : int option =
   let value = c.(reg) in
   if (value < 0) then None else Some value
-  
+
   
 (* extracting a capture group slice given its registers *)
 let print_slice (str:string) (startreg:int option) (endreg:int option) : string =

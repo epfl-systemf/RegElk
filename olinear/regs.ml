@@ -14,6 +14,7 @@ module type REGS =
     val get_reg: regs -> int -> int option
     val copy: regs -> regs
     val to_array: regs -> int Array.t
+    val to_string: regs -> string (* for debugging purposes *)
   end
 
    
@@ -24,7 +25,7 @@ module Array_Regs =
     type regs = int Array.t
 
     let init_regs (size:int) : regs =
-      Array.make (size+1) (-1)
+      Array.make ((2*size)+2) (-1)
 
     let set_reg (regs:regs) (k:int) (v:int) : regs =
       regs.(k) <- v;
@@ -43,6 +44,13 @@ module Array_Regs =
 
     let to_array (regs:regs) : int Array.t =
       regs
+
+    let to_string (regs:regs) : string =
+      let s = ref "" in
+      for c = 0 to (Array.length regs)-1 do
+        s := !s ^ string_of_int c ^ ": " ^ string_of_int (regs.(c)) ^ " | "
+      done;
+      !s
   end
 
 module List_Regs =
@@ -69,7 +77,7 @@ module List_Regs =
       regs
 
     let to_array (regs:regs) : int Array.t =
-      let a = Array.make ((snd regs) + 1) (-1) in
+      let a = Array.make (2*(snd regs) + 2) (-1) in
       let rec fill_array (l:(int*int) list) : unit =
         match l with
         | [] -> ()
@@ -79,4 +87,10 @@ module List_Regs =
            fill_array l' in
       fill_array (fst regs);
       a
+
+    let rec to_string (regs:regs) : string =
+      match (fst regs) with
+      | [] -> ""
+      | (k,v)::l' ->
+         "(" ^ string_of_int k ^ "," ^ string_of_int v ^ ")::" ^ to_string (l', snd regs)
   end

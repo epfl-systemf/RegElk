@@ -52,9 +52,10 @@ let capture_type (l:lookaround) : bool =
 
 (* returns the register array if there is a match *)
 let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracle): (int Array.t) option =
-  let max = max_lookaround r in
+  let max_look = max_lookaround r in
+  let max_cap = max_group r in
   let mem = init_mem() in
-  let regs = Interpreter.Regs.init_regs(max+1) in
+  let regs = Interpreter.Regs.init_regs(max_cap+1) in
   let capclk = init_regs() in
   let lookclk = init_mem() in
   let quants = init_quant_clocks() in
@@ -70,7 +71,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
      let capclk = ref thread.cap_clk in
      let lookclk = ref thread.look_clk in
      let quants = ref thread.quants in
-     for lid=1 to max do
+     for lid=1 to max_look do
        match (get_mem !mem lid) with
        | None -> ()             (* the lookaround wasn't needed in the match *)
        | Some cp ->             (* the lookaround had a match at cp *)
@@ -90,7 +91,9 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
                quants := t.quants (* updating the quantifier registers *)
             end
      done;
+     if debug then Printf.printf "regs: %s\n%!" (Interpreter.Regs.to_string regs);
      let match_capture = filter_reset r regs !capclk !lookclk !quants (-1) in (* filtering old values *)
+     if debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
      Some (match_capture)
      
   

@@ -15,12 +15,12 @@ open Tests
 
   
 let main =
-  (* let bug = (Raw_dot,"ab") in
+  (* let bug = ((Raw_quant (Star, Raw_alt (Raw_capture(Raw_char 'a'), Raw_capture(Raw_char 'b')))), "ababab") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug)) *)
   
     
-  (* tests() *)
-  fuzzer()
+  tests()
+  (* fuzzer() *)
     
   (* run_benchmark(many_forks); *)
   (* many_forks_rust_benchmark() *)
