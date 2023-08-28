@@ -72,7 +72,7 @@ let debug_regs (regs:int Array.t) : string =
 (* each thread stores capture registers for the capture groups it has matched so far *)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
-module Regs = (List_Regs : REGS)
+module Regs = (Map_Regs : REGS)
               
 type cap_regs = int IntMap.t
 

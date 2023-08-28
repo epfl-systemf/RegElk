@@ -2,6 +2,10 @@
 
 
 open Array
+open Map
+
+
+module IntMap = Map.Make(struct type t = int let compare = compare end)
 
 
 module type REGS =
@@ -94,3 +98,48 @@ module List_Regs =
       | (k,v)::l' ->
          "(" ^ string_of_int k ^ "," ^ string_of_int v ^ ")::" ^ to_string (l', snd regs)
   end
+
+
+module Map_Regs =
+  struct
+    type regs = (int IntMap.t * int) (* we also remember the size (nb of registers) *)
+
+    let init_regs (size:int) : regs =
+      (IntMap.empty, size)
+
+    let set_reg (regs:regs) (k:int) (v:int) : regs =
+      (IntMap.add k v (fst regs), snd regs)
+
+    let clear_reg (regs:regs) (k:int) : regs =
+      (IntMap.remove k (fst regs), snd regs)
+
+    let get_reg (regs:regs) (k:int) : int option =
+      IntMap.find_opt k (fst regs)
+
+    let copy (regs:regs) : regs =
+      regs
+
+    let to_array (regs:regs) : int Array.t =
+      let a = Array.make (2*(snd regs) + 2) (-1) in
+      for i = 0 to (Array.length a)-1 do
+        match get_reg regs i with
+        | Some v -> a.(i) <- v
+        | None -> ()
+      done;
+      a
+
+    let string_of_opt (i:int option) : string =
+      match i with
+      | None -> "-1"
+      | Some v -> string_of_int v
+      
+    let to_string (regs:regs) : string =
+      let s = ref "" in
+      for c = 0 to (2*(snd regs) + 1) do
+        s := !s ^ string_of_int c ^ ": " ^ string_of_opt (get_reg regs c) ^ " | "
+      done;
+      !s
+
+  end
+        
+           
