@@ -72,7 +72,7 @@ let debug_regs (regs:int Array.t) : string =
 (* each thread stores capture registers for the capture groups it has matched so far *)
 module IntMap = Map.Make(struct type t = int let compare = compare end)
 
-module Regs = (Array_Regs : REGS)
+module Regs = (List_Regs : REGS)
               
 type cap_regs = int IntMap.t
 
@@ -281,7 +281,7 @@ let print_cp (cp:int) : string =
 let print_match (b:thread option) =
   match b with
   | None -> "None\n"
-  | Some t -> print_thread t
+  | Some t -> print_thread t ^ "\n" ^ Regs.to_string t.regs
 
 let print_bestmatch (b:thread option) =
   "  BEST: " ^ print_match b ^ "\n"
@@ -471,7 +471,7 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
   (* let lq = nullable_plus_quantid r in (\* all the nullable + in order *\) *)
   let mem = ref thread.mem in
-  let regs = thread.regs in
+  let regs = ref thread.regs in
   let capclk = ref thread.cap_clk in
   let lookclk = ref thread.look_clk in
   let quants = ref thread.quants in
@@ -493,11 +493,12 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
           let start_clock = get_quant_clock !quants qid in
           let bytecode = compile_reconstruct_nulled body in
           let ctx = cp_context start_cp s dir in 
-          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp regs !capclk !mem !lookclk !quants start_clock ctx) o in
+          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock ctx) o in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
              mem := w.mem;    (* updating the lookaround memory *)
+             regs := w.regs;  (* updating registers *)
              capclk := w.cap_clk; (* updating the capture clocks *)
              lookclk := w.look_clk; (* updating the lookaround clocks *)
              quants := w.quants (* updating the quantifier registers *)
@@ -505,7 +506,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
        end
   in
   nulled_plus r;
-  {pc = thread.pc; regs = regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
+  {pc = thread.pc; regs = !regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
   
  
 (** * Running the interpreter and returning its result  *)

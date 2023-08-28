@@ -67,7 +67,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
   | None -> None
   | Some thread ->              (* we have a match and want to rebuild capture groups *)
      let mem = ref thread.mem in
-     let regs = thread.regs in
+     let regs = ref thread.regs in
      let capclk = ref thread.cap_clk in
      let lookclk = ref thread.look_clk in
      let quants = ref thread.quants in
@@ -81,18 +81,19 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
             let bytecode = compile_to_bytecode lookreg in
             let direction = capture_direction looktype in
             let lookcdn = compile_cdns lookreg in
-            let result = interp ~verbose ~debug lookreg bytecode str o direction cp regs !capclk !mem !lookclk !quants 0 lookcdn in
+            let result = interp ~verbose ~debug lookreg bytecode str o direction cp !regs !capclk !mem !lookclk !quants 0 lookcdn in
             begin match result with
             | None -> failwith "result expected from the oracle"
             | Some t ->
                mem := t.mem;    (* updating the lookaround memory *)
+               regs := t.regs;  (* updating registers *)
                capclk := t.cap_clk; (* updating the capture clocks *)
                lookclk := t.look_clk; (* updating the lookaround clocks *)
                quants := t.quants (* updating the quantifier registers *)
             end
      done;
-     if debug then Printf.printf "regs: %s\n%!" (Interpreter.Regs.to_string regs);
-     let match_capture = filter_reset r regs !capclk !lookclk !quants (-1) in (* filtering old values *)
+     if debug then Printf.printf "regs: %s\n%!" (Interpreter.Regs.to_string !regs);
+     let match_capture = filter_reset r !regs !capclk !lookclk !quants (-1) in (* filtering old values *)
      if debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
      Some (match_capture)
      
