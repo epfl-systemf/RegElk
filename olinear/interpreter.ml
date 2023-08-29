@@ -68,7 +68,7 @@ let debug_regs (regs:int Array.t) : string =
       !s
               
 (* each thread stores capture registers for the capture groups it has matched so far *)
-module Regs = (Map_Regs : REGS)
+module Regs = (List_Regs : REGS)
               
 
 (** * String Manipulation *)
@@ -408,12 +408,9 @@ let rec interpreter ?(debug=false) (c:code) (str:string) (s:interpreter_state) (
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
 let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
-  (* let lq = nullable_plus_quantid r in (\* all the nullable + in order *\) *)
-  let mem = ref thread.mem in
-  let regs = ref thread.regs in
-  let capclk = ref thread.cap_clk in
-  let lookclk = ref thread.look_clk in
-  let quants = ref thread.quants in
+  let capture = ref thread.capture_regs in
+  let look = ref thread.look_regs in
+  let quant = ref thread.quant_regs in
   (* goes through the regex, if it encounters a nulled +, it calls the null interpreter *)
   let rec nulled_plus (reg:regex) : unit =
     match reg with
@@ -421,43 +418,42 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
     | Re_alt (r1, r2) | Re_con (r1, r2) ->
        nulled_plus r1; nulled_plus r2
     | Re_capture (_,r1) -> nulled_plus r1
-    | Re_lookaround (lid,lk,r1) -> () (* todo: check if it's ok *)
-    | Re_anchor _ -> ()               (* same. we shouldn't have to re-check anything *)
+    | Re_lookaround (lid,lk,r1) -> () 
+    | Re_anchor _ -> ()
     (* from shallowest to deepest plus: *)
     | Re_quant (nul,qid,quanttype,body) ->
-       begin match (get_quant_nulled !quants qid) with
+       begin match (Regs.get_cp !quant qid) with
        | None -> nulled_plus body (* recursive call: the inner + may have been nulled *)
        | Some start_cp ->
           (* with no recursive calls: inner + will be reconstructed automatically *)
-          let start_clock = get_quant_clock !quants qid in
+          let start_clock = int_of_opt (Regs.get_clock !quant qid) in
           let bytecode = compile_reconstruct_nulled body in
           let ctx = cp_context start_cp s dir in 
-          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !regs !capclk !mem !lookclk !quants start_clock ctx) o in
+          let result = null_interp ~debug ~verbose bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
-             mem := w.mem;    (* updating the lookaround memory *)
-             regs := w.regs;  (* updating registers *)
-             capclk := w.cap_clk; (* updating the capture clocks *)
-             lookclk := w.look_clk; (* updating the lookaround clocks *)
-             quants := w.quants (* updating the quantifier registers *)
+             (* updating all registers *)
+             capture := w.capture_regs;
+             look := w.look_regs;
+             quant := w.quant_regs;
           end
        end
   in
   nulled_plus r;
-  {pc = thread.pc; regs = !regs; cap_clk = !capclk; mem = !mem; look_clk = !lookclk; quants = !quants; exit_allowed = thread.exit_allowed}
+  {pc = thread.pc; capture_regs = !capture; look_regs = !look; quant_regs = !quant; exit_allowed = thread.exit_allowed}
   
  
 (** * Running the interpreter and returning its result  *)
   
 (* running the interpreter on some code, with a particular initial interpreter state *)
 (* also reconstructs the + groups *)
-let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (start_regs:Regs.regs) (start_cclock:cap_clocks) (start_mem:look_mem) (start_lclock:look_clocks) (start_quant:quant_clocks) (start_clock:int) (cdn:cdns): thread option =
+let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (start_clock:int) (cdn:cdns): thread option =
   if verbose then Printf.printf "%s - %s\n" ("\n\027[36mInterpreter:\027[0m "^s) (print_direction dir);
   if verbose then Printf.printf "%s\n" (print_code c);
   if verbose then Printf.printf "%s\n" (print_cdns cdn);
   if verbose then Printf.printf "%s\n" (print_context (cp_context start_cp s dir));
-  let result = interpreter ~debug c s (init_state c start_cp start_regs start_cclock start_mem start_lclock start_quant start_clock (cp_context start_cp s dir)) o dir cdn in
+  let result = interpreter ~debug c s (init_state c start_cp capture look quant start_clock (cp_context start_cp s dir)) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 
     match result with
@@ -471,7 +467,12 @@ let interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:ora
 (* running the interpreter using the default initial state *)
 let interp_default_init ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (cdn:cdns): thread option =
   let maxcap = max_group r in
-  interp ~verbose ~debug r c s o dir (init_cp dir (String.length s)) (Regs.init_regs(maxcap+1)) (init_regs()) (init_mem()) (init_mem()) (init_quant_clocks()) 0 cdn
+  let maxlook = max_lookaround r in
+  let maxquant = max_quant r in
+  let capture = Regs.init_regs (2*maxcap+2) in
+  let look = Regs.init_regs (maxlook+1) in
+  let quant = Regs.init_regs (maxquant+1) in
+  interp ~verbose ~debug r c s o dir (init_cp dir (String.length s)) capture look quant 0 cdn
 
 (* for tests, sometimes we only want to know if there is a match *)
 let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (cdn:cdns): bool =
@@ -486,39 +487,39 @@ let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string
 (* We use the quantifier registers to filter out those that are too old *)
 
 (* modifies regs in-place *)
-let rec filter_capture (r:regex) (regs:int Array.t) (cclocks: cap_clocks) (lclocks:look_clocks) (qclocks:quant_clocks) (maxclock:int) : unit =
+let rec filter_capture (r:regex) (cap_regs:int Array.t) (cap_clocks: int Array.t) (look_clocks:int Array.t) (quant_clocks:int Array.t) (maxclock:int) : unit =
   match r with
   | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> ()
-  | Re_alt (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
-  | Re_con (r1,r2) -> filter_capture r1 regs cclocks lclocks qclocks maxclock; filter_capture r2 regs cclocks lclocks qclocks maxclock
+  | Re_alt (r1,r2) -> filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks maxclock;
+                      filter_capture r2 cap_regs cap_clocks look_clocks quant_clocks maxclock
+  | Re_con (r1,r2) -> filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks maxclock;
+                      filter_capture r2 cap_regs cap_clocks look_clocks quant_clocks maxclock
   | Re_quant (nul, qid, quant, r1) ->
-     let quant_val = get_quant_clock qclocks qid in (* the last time we went in *)
+     let quant_val = quant_clocks.(qid) in (* the last time we went in *)
      if (quant_val < maxclock) then
        (* the last repetition of the inner quantifier happened before the last repetition of the outer one *)
-       filter_all r1 regs
+       filter_all r1 cap_regs
      else
-       filter_capture r1 regs cclocks lclocks qclocks quant_val
+       filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks quant_val
   | Re_capture (cid, r1) ->
-     let start = get_reg cclocks (start_reg cid) in
-     begin match start with
-     | None -> filter_all r1 regs (* there is already no value for this capture group, we can clear everything inside *)
-     | Some st ->
-        if (st < maxclock)
-         (* cleaning the value of group cid (and everything inside) if its value is too old *)
-        then begin regs.(start_reg cid) <- -1; filter_all r1 regs end
-        else filter_capture r1 regs cclocks lclocks qclocks maxclock
-     end
+     let start = cap_clocks.(start_reg cid) in
+     if (start < 0) then
+       filter_all r1 cap_regs (* there is already no value for this capture group, we can clear everything inside *)
+     else begin
+         if (start < maxclock) (* cleaning the value of group cid (and everything inside) if its value is too old *)
+         then begin cap_regs.(start_reg cid) <- -1; filter_all r1 cap_regs end
+         else filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks maxclock
+       end
   | Re_lookaround (lid, l, r1) ->
-     let look_val = get_mem lclocks lid in (* the last time we needed the lookaround to hold *)
-     begin match look_val with
-     | None -> filter_all r1 regs (* we didn't need the lookaround: clear everything inside *)
-     | Some lookv ->
-        if (lookv < maxclock)
-             (* cleaning everything inside the lookaround since it's too old *)
-        then filter_all r1 regs
-        else filter_capture r1 regs cclocks lclocks qclocks (-1)
-                            (* resetting the maxclock to -1: lookaround clocks are reset *)
-     end
+     let look_val = look_clocks.(lid) in (* the last time we needed the lookaround to hold *)
+     if (look_val < 0) then
+       filter_all r1 cap_regs (* we didn't need the lookaround: clear everything inside *)
+     else begin
+         if (look_val < maxclock) (* cleaning everything inside the lookaround since it's too old *)
+         then filter_all r1 cap_regs
+         else filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks (-1)
+                             (* resetting the maxclock to -1: lookaround clocks are reset *)
+       end
       
 and filter_all (r:regex) (regs:int Array.t) : unit = (* clearing all capture group inside a regex *)
   match r with
@@ -532,10 +533,12 @@ and filter_all (r:regex) (regs:int Array.t) : unit = (* clearing all capture gro
   | Re_lookaround (lid, l, r1) -> filter_all r1 regs
 
 (* we transform the registers to an Array with constant-time access and insertion when filtering *)
-let filter_reset (r:regex) (regs:Regs.regs) (cclocks: cap_clocks) (lclocks:look_clocks) (qclocks:quant_clocks) (maxclock:int) : int Array.t =
-  let array_regs = Regs.to_array regs in
-  filter_capture r array_regs cclocks lclocks qclocks maxclock;
-  array_regs
+let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (maxclock:int) : int Array.t =
+  let (cap_regs, cap_clocks) = Regs.to_arrays capture in
+  let (_, look_clocks) = Regs.to_arrays look in
+  let (_, quant_clocks) = Regs.to_arrays quant in
+  filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
+  cap_regs
        
 
 (** * Printing Results  *)

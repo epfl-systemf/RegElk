@@ -19,8 +19,8 @@ let main =
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
    * ignore (compare_engines (fst bug) (snd bug)) *)
   
-  (* tests() *)
-  fuzzer()
+  tests()
+  (* fuzzer() *)
     
   (* run_benchmark(many_forks) *)
   (* many_forks_rust_benchmark() *)

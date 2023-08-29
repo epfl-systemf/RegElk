@@ -35,7 +35,6 @@ let int_of_opt (o: int option): int =
   match o with
   | None -> -1
   | Some x -> x
-
    
 module Array_Regs =
   struct
