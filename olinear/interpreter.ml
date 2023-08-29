@@ -66,75 +66,10 @@ let debug_regs (regs:int Array.t) : string =
         s := !s ^ string_of_int c ^ ": " ^ string_of_int (regs.(c)) ^ " | "
       done;
       !s
-
-
               
 (* each thread stores capture registers for the capture groups it has matched so far *)
-module IntMap = Map.Make(struct type t = int let compare = compare end)
-
 module Regs = (Map_Regs : REGS)
               
-type cap_regs = int IntMap.t
-
-let set_reg (regs:cap_regs) (r:register) (v:int) : cap_regs =
-  IntMap.add r v regs
-
-let clear_reg (regs:cap_regs) (r:register) : cap_regs =
-  IntMap.remove r regs
-  
-let get_reg (regs:cap_regs) (r:register) : int option =
-  IntMap.find_opt r regs
-              
-let init_regs () : cap_regs =
-  IntMap.empty
-
-(* Saving the last clocks of each capture groups *)
-type cap_clocks = cap_regs
-
-(** * Quantifier Clocks  *)
-(* Remembering what's the global clock of the last time we went into each quantifier *)
-(* the option is [Some x], when that quantifier is a +, and it's last iteration consisted in *)
-(* nulling the + at cp [x] *)
-(* Otherwise it is [None], for stars or for non-nulled iterations of + *)
-type quant_clocks = (int*(int option)) IntMap.t
-
-let set_quant (qc:quant_clocks) (q:quantid) (cp:int) (o:int option) : quant_clocks =
-  IntMap.add q (cp,o) qc
-
-(* right now this returns -1 by default. We might change to an option *)
-let get_quant_clock (qc:quant_clocks) (q:quantid) : int  =
-  match (IntMap.find_opt q qc) with
-  | None -> -1
-  | Some x -> fst x
-
-let get_quant_nulled (qc:quant_clocks) (q:quantid) : int option =
-  match (IntMap.find_opt q qc) with
-  | None -> None
-  | Some x -> snd x
-            
-let init_quant_clocks () : quant_clocks =
-  IntMap.empty
-
-(** * Lookarounds Memory  *)
-(* For the second stage of the algorithm, we need to remember when (which cp) we used the oracle *)
-(* So that we can later get the capture groups defined in that lookaround *)
-
-type look_mem = int IntMap.t
-
-let set_mem (lm:look_mem) (lid:lookid) (cp:int) : look_mem =
-  IntMap.add lid cp lm
-
-let clear_mem (lm:look_mem) (lid:lookid) : look_mem =
-  IntMap.remove lid lm
-  
-let get_mem (lm:look_mem) (lid:lookid) : int option =
-  IntMap.find_opt lid lm
-
-let init_mem (): look_mem =
-  IntMap.empty
-
-(* saving the last clock of each lookaround *)
-type look_clocks = look_mem
 
 (** * String Manipulation *)
 
@@ -149,16 +84,14 @@ let get_char (str:string) (cp:int) : char option =
 type thread =
   {
     mutable pc: int;
-    mutable regs: Regs.regs; (* the value of capture groups - string indices *)
-    mutable cap_clk : cap_clocks; (* the clocks of capture groups *)
-    mutable mem: look_mem;        (* the string indices at which we last used each lookaound *)
-    mutable look_clk : look_clocks; (* the clock at which we last used each lookaround *)
-    mutable quants: quant_clocks;   (* the clock (and nulled cp) at which we last entered each quantifier *)
+    mutable capture_regs: Regs.regs; (* cp and clock for each capture group *)
+    mutable look_regs: Regs.regs;    (* cp and clock for each lookaround *)
+    mutable quant_regs: Regs.regs;   (* cp (if nulled) and clock for each quantifier *)
     mutable exit_allowed : bool;    (* are we allowed to exit the current loop *)
   }
 
-let init_thread (initregs:Regs.regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquants:quant_clocks): thread =
-  { pc = 0; regs = initregs; cap_clk = initcclock; mem = initmem; look_clk = initlclock; quants = initquants; exit_allowed = false }
+let init_thread (initcap:Regs.regs) (initlook:Regs.regs) (initquant:Regs.regs): thread =
+  { pc = 0; capture_regs = initcap; look_regs = initlook; quant_regs = initquant; exit_allowed = false }
   
 (** * PC Sets  *)
 
@@ -242,9 +175,9 @@ let cp_context (cp:int) (str:string) (dir:direction) : char_context =
   | Forward -> { prevchar = prevop ; nextchar = nextop }
   | Backward -> { prevchar = nextop ; nextchar = prevop }
   
-let init_state (c:code) (initcp:int) (initregs:Regs.regs) (initcclock:cap_clocks) (initmem:look_mem) (initlclock:look_clocks) (initquant:quant_clocks) (initclk:int) (initctx:char_context) =
+let init_state (c:code) (initcp:int) (initcap:Regs.regs) (initlook:Regs.regs) (initquant:Regs.regs) (initclk:int) (initctx:char_context) =
   { cp = initcp;
-    active = [init_thread initregs initcclock initmem initlclock initquant];
+    active = [init_thread initcap initlook initquant];
     processed = init_bpcset (size c);
     blocked = [];
     isblocked = init_pcset (size c);
@@ -281,15 +214,15 @@ let print_cp (cp:int) : string =
 let print_match (b:thread option) =
   match b with
   | None -> "None\n"
-  | Some t -> print_thread t ^ "\n" ^ Regs.to_string t.regs
+  | Some t -> print_thread t ^ "\n" ^ Regs.to_string t.capture_regs
 
 let print_bestmatch (b:thread option) =
   "  BEST: " ^ print_match b ^ "\n"
+
+
   
 (** * Interpreter  *)
 
-
-  
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
 let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle) : unit =
@@ -322,24 +255,30 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
        | Fork (x,y) ->           (* x has higher priority *)
           t.pc <- y;
-          s.active <- {pc = x; regs = Regs.copy t.regs; cap_clk = t.cap_clk; mem = t.mem; look_clk = t.look_clk; quants = t.quants; exit_allowed = t.exit_allowed}::s.active;
+          s.active <- {pc = x;
+                       capture_regs = Regs.copy t.capture_regs;
+                       look_regs = Regs.copy t.look_regs;
+                       quant_regs = Regs.copy t.quant_regs;
+                       exit_allowed = t.exit_allowed}::s.active;
           advance_epsilon ~debug c s o
        | SetRegisterToCP r ->
-          t.regs <- Regs.set_reg t.regs r s.cp; (* modifying the capture regs of the current thread *)
-          t.cap_clk <- set_reg t.cap_clk r s.clock; (* saving the current clock *)
+          (* modifying the capture regs of the current thread *)
+          t.capture_regs <- Regs.set_reg t.capture_regs r (Some s.cp) s.clock; 
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | SetQuantToClock (q,b) ->
-          let ocp = if b then (Some s.cp) else None in (* saving the current cp if we are nulling a + *)
-          t.quants <- set_quant t.quants q s.clock ocp; (* adding the last iteration cp *)
+          (* saving the current cp if we are nulling a + *)
+          let ocp = if b then (Some s.cp) else None in
+          (* adding the last iteration clock *)
+          t.quant_regs <- Regs.set_reg t.quant_regs q ocp s.clock;
           t.pc <- t.pc + 1;
           advance_epsilon ~debug c s o
        | CheckOracle l ->
           if (get_oracle o s.cp l)
           then begin
               t.pc <- t.pc + 1; (* keeping the thread alive *)
-              t.mem <- set_mem t.mem l s.cp; (* remembering the cp where we last needed the oracle *)
-              t.look_clk <- set_mem t.look_clk l s.clock (* remembering the clock as well *)
+              (* remembering the cp where we last needed the oracle *)
+              t.look_regs <- Regs.set_reg t.look_regs l (Some s.cp) s.clock;
             end
           else s.active <- ac;  (* killing the thread *)
           advance_epsilon ~debug c s o
