@@ -366,6 +366,14 @@ let rec max_group (r:regex) : capture =
   | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
   | Re_capture (cid, r1) -> max cid (max_group r1)
 
+(* maximum quantifier *)
+let rec max_quant (r:regex) : quantid =
+  match r with
+  | Re_empty | Re_char _ | Re_dot | Re_anchor _ -> 0
+  | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_quant r1) (max_quant r2)
+  | Re_lookaround (_,_,r1) | Re_capture  (_,r1) -> max_quant r1
+  | Re_quant(_,qid,_,r1) -> max qid (max_quant r1)
+
 (* Returns the list of nullable plus quantifier identifiers *)
 (* ordered from lowest to highest *)
 (* we consider every counted repetition that ends in a nullable greedy plus (min>0,max=None,greedy) *)

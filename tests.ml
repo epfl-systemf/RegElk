@@ -209,6 +209,23 @@ let counted_oob: (raw_regex*string) list =
    (Raw_count({min=3;max=Some 12;greedy=true},Raw_lookaround(Lookbehind,Raw_alt(Raw_quant(LazyPlus,Raw_dot),Raw_alt(Raw_count({min=4;max=None;greedy=true},Raw_anchor(BeginInput)),Raw_con(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(Raw_count({min=8;max=None;greedy=true},Raw_con(Raw_capture(Raw_char('a')),Raw_alt(Raw_capture(Raw_count({min=5;max=Some 5;greedy=false},Raw_quant(Plus,Raw_alt(Raw_anchor(WordBoundary),Raw_lookaround(NegLookahead,Raw_lookaround(NegLookahead,Raw_empty)))))),Raw_capture(Raw_empty)))),Raw_empty),Raw_char('-'))),Raw_anchor(WordBoundary)))))),"a");
    (Raw_lookaround(Lookahead,Raw_alt(Raw_count({min=1;max=Some 3;greedy=true},Raw_dot),Raw_empty)),"a-abb-bbbb----bbaa--aabb-abaab---b-bab-b--ba--a--bb-babb-b");
    (Raw_count({min=4;max=Some 8;greedy=false},Raw_dot),"abbb--a-ab-aa--ba--bb-aaa")]
+
+(* fixed, by copying the regisers correctly *)
+let regs_mismatch: (raw_regex*string) list =
+  [(Raw_alt(Raw_count({min=3;max=None;greedy=true},Raw_alt(Raw_con(Raw_empty,Raw_capture(Raw_alt(Raw_alt(Raw_quant(Star,Raw_dot),Raw_dot),Raw_capture(Raw_anchor(WordBoundary))))),Raw_quant(LazyStar,Raw_count({min=7;max=None;greedy=true},Raw_empty)))),Raw_count({min=8;max=Some 15;greedy=true},Raw_lookaround(Lookahead,Raw_anchor(EndInput)))),"a");
+   (Raw_quant(Plus,Raw_capture(Raw_char('a'))),"ab--bbb---ba-b-b--abababbaabab--b-")]
+
+(* fixed, by updating the regs reference when reconstructing *)
+let regs_oob: (raw_regex*string) list =
+  [(Raw_con(Raw_capture(Raw_quant(Star,Raw_capture(Raw_capture(Raw_lookaround(Lookahead,Raw_char('b')))))),Raw_capture(Raw_anchor(BeginInput))),"-baba-aa-bb-a-bba");
+   (Raw_capture(Raw_con(Raw_capture(Raw_alt(Raw_alt(Raw_count({min=9;max=Some 13;greedy=true},Raw_capture(Raw_count({min=3;max=Some 7;greedy=false},Raw_capture(Raw_lookaround(Lookahead,Raw_dot))))),Raw_con(Raw_char('b'),Raw_empty)),Raw_con(Raw_dot,Raw_con(Raw_char('b'),Raw_con(Raw_count({min=2;max=Some 10;greedy=false},Raw_quant(LazyQuestionMark,Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(Lookahead,Raw_char('a')),Raw_capture(Raw_lookaround(NegLookahead,Raw_empty)))))),Raw_anchor(NonWordBoundary)))))),Raw_capture(Raw_count({min=4;max=Some 10;greedy=true},Raw_quant(QuestionMark,Raw_anchor(NonWordBoundary)))))),"--a-bb-aa--a-a");
+   (Raw_capture(Raw_alt(Raw_lookaround(Lookbehind,Raw_count({min=9;max=None;greedy=true},Raw_lookaround(Lookahead,Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_lookaround(NegLookbehind,Raw_dot))))),Raw_capture(Raw_capture(Raw_empty)))),"----bb-a-ab");
+   (Raw_capture(Raw_capture(Raw_anchor(BeginInput))),"--aa---a-a----baabb--b-aa--aabba-bb-aa-b---aba-a-abbaab-b-")]
+
+(* fixed, by updating the regs reference when reconstructing *)
+let start_no_end: (raw_regex*string) list =
+  [(Raw_alt(Raw_anchor(EndInput),Raw_quant(LazyPlus,Raw_capture(Raw_lookaround(NegLookahead,Raw_con(Raw_capture(Raw_anchor(WordBoundary)),Raw_dot))))),"b");
+   (Raw_alt(Raw_char('-'),Raw_capture(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_lookaround(NegLookahead,Raw_dot)))),"babb-bab-aabb-bb-abbabababaaa-abaab--b-bbb-b-")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
@@ -259,6 +276,9 @@ let tests () =
   replay_bugs(anchor_cdn);
   replay_bugs(anchor_mismatch);
   replay_bugs(counted_oob);
+  replay_bugs(regs_mismatch);
+  replay_bugs(regs_oob);
+  replay_bugs(start_no_end);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
