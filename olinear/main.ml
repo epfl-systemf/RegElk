@@ -20,9 +20,9 @@ let main =
    * ignore (compare_engines (fst bug) (snd bug)) *)
   
   (* tests() *)
-  fuzzer()                      
+  fuzzer()
     
-  (* run_benchmark(many_forks); *)
+  (* run_benchmark(many_forks) *)
   (* many_forks_rust_benchmark() *)
 
   (* TODO: make more JSCore benchmarks *)
