@@ -35,6 +35,9 @@ let int_of_opt (o: int option): int =
   match o with
   | None -> -1
   | Some x -> x
+
+let opt_of_int (i:int) : int option =
+  if i < 0 then None else Some i
    
 module Array_Regs =
   struct
@@ -63,12 +66,12 @@ module Array_Regs =
     (* O(1) *)
     let get_cp (regs:regs) (k:int) : int option =
       let v = regs.a_cp.(k) in
-      if (v < 0) then None else Some v
+      opt_of_int v
 
     (* O(1) *)
     let get_clock (regs:regs) (k:int) : int option =
       let v = regs.a_clk.(k) in
-      if (v < 0) then None else Some v
+      opt_of_int v
 
     (* O(r) *)
     let copy (regs:regs) : regs =
@@ -115,8 +118,8 @@ module List_Regs =
         match l with
         | [] -> None
         | (kl,cp,clk)::l' ->
-           if (kl = k) then Some cp else
-             get_rec l' in
+           if (kl = k) then opt_of_int cp
+           else get_rec l' in
       get_rec regs.setlist
 
     (* O(r*s) *)
@@ -125,8 +128,8 @@ module List_Regs =
         match l with
         | [] -> None
         | (kl,cp,clk)::l' ->
-           if (kl = k) then Some clk else
-             get_rec l' in
+           if (kl = k) then opt_of_int clk
+           else get_rec l' in
       get_rec regs.setlist
 
     (* O(1) *)
@@ -184,13 +187,13 @@ module Map_Regs =
     let get_cp (regs:regs) (k:int) : int option =
       match (IntMap.find_opt k regs.valmap) with
       | None -> None
-      | Some (cp,clk) -> if (cp < 0) then None else Some cp
+      | Some (cp,clk) -> opt_of_int cp
 
     (* O(log r) *)
     let get_clock (regs:regs) (k:int) : int option =
       match (IntMap.find_opt k regs.valmap) with
       | None -> None
-      | Some (cp,clk) -> if (clk < 0) then None else Some clk
+      | Some (cp,clk) -> opt_of_int clk
 
     (* O(1) *)
     let copy (regs:regs) : regs =
