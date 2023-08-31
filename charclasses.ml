@@ -10,6 +10,7 @@ let max_char : char = char_of_int 255
 
 let prev_char (c:char) = char_of_int ((int_of_char c) -1)
 let next_char (c:char) = char_of_int ((int_of_char c) +1)
+let char_max (c1:char) (c2:char) = if c1 > c2 then c1 else c2
 
 type char_expectation =
   | All                         (* expects any character *)
@@ -58,29 +59,6 @@ let nonspace : (char * char) list =
    (char_of_int 14,char_of_int 31);
    (char_of_int 33,char_of_int 159);
    (char_of_int 161,char_of_int 255)]
-
-
-(** * Range Manipulation  *)
-
-(* computes the ordered negation of an ordered list of ranges *)
-let rec range_negation (l:(char*char) list) (min:char): (char*char) list =
-  match l with
-  | [] -> [(min,max_char)]
-  | (r1,r2)::l' ->
-     if (min < r1) then
-       (min,prev_char r1)::(range_negation l' (next_char r2))
-     else
-       range_negation l' (next_char r2)
-
-let range_neg (l:(char*char) list) : (char*char) list =
-  range_negation l min_char
-
-(* negates a char expectation *)
-let negation (ce:char_expectation) : char_expectation =
-  match ce with
-  | All -> Ranges []
-  | Single x -> Ranges (range_neg [(x,x)])
-  | Ranges l -> Ranges (range_neg l)
   
 
 (** * Character Acceptance  *)
@@ -103,4 +81,82 @@ let is_accepted (read:char option) (ce:char_expectation): bool =
 
 
 (** * Range Construction  *)
-                                   (* TODO: construct ranges from lists of chars and ranges, possibly out-of-order *)
+
+
+(* assumes that the list is ordered (according to the first element of the pairs *)
+(* and that current has the smallest first element *)
+(* assumes that pairs are correctly set (the first element is smaller) *)
+let rec build_range (current:char*char) (next:(char*char) list) : (char*char) list =
+  let (cstart,cend) = current in
+  match next with
+  | [] -> [current]
+  | (nstart,nend)::next' ->
+     (* we know nstart >= ctsart *)
+     if (nstart > next_char cend) then
+       (* disjoint ranges *)
+       current::(build_range (nstart,nend) next')
+     else
+       (* extend from the end *)
+       build_range (cstart, char_max cend nend) next'
+
+
+type char_class_elt =
+  | CChar of char
+  | CRange of char * char
+
+(* this is the contents between [] or [^] *)
+(* it may be out of order *)
+type char_class = char_class_elt list
+
+let elt_to_range (e:char_class_elt) : (char*char) =
+  match e with
+  | CChar e -> (e,e)
+  | CRange (c1,c2) ->
+     assert (c1 <= c2);
+     (c1, c2)
+                
+let class_to_range (c:char_class) : (char*char) list =
+  let lranges = List.map elt_to_range c in
+  let lsort = List.sort (fun (start1,e1) (start2,e2) -> if start1 > start2 then 1 else -1) lranges in
+  match lsort with
+  | [] -> []
+  | head::tail -> build_range head tail
+
+(** * Range Negation  *)
+
+(* computes the ordered negation of an ordered list of ranges *)
+let rec range_negation (l:(char*char) list) (min:char): (char*char) list =
+  match l with
+  | [] -> [(min,max_char)]
+  | (r1,r2)::l' ->
+     if (min < r1) then
+       (min,prev_char r1)::(range_negation l' (next_char r2))
+     else
+       range_negation l' (next_char r2)
+
+let range_neg (l:(char*char) list) : (char*char) list =
+  range_negation l min_char
+
+(* negates a char expectation *)
+let negation (ce:char_expectation) : char_expectation =
+  match ce with
+  | All -> Ranges []
+  | Single x -> Ranges (range_neg [(x,x)])
+  | Ranges l -> Ranges (range_neg l)
+
+
+(** * Pretty Printing  *)
+
+let rec ranges_to_string (l:(char*char) list) : string =
+  match l with
+  | [] -> ""
+  | (cstart,cend)::[] -> "("^String.make 1 cstart^","^String.make 1 cend^")"
+  | (cstart,cend)::next -> "("^String.make 1 cstart^","^String.make 1 cend^");"^
+                             ranges_to_string next
+     
+              
+let expectation_to_string (ce:char_expectation) : string =
+  match ce with
+  | All -> "All"
+  | Single x -> "Single " ^ String.make 1 x
+  | Ranges l -> "Ranges [" ^ ranges_to_string l ^ "]"
