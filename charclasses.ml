@@ -167,19 +167,12 @@ let class_to_range (c:char_class) : (char*char) list =
 
 (* for printing inside character classes *)
 let print_class_char (c:char) : string =
-  if (int_of_char c = 0) then "\\0" 
+  if (int_of_char c = 0) then "\\x00"
+  else if (c = '\'') then "\\x27" (* to avoid weird bash issues *)
+  else if (c = '\"') then "\\x22" (* to avoid weird bash issues *)
   else if (is_ascii_word_character c) then String.make 1 c
   else "\\"^String.make 1 c        (* escaping everything but word characters *)
   
-  (* (\* these two characters should not be parsed as ranges or negations *\)
-   * if (c = '^') then "\\^"
-   * else if (c='-') then "\\-"
-   * else if (c='\'') then "\\'"
-   * else if (c='\"') then "\\\""
-   * else if (c='\\') then "\\\\"
-   * else if (c=']') then "\\]"
-   * else if (int_of_char c = 0) then "\\x00" (\* null character posed an issue *\)
-   * else String.make 1 c *)
                 
 let rec ranges_to_string (l:(char*char) list) : string =
   match l with

@@ -17,7 +17,7 @@ open Tests
   
 let main =
   
-  (* let bug = (Raw_neg_class([CRange(char_of_int(126),char_of_int(212));CRange(char_of_int(163),char_of_int(191))]),"-") in
+  (* let bug = (Raw_class([CRange(char_of_int(39),char_of_int(97))]),"-babbababb-b--aaaaa-aaa-bab-b--") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
    * ignore (compare_engines (fst bug) (snd bug)) *)
     
