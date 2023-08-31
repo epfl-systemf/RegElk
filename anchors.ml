@@ -4,7 +4,8 @@
 (* just before and just after the current position *)
 
 open Regex
-
+open Charclasses
+   
 (** * Char Contexts  *)
 (* a context here describes the surrounding characters of a position (or None, if we reached the end/begin of the input) *)
 (* this surrounding context is what the interpreter needs to evaluate anchors, and advance threads that reached a CONSUME instruction *)
@@ -31,13 +32,6 @@ let print_context (ctx:char_context) : string =
     
 
 (** * Checking Anchor Assertions  *)
-(* https://tc39.es/ecma262/#ASCII-word-characters *)
-let is_ascii_word_character (c:char) : bool =
-  let n = int_of_char c in
-  (n>=65 && n<=90) ||           (* uppercase *)
-    (n>=97 && n<=122) ||        (* lowercase *)
-      (n>=48 && n<=57) ||       (* numbers *)
-        (n=95)                  (* '_' *)
 
 let is_boundary (ctx:char_context) : bool =
   match ctx.prevchar, ctx.nextchar with

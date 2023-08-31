@@ -226,6 +226,29 @@ let regs_oob: (raw_regex*string) list =
 let start_no_end: (raw_regex*string) list =
   [(Raw_alt(Raw_anchor(EndInput),Raw_quant(LazyPlus,Raw_capture(Raw_lookaround(NegLookahead,Raw_con(Raw_capture(Raw_anchor(WordBoundary)),Raw_dot))))),"b");
    (Raw_alt(Raw_char('-'),Raw_capture(Raw_con(Raw_lookaround(Lookbehind,Raw_empty),Raw_lookaround(NegLookahead,Raw_dot)))),"babb-bab-aabb-bb-abbabababaaa-abaab--b-bbb-b-")]
+
+(* fixed by only calling next_char when we are not at the maximum character 255 *)
+let class_next_char: (raw_regex*string) list =
+  [(Raw_class([CGroup(NonWord);CChar(char_of_int(45));CChar(char_of_int(98));CRange(char_of_int(168),char_of_int(246));CGroup(Word);CChar(char_of_int(97))]),"a")]
+
+(* fixed by fixing the range negation *)
+let class_negation: (raw_regex*string) list =
+  [(Raw_capture(Raw_neg_class([CRange(char_of_int(102),char_of_int(183));CRange(char_of_int(85),char_of_int(231));CChar(char_of_int(97));CGroup(NonWord);CRange(char_of_int(149),char_of_int(251));CChar(char_of_int(45));CGroup(Digit);CChar(char_of_int(98));CChar(char_of_int(98));CGroup(NonWord);CGroup(NonWord);CRange(char_of_int(151),char_of_int(245));CGroup(NonWord);CRange(char_of_int(198),char_of_int(213));CChar(char_of_int(45))])),"b");
+   (Raw_neg_class([CGroup(NonWord)]),"b")] (* simplified *)
+
+(* fixed by escaping - and ^ inside character classes *)
+let class_escape: (raw_regex*string) list =
+  [(Raw_class([CChar(char_of_int(98));CChar(char_of_int(45));CChar(char_of_int(98));CRange(char_of_int(243),char_of_int(244));CGroup(Word);CGroup(Space)]),"-baabbbb--ab-aab-baba-bab-a-aaaaa-baa--aaaaa-ab--a-baabb--abb-bb-aab--")]
+
+(* fixed by exporting the NULL character (char code 0) to \x00 *)
+(* and exporting \ to \\ *)
+let js_export_bug: (raw_regex*string) list =
+  [(Raw_alt(Raw_lookaround(Lookahead,Raw_group(Digit)),Raw_lookaround(Lookahead,Raw_capture(Raw_neg_class([CGroup(Space);CGroup(NonWord);CRange(char_of_int(12),char_of_int(233));CRange(char_of_int(255),char_of_int(255));CRange(char_of_int(43),char_of_int(212));CRange(char_of_int(229),char_of_int(249));CGroup(Space);CRange(char_of_int(27),char_of_int(254));CGroup(Digit);CRange(char_of_int(0),char_of_int(151));CChar(char_of_int(98));CGroup(Word);CRange(char_of_int(129),char_of_int(207));CChar(char_of_int(98));CChar(char_of_int(97));CGroup(Word)])))),"a");
+   (Raw_neg_class([CRange(char_of_int(0),char_of_int(151))]),"a"); (* simplified *)
+   (Raw_neg_class([CRange(char_of_int(92),char_of_int(238));CChar(char_of_int(97));CChar(char_of_int(45));CRange(char_of_int(118),char_of_int(193));CChar(char_of_int(97));CGroup(NonWord)]),"a-a-aba---aaabbb--a-baabbabbaa-a-aab--bba");
+   (Raw_neg_class([CRange(char_of_int(92),char_of_int(120))]),"b"); (* simplified *)
+   (Raw_class([CGroup(Digit);CRange(char_of_int(55),char_of_int(195));CRange(char_of_int(239),char_of_int(254));CRange(char_of_int(80),char_of_int(166));CRange(char_of_int(109),char_of_int(250));CGroup(Digit);CChar(char_of_int(45));CChar(char_of_int(97));CGroup(NonSpace);CGroup(Digit);CRange(char_of_int(190),char_of_int(196));CRange(char_of_int(83),char_of_int(89));CGroup(Digit);CRange(char_of_int(43),char_of_int(64));CRange(char_of_int(7),char_of_int(93));CRange(char_of_int(2),char_of_int(205));CRange(char_of_int(146),char_of_int(166));CChar(char_of_int(98));CRange(char_of_int(195),char_of_int(205))]),"-b---abba-baab----a-abaabb----aa--b--b-abba-a-a--b-b-bb-a--aa-bbbaaab--aaaaaab");
+   (Raw_class([CGroup(NonSpace);CRange(char_of_int(7),char_of_int(93))]),"-")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
@@ -279,6 +302,10 @@ let tests () =
   replay_bugs(regs_mismatch);
   replay_bugs(regs_oob);
   replay_bugs(start_no_end);
+  replay_bugs(class_next_char);
+  replay_bugs(class_negation);
+  replay_bugs(class_escape);
+  replay_bugs(js_export_bug);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 

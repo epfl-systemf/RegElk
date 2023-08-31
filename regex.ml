@@ -470,10 +470,14 @@ let report_group (g:char_group) : string =
   | Space -> "Space"
   | NonSpace -> "NonSpace"
 
+(* when reporting chars that may require escaping *)
+let report_char (c:char) : string =
+  "char_of_int("^string_of_int(int_of_char c)^")"
+              
 let report_class_elt (e:char_class_elt) : string =
   match e with
-  | CChar x -> "CChar(\'"^String.make 1 x^"\')"
-  | CRange (c1,c2) -> "CRange(\'"^String.make 1 c1^"\',\'"^String.make 1 c2^"\')"
+  | CChar x -> "CChar("^report_char x^")"
+  | CRange (c1,c2) -> "CRange("^report_char c1^","^report_char c2^")"
   | CGroup g -> "CGroup("^report_group g^")"
               
 let rec rep_class (c:char_class) : string =

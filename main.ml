@@ -9,16 +9,19 @@ open Tojs
 open Tore2
 open Toexp
 open Torust
+open Charclasses
 open Diff_fuzzer
 open Complexity_exp
 open Tests
 
   
 let main =
-  (* let bug = (Raw_con (Raw_quant (Star, Raw_char 'a'), Raw_char 'b'),"aab") in
+  
+  (* let bug = (Raw_neg_class([CRange(char_of_int(126),char_of_int(212));CRange(char_of_int(163),char_of_int(191))]),"-") in
    * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
    * ignore (compare_engines (fst bug) (snd bug)) *)
-  
+    
+
   (* tests() *)
   fuzzer()
     

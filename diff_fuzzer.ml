@@ -5,6 +5,7 @@ open Linear
 open Tojs
 open Regex
 open Random
+open Charclasses
 
 let _ = Random.self_init()
 
@@ -21,6 +22,8 @@ let max_string = 100
 let max_tests = 1000
 
 let max_counted = 10
+
+let max_class = 20
 
 (** * Creating Random Regexes  *)
    
@@ -61,36 +64,65 @@ let random_anchor () : anchor =
   | 3 -> NonWordBoundary
   | _ -> failwith "random range error"
 
+let random_group () : char_group =
+  match (Random.int 6) with
+  | 0 -> Digit
+  | 1 -> NonDigit
+  | 2 -> Word
+  | 3 -> NonWord
+  | 4 -> Space
+  | 5 -> NonSpace
+  | _ -> failwith "random range error"
+
+let random_range () : char * char =
+  let minc = Random.int 256 in
+  let offset = Random.int (256-minc) in
+  (char_of_int minc, char_of_int (minc+offset))
+
+let random_elt () : char_class_elt =
+  match (Random.int 3) with
+  | 0 -> let x = random_char() in CChar x
+  | 1 -> let r = random_range() in CRange (fst r, snd r)
+  | 2 -> let g = random_group() in CGroup g
+  | _ -> failwith "random range error"
+
+let random_class () : char_class =
+  let size = Random.int max_class in
+  List.init size (fun _ -> random_elt())
+
 (* with a maximal number of recursion [depth] *)
 (* the [look] boolean specifies if lookarounds are allowed *)
 let rec random_regex (depth:int) (look:bool): raw_regex =
-  let max = if look then 12 else 10 in
+  let max = if look then 15 else 13 in
   let rand = if (depth=0) then Random.int 3 else Random.int max in
   match rand with
   | 0 -> Raw_empty
   | 1 -> let x = random_char() in Raw_char x
   | 2 -> Raw_dot
-  | 3 -> let a = random_anchor() in Raw_anchor a
-  | 4 ->
+  | 3 -> let g = random_group () in Raw_group g
+  | 4 -> let cl = random_class() in Raw_class cl
+  | 5 -> let cl = random_class() in Raw_neg_class cl
+  | 6 -> let a = random_anchor() in Raw_anchor a
+  | 7 ->
      let r1 = random_regex (depth-1) look in
      let r2 = random_regex (depth-1) look in
      Raw_alt (r1, r2)
-  | 5 ->
+  | 8 ->
      let r1 = random_regex (depth-1) look in
      let r2 = random_regex (depth-1) look in
      Raw_con (r1, r2)
-  | 6 ->
+  | 9 ->
      let r1 = random_regex (depth-1) look in
      let q = random_quant() in
      Raw_quant(q, r1)
-  | 7 ->
+  | 10 ->
      let r1 = random_regex (depth-1) look in
      let q = random_counted_quant() in
      Raw_count(q, r1)
-  | 8 | 9 ->
+  | 11 | 12 ->
      let r1 = random_regex (depth-1) look in
      Raw_capture(r1)
-  | 10 | 11 ->
+  | 13 | 14 ->
      let r1 = random_regex (depth-1) look in
      let l = random_look() in
      Raw_lookaround(l, r1)

@@ -5,6 +5,14 @@
 (* While JS chars go to 65535 *)
 (* Here we only deal with the first 256 chars *)
 
+(* https://tc39.es/ecma262/#ASCII-word-characters *)
+let is_ascii_word_character (c:char) : bool =
+  let n = int_of_char c in
+  (n>=65 && n<=90) ||           (* uppercase *)
+    (n>=97 && n<=122) ||        (* lowercase *)
+      (n>=48 && n<=57) ||       (* numbers *)
+        (n=95)                  (* '_' *)
+
 let min_char : char = char_of_int 0
 let max_char : char = char_of_int 255
 
@@ -30,10 +38,11 @@ let rec range_negation (l:(char*char) list) (min:char): (char*char) list =
   match l with
   | [] -> [(min,max_char)]
   | (r1,r2)::l' ->
+     let next = if (r2 = max_char) then [] else (range_negation l' (next_char r2)) in
      if (min < r1) then
-       (min,prev_char r1)::(range_negation l' (next_char r2))
+       (min,prev_char r1)::next
      else
-       range_negation l' (next_char r2)
+       next
 
 let range_neg (l:(char*char) list) : (char*char) list =
   range_negation l min_char
@@ -132,16 +141,18 @@ let is_accepted (read:char option) (ce:char_expectation): bool =
 (* assumes that pairs are correctly set (the first element is smaller) *)
 let rec build_range (current:char*char) (next:(char*char) list) : (char*char) list =
   let (cstart,cend) = current in
-  match next with
-  | [] -> [current]
-  | (nstart,nend)::next' ->
-     (* we know nstart >= ctsart *)
-     if (nstart > next_char cend) then
-       (* disjoint ranges *)
-       current::(build_range (nstart,nend) next')
-     else
-       (* extend from the end *)
-       build_range (cstart, char_max cend nend) next'
+  if cend = max_char then [current] else
+    begin match next with
+    | [] -> [current]
+    | (nstart,nend)::next' ->
+       (* we know nstart >= ctsart *)
+       if (nstart > next_char cend) then
+         (* disjoint ranges *)
+         current::(build_range (nstart,nend) next')
+       else
+         (* extend from the end *)
+         build_range (cstart, char_max cend nend) next'
+    end
 
 let class_to_range (c:char_class) : (char*char) list =
   let lranges = class_flatten c in
@@ -154,19 +165,43 @@ let class_to_range (c:char_class) : (char*char) list =
 
 (** * Pretty Printing  *)
 
+(* for printing inside character classes *)
+let print_class_char (c:char) : string =
+  if (int_of_char c = 0) then "\\0" 
+  else if (is_ascii_word_character c) then String.make 1 c
+  else "\\"^String.make 1 c        (* escaping everything but word characters *)
+  
+  (* (\* these two characters should not be parsed as ranges or negations *\)
+   * if (c = '^') then "\\^"
+   * else if (c='-') then "\\-"
+   * else if (c='\'') then "\\'"
+   * else if (c='\"') then "\\\""
+   * else if (c='\\') then "\\\\"
+   * else if (c=']') then "\\]"
+   * else if (int_of_char c = 0) then "\\x00" (\* null character posed an issue *\)
+   * else String.make 1 c *)
+                
 let rec ranges_to_string (l:(char*char) list) : string =
   match l with
   | [] -> ""
-  | (cstart,cend)::[] -> "("^String.make 1 cstart^","^String.make 1 cend^")"
-  | (cstart,cend)::next -> "("^String.make 1 cstart^","^String.make 1 cend^");"^
+  | (cstart,cend)::[] -> "("^print_class_char cstart^","^print_class_char cend^")"
+  | (cstart,cend)::next -> "("^print_class_char cstart^","^print_class_char cend^");"^
                              ranges_to_string next
-     
+
+(* for debugging *)
+let rec ranges_to_int_string (l:(char*char) list) : string =
+  match l with
+  | [] -> ""
+  | (cstart,cend)::[] -> "("^string_of_int(int_of_char cstart)^","^string_of_int(int_of_char cend)^")"
+  | (cstart,cend)::next -> "("^string_of_int(int_of_char cstart)^","^string_of_int(int_of_char cend)^");"^
+                             ranges_to_int_string next
+                         
               
 let expectation_to_string (ce:char_expectation) : string =
   match ce with
   | All -> "All"
   | Single x -> "Single " ^ String.make 1 x
-  | Ranges l -> "Ranges [" ^ ranges_to_string l ^ "]"
+  | Ranges l -> "Ranges [" ^ ranges_to_string l ^ "] [" ^ ranges_to_int_string l^"]"
 
 let print_group (g:char_group) : string =
   match g with
@@ -180,9 +215,9 @@ let print_group (g:char_group) : string =
 
 let print_class_elt (e:char_class_elt) : string =
   match e  with
-  | CChar x -> String.make 1 x
+  | CChar x -> print_class_char x
   | CRange (cstart,cend) ->
-     String.make 1 cstart ^ "-" ^ String.make 1 cend
+     print_class_char cstart ^ "-" ^ print_class_char cend
   | CGroup g -> print_group g
 
 let print_class (c:char_class) : string =
