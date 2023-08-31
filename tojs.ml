@@ -5,6 +5,7 @@ open Regex
 open Sys
 open Filename
 open Linear
+open Charclasses
 
 (** * JS Regex pretty-printing  *)
 (* printing regexes in the JS style so that we can compare our results to a JS engine *)
@@ -19,6 +20,9 @@ let rec print_js (ra:raw_regex) : string =
   | Raw_empty -> ""
   | Raw_char ch -> String.make 1 ch
   | Raw_dot -> "."
+  | Raw_group g -> print_group g
+  | Raw_class cl -> "["^print_class cl^"]"
+  | Raw_neg_class cl -> "[^"^print_class cl^"]"
   | Raw_alt (r1, r2) -> noncap(print_js r1) ^ "|" ^ noncap(print_js r2)
   | Raw_con (r1, r2) -> noncap(print_js r1) ^ noncap(print_js r2)
   | Raw_quant (q, r1) -> noncap(print_js r1) ^ print_quant q

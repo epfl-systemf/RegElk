@@ -4,7 +4,7 @@
 open Regex
 open Linear
 open Tojs
-
+open Charclasses
 
 (** * Rust Regex pretty-printing  *)
 (* printing regexes in the Rust style so that we can compare our results to Rust *)
@@ -20,6 +20,10 @@ let rec print_rust (ra:raw_regex) : string =
   | Raw_empty -> ""
   | Raw_char ch -> String.make 1 ch
   | Raw_dot -> "."
+  | Raw_group g -> print_group g
+  (* warning: Rust may have a different meaning for these groups *)
+  | Raw_class cl -> "["^print_class cl^"]"
+  | Raw_neg_class cl -> "[^"^print_class cl^"]"
   | Raw_alt (r1, r2) -> noncap(print_rust r1) ^ "|" ^ noncap(print_rust r2)
   | Raw_con (r1, r2) -> noncap(print_rust r1) ^ noncap(print_rust r2)
   | Raw_quant (q, r1) -> noncap(print_rust r1) ^ print_quant q

@@ -6,6 +6,7 @@ open Linear
 open Re2
 open Unix
 open Gc
+open Charclasses
 
 (** * RE2 Regex pretty-printing  *)
 (* printing regexes in the RE2 style so that we can compare our results to RE2 *)
@@ -21,6 +22,13 @@ let rec print_re2 (ra:raw_regex) : string =
   | Raw_empty -> ""
   | Raw_char ch -> String.make 1 ch
   | Raw_dot -> "."
+  | Raw_group g -> print_group g
+  (* warning: for RE2, \s is different *)
+  (* https://github.com/google/re2/wiki/Syntax#perl *)
+  (* this correponds to chars with value 9, 10, 12, 13, 32 *)
+  (* no exactly the same as in JS *)
+  | Raw_class cl -> "["^print_class cl^"]"
+  | Raw_neg_class cl -> "[^"^print_class cl^"]"
   | Raw_alt (r1, r2) -> noncap(print_re2 r1) ^ "|" ^ noncap(print_re2 r2)
   | Raw_con (r1, r2) -> noncap(print_re2 r1) ^ noncap(print_re2 r2)
   | Raw_quant (q, r1) -> noncap(print_re2 r1) ^ print_quant q

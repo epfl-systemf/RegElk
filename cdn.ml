@@ -64,7 +64,7 @@ let rec interpret_cdn (f:cdn_formula) (cp:int) (o:oracle) (t:cdn_table) (ctx:cha
 let rec compile_cdnf (r:regex) : cdn_formula =
   match r with
   | Re_empty -> CDN_true
-  | Re_char _ | Re_dot -> CDN_false
+  | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ -> CDN_false
   | Re_alt (r1, r2) ->
      let f1 = compile_cdnf r1 in
      let f2 = compile_cdnf r2 in

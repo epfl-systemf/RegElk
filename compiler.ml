@@ -3,6 +3,7 @@
 
 open Regex
 open Bytecode
+open Charclasses
 
 
 (** * Registers *)
@@ -57,6 +58,16 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction treelist
   | Re_dot ->
      begin match ctype with
      | Progress -> (Leaf [Consume All], fresh+1)
+     | ReconstructNulled -> (Leaf [Fail], fresh+1)
+     end
+  | Re_class cl ->
+     begin match ctype with
+     | Progress -> (Leaf [Consume (Ranges (class_to_range cl))], fresh+1)
+     | ReconstructNulled -> (Leaf [Fail], fresh+1)
+     end
+  | Re_neg_class cl ->
+     begin match ctype with
+     | Progress -> (Leaf [Consume (Ranges (range_neg (class_to_range cl)))], fresh+1)
      | ReconstructNulled -> (Leaf [Fail], fresh+1)
      end
   | Re_con (r1, r2) ->
