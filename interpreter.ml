@@ -11,6 +11,7 @@ open Compiler
 open Cdn
 open Anchors
 open Regs
+open Charclasses
        
 
 (** * Direction  *)
@@ -114,7 +115,7 @@ let pc_mem (pcs:pcset) (pc:label) : bool =
   
 (* adds a thread and char at the head of a blocked list only if it's not already in *)
 (* modifies the pcset in place *)
-let add_thread (t:thread) (x:char option) (current:(thread*(char option)) list) (inset:pcset) : (thread*(char option)) list =
+let add_thread (t:thread) (x:char_expectation) (current:(thread*char_expectation) list) (inset:pcset) : (thread*char_expectation) list =
   if (pc_mem inset t.pc) then current
   else begin
       pc_add inset t.pc;
@@ -158,7 +159,7 @@ type interpreter_state =
     mutable active: thread list;    (* ordered list of threads. high to low priority *)
     mutable processed: bpcset;       (* already processed pcs. Similar to isPcProcessed in Experimental  *)
     (* mutable because we reset it each step, but its modifications during a step are done in-place *)
-    mutable blocked: (thread*(char option)) list;   (* threads stuck at a Consume instruction for a given char. low to high priority. *)
+    mutable blocked: (thread*char_expectation) list;   (* threads stuck at a Consume instruction. low to high priority. *)
     mutable isblocked: pcset;       (* already blocked pcs, to avoid duplicates *)
     mutable bestmatch: thread option;   (* best match found so far, but there might be a higher priotity one still *)
     mutable context: char_context;             (* prev and next character at the current position *)
@@ -196,16 +197,11 @@ let print_thread (t:thread) : string = string_of_int t.pc ^ print_exit_allowed t
 
 let print_active (l:thread list) : string =
   "  ACTIVE: " ^ List.fold_left (fun s t -> if (s = "") then (print_thread t) else (print_thread t) ^ ", " ^ s) "" l
-
-let print_charop (c:char option) : string =
-  match c with
-  | None -> "ALL"               (* when a consume expects any character (for the dot) *)
-  | Some ch -> String.make 1 ch
   
-let print_blk (b:thread * (char option)) : string =
-  "(" ^ print_thread (fst b) ^ ":" ^ print_charop (snd b) ^ ")"
+let print_blk (b:thread * char_expectation) : string =
+  "(" ^ print_thread (fst b) ^ ":" ^ expectation_to_string (snd b) ^ ")"
   
-let print_blocked (l:(thread*(char option)) list) : string =
+let print_blocked (l:(thread*char_expectation) list) : string =
   "  BLOCKED: " ^ List.fold_left (fun s b -> if (s = "") then (print_blk b) else (print_blk b) ^ ", " ^ s) "" l ^ "\n"
 
 let print_cp (cp:int) : string =
@@ -238,12 +234,8 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
        s.clock <- s.clock + 1;  (* augmenting the global clock *)
        bpc_add s.processed t.pc t.exit_allowed; (* adding the current pc being handled to the set of proccessed pcs *)
        match i with
-       | Consume x -> (* adding the thread to the list of blocked thread if it isn't already there *)
-          s.blocked <- add_thread t (Some x) s.blocked s.isblocked; (* also updates isblocked *)
-          s.active <- ac;
-          advance_epsilon ~debug c s o
-       | ConsumeAll ->
-          s.blocked <- add_thread t None s.blocked s.isblocked;
+       | Consume ce -> (* adding the thread to the list of blocked thread if it isn't already there *)
+          s.blocked <- add_thread t ce s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
           advance_epsilon ~debug c s o
        | Accept ->             (* updates the best match and don't consider the remain active threads *)
@@ -318,22 +310,15 @@ let rec advance_epsilon ?(debug=false) (c:code) (s:interpreter_state) (o:oracle)
           advance_epsilon ~debug c s o
      end
 
-(* read is the character we read in the string. None means we didn't read a character. This should not happen (we stop before) *)
-(* expect is the character we are expecting to unblock the thread *)
-let is_accepted (read:char option) (expect:char option): bool =
-  match read,expect with
-  | None, _ -> failwith "expected a character when consuming blocked thread"
-  | _, None -> true     (* None in the expectation means accept all *)
-  | Some r, Some e -> r = e     (* when expecting a particular char *)
      
 (* modifies the state by consuming the next character  *)
 (* calls itself recursively until there are no more blocked threads *)
 let rec consume ?(debug=false) (c:code) (s:interpreter_state): unit =
   match s.blocked with
   | [] -> ()
-  | (t,x)::blocked' ->
+  | (t,ce)::blocked' ->
      s.blocked <- blocked';
-     if (is_accepted s.context.nextchar x) then
+     if (is_accepted s.context.nextchar ce) then
        begin t.exit_allowed <- true; t.pc <- t.pc + 1; s.active <- t::s.active end; (* adding t to the list of active threads *)
      (* since t just consumed something, we set its exit_allowed flag to true *)
      consume ~debug c s

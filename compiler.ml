@@ -51,12 +51,12 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction treelist
   | Re_empty -> (Leaf [], fresh)
   | Re_char ch ->
      begin match ctype with
-     | Progress -> (Leaf [Consume ch], fresh+1)
+     | Progress -> (Leaf [Consume (Single ch)], fresh+1)
      | ReconstructNulled -> (Leaf [Fail], fresh+1)
      end
   | Re_dot ->
      begin match ctype with
-     | Progress -> (Leaf [ConsumeAll], fresh+1)
+     | Progress -> (Leaf [Consume All], fresh+1)
      | ReconstructNulled -> (Leaf [Fail], fresh+1)
      end
   | Re_con (r1, r2) ->

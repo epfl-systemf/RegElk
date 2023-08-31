@@ -2,6 +2,7 @@
 (* The code corresponding to a bytecode that the VM should execute in a lockstep fashion (Thompson simulation) *)
 
 open Regex
+open Charclasses
 
 (* corresponding to indices in a list of instructions *)
 type label = int
@@ -11,8 +12,7 @@ type register = int
 
 (* when the next label isn't directly specified, we expect a falltrough order of just going to the next instruction in the list *)
 type instruction =
-  | Consume of char
-  | ConsumeAll                  (* for the dot. TODO: generalize to ranges *)
+  | Consume of char_expectation                 
   | Accept
   | Jmp of label
   | Fork of label * label
@@ -56,8 +56,7 @@ let nb_epsilon (c:code) : int =
 
 let print_instruction (i:instruction) : string =
   match i with
-  | Consume ch -> "Consume " ^ String.make 1 ch
-  | ConsumeAll -> "ConsumeAll"
+  | Consume ce -> "Consume " ^ expectation_to_string ce
   | Accept -> "Accept"
   | Jmp l -> "Jmp " ^ string_of_int l
   | Fork (l1,l2) -> "Fork " ^ string_of_int l1 ^ " " ^ string_of_int l2
