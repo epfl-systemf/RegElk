@@ -399,7 +399,7 @@ let reconstruct_plus_groups ?(debug=false) ?(verbose=false) (thread:thread) (r:r
   (* goes through the regex, if it encounters a nulled +, it calls the null interpreter *)
   let rec nulled_plus (reg:regex) : unit =
     match reg with
-    | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ -> ()
+    | Re_empty | Re_character _ -> ()
     | Re_alt (r1, r2) | Re_con (r1, r2) ->
        nulled_plus r1; nulled_plus r2
     | Re_capture (_,r1) -> nulled_plus r1
@@ -474,7 +474,7 @@ let boolean_interp ?(verbose = true) ?(debug=false) (r:regex) (c:code) (s:string
 (* modifies regs in-place *)
 let rec filter_capture (r:regex) (cap_regs:int Array.t) (cap_clocks: int Array.t) (look_clocks:int Array.t) (quant_clocks:int Array.t) (maxclock:int) : unit =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> ()
+  | Re_empty | Re_character _ | Re_anchor _ -> ()
   | Re_alt (r1,r2) -> filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks maxclock;
                       filter_capture r2 cap_regs cap_clocks look_clocks quant_clocks maxclock
   | Re_con (r1,r2) -> filter_capture r1 cap_regs cap_clocks look_clocks quant_clocks maxclock;
@@ -508,7 +508,7 @@ let rec filter_capture (r:regex) (cap_regs:int Array.t) (cap_clocks: int Array.t
       
 and filter_all (r:regex) (regs:int Array.t) : unit = (* clearing all capture group inside a regex *)
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> ()
+  | Re_empty | Re_character _ | Re_anchor _ -> ()
   | Re_alt (r1,r2) -> filter_all r1 regs; filter_all r2 regs
   | Re_con (r1,r2) -> filter_all r1 regs; filter_all r2 regs
   | Re_quant (nul, qid, quant, r1) ->

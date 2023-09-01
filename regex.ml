@@ -53,16 +53,22 @@ type anchor =
 (* note that if we implemented some flags, like multiline, then we should add other anchors, like EndLine and BeginLine *)
 (* for now we do not implement such a flag *)
 
+(** * Character Characterizations  *)
+(* different ways of representing a character *)
+
+type character =
+  | Char of char                (* a simple character *)
+  | Dot                         (* any character *)
+  | Group of char_group         (* PERL character classes \s, \w... *)
+  | Class of char_class         (* a character class *)
+  | NegClass of char_class      (* a negated character class *)
+  
 
 (** * Raw Regexes  *)
 (* Input regexes, before they get annotated with capture groups identifiers and lookaround identifiers *)
 type raw_regex =
   | Raw_empty
-  | Raw_char of char
-  | Raw_dot
-  | Raw_group of char_group
-  | Raw_class of char_class
-  | Raw_neg_class of char_class
+  | Raw_character of character
   | Raw_alt of raw_regex * raw_regex
   | Raw_con of raw_regex * raw_regex
   | Raw_quant of quantifier * raw_regex
@@ -72,6 +78,13 @@ type raw_regex =
   | Raw_anchor of anchor
 
 
+(* some shortcuts for simpler ASTs *)
+let raw_char (x:char): raw_regex  = Raw_character (Char x)
+let raw_dot: raw_regex = Raw_character Dot
+let raw_group (g:char_group) : raw_regex = Raw_character (Group g)
+let raw_class (c:char_class) : raw_regex = Raw_character (Class c)
+let raw_neg_class (c:char_class) : raw_regex = Raw_character (NegClass c)
+                
 (** * Nullable Regexes  *)
 (* Nullable quantifiers can be compiled differently *)
 (* here we simply identify nullable regexes *)
@@ -100,10 +113,7 @@ type quantid = int
 
 type regex =
   | Re_empty
-  | Re_char of char
-  | Re_dot                      (* any character *)
-  | Re_class of char_class      
-  | Re_neg_class of char_class
+  | Re_character of character
   | Re_alt of regex * regex
   | Re_con of regex * regex
   (* each quantifier is given an unique id *)
@@ -135,7 +145,7 @@ let null_and (n1:nullability)  (n2:nullability): nullability =
 let rec nullable (r:regex) : nullability =
   match r with
   | Re_empty -> CINullable
-  | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ -> NonNullable
+  | Re_character _ -> NonNullable
   | Re_alt (r1,r2) -> null_or (nullable r1) (nullable r2)
   | Re_con (r1,r2) -> null_and (nullable r1) (nullable r2)
   | Re_quant (_,_,q,r1) ->
@@ -148,7 +158,7 @@ let rec nullable (r:regex) : nullability =
 let rec raw_nullable (r:raw_regex) : nullability =
   match r with
   | Raw_empty -> CINullable
-  | Raw_char _ | Raw_dot | Raw_group _ | Raw_class _ | Raw_neg_class _ -> NonNullable
+  | Raw_character _ -> NonNullable
   | Raw_alt (r1,r2) -> null_or (raw_nullable r1) (raw_nullable r2)
   | Raw_con (r1,r2) -> null_and (raw_nullable r1) (raw_nullable r2)
   | Raw_quant (q,r1) ->
@@ -202,15 +212,19 @@ let print_anchor (a:anchor) : string =
   | WordBoundary -> "\\b"
   | NonWordBoundary -> "\\B"
 
+let print_character (c:character) : string =
+  match c with
+  | Char x -> String.make 1 x
+  | Dot -> "."
+  | Group g -> print_group g
+  | Class c -> "[" ^ print_class c ^ "]"
+  | NegClass c -> "[^" ^ print_class c^ "]"
+                     
                    
 let rec print_raw (ra:raw_regex) : string =
   match ra with
   | Raw_empty -> ""
-  | Raw_char ch -> String.make 1 ch
-  | Raw_dot -> "."
-  | Raw_group g -> print_group g
-  | Raw_class c -> "[" ^ print_class c ^ "]"
-  | Raw_neg_class c -> "[^" ^ print_class c^ "]"
+  | Raw_character c -> print_character c
   | Raw_alt (r1, r2) -> print_raw r1 ^ "|" ^ print_raw r2
   | Raw_con (r1, r2) -> print_raw r1 ^ print_raw r2
   | Raw_quant (q, r1) -> print_raw r1 ^ print_quant q
@@ -222,10 +236,7 @@ let rec print_raw (ra:raw_regex) : string =
 let rec print_regex (r:regex) : string =
   match r with
   | Re_empty -> ""
-  | Re_char ch -> String.make 1 ch
-  | Re_dot -> "."
-  | Re_class c -> "[" ^ print_class c ^ "]"
-  | Re_neg_class c -> "[^" ^ print_class c ^ "]"
+  | Re_character c -> print_character c
   | Re_alt (r1, r2) -> print_regex r1 ^ "|" ^ print_regex r2
   | Re_con (r1, r2) -> print_regex r1 ^ print_regex r2
   | Re_quant (_, qid, q, r1) -> print_regex r1 ^ print_counted_quant q ^ "\027[31m" ^ string_of_int qid ^ "\027[0m"
@@ -242,11 +253,7 @@ let rec print_regex (r:regex) : string =
 let rec annotate_regex (ra:raw_regex) (c:capture) (l:lookid) (q:quantid) : regex * capture * lookid  * quantid =
   match ra with
   | Raw_empty -> (Re_empty, c, l, q)
-  | Raw_char ch -> (Re_char ch, c, l, q)
-  | Raw_dot -> (Re_dot, c, l, q)
-  | Raw_group g -> (Re_class [CGroup g], c, l, q) (* treating groups as a class *)
-  | Raw_class cl -> (Re_class cl, c, l, q)
-  | Raw_neg_class cl -> (Re_neg_class cl, c, l, q)
+  | Raw_character r -> (Re_character r, c, l, q)
   | Raw_alt (r1, r2) ->
      let (ar1, c1, l1, q1) = annotate_regex r1 c l q in
      let (ar2, c2, l2, q2) = annotate_regex r2 c1 l1 q1 in
@@ -278,7 +285,7 @@ let annotate (ra:raw_regex) : regex =
 
 (* Adds a .*? at the beginning of a regex so that it does not have to be matched at the beginning *)
 let lazy_prefix (r:regex) : regex =
-  Re_con (Re_quant (NonNullable, 0,{min=0;max=None;greedy=false}, Re_dot), r)
+  Re_con (Re_quant (NonNullable, 0,{min=0;max=None;greedy=false}, Re_character Dot), r)
 (* TODO: if there is a BeginInput at the beginning of the regex, we could remove the lazy star *)
 
 (** * Regex Manipulation  *)
@@ -296,7 +303,7 @@ let reverse_anchor (a:anchor) : anchor =
   
 let rec reverse_regex (r:regex) : regex =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ -> r
+  | Re_empty | Re_character _ -> r
   | Re_alt (r1, r2) -> Re_alt (reverse_regex r1, reverse_regex r2)
   | Re_con (r1, r2) -> Re_con (reverse_regex r2, reverse_regex r1) (* reversing concatenation *)
   | Re_quant (nul, qid, quant, r1) -> Re_quant (nul, qid, quant, reverse_regex r1)
@@ -310,7 +317,7 @@ let rec reverse_regex (r:regex) : regex =
 (* We also remove the annotations in the quantifiers because there is no need to clear capture registers *)
 let rec remove_capture (r:regex) : regex =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> r
+  | Re_empty | Re_character _ | Re_anchor _ -> r
   | Re_alt (r1, r2) -> Re_alt (remove_capture r1, remove_capture r2)
   | Re_con (r1, r2) -> Re_con (remove_capture r1, remove_capture r2)
   | Re_quant (nul, qid, quant, r1) ->
@@ -328,7 +335,7 @@ let rec remove_capture (r:regex) : regex =
 (* Extracting the lookaround type and inner subexpression of a given lookaround identifier *)
 let rec get_lookaround (r:regex) (lid:lookid) : (regex * lookaround) option =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> None
+  | Re_empty | Re_character _ | Re_anchor _ -> None
   | Re_alt (r1, r2) | Re_con (r1, r2) -> (* the order does not matter since each identifier is unique *)
      begin match (get_lookaround r1 lid) with
      | Some le -> Some le
@@ -349,7 +356,7 @@ let get_look (r:regex) (lid:lookid) : regex * lookaround =
 (* extracting a quantifier body given its quantifier id *)
 let rec get_quantifier (r:regex) (qid:quantid) : (regex * counted_quantifier) option =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> None
+  | Re_empty | Re_character _ | Re_anchor _ -> None
   | Re_alt (r1, r2) | Re_con (r1, r2) ->
      begin match (get_quantifier r1 qid) with
      | Some qr -> Some qr
@@ -369,7 +376,7 @@ let get_quant (r:regex) (qid:quantid) : regex * counted_quantifier =
 (* Returns the maximum used lookaround in a regex *)
 let rec max_lookaround (r:regex) : lookid =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> 0
+  | Re_empty | Re_character _ | Re_anchor _ -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_lookaround r1) (max_lookaround r2)
   | Re_quant (_, _,_,r1) | Re_capture (_,r1) -> max_lookaround r1
   | Re_lookaround (lid, look, r1) -> max lid (max_lookaround r1)
@@ -377,7 +384,7 @@ let rec max_lookaround (r:regex) : lookid =
 (* maximum capture group *)
 let rec max_group (r:regex) : capture =
   match r with 
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> 0
+  | Re_empty | Re_character _ | Re_anchor _ -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_group r1) (max_group r2)
   | Re_quant (_,_,_,r1) | Re_lookaround (_,_,r1) -> max_group r1
   | Re_capture (cid, r1) -> max cid (max_group r1)
@@ -385,7 +392,7 @@ let rec max_group (r:regex) : capture =
 (* maximum quantifier *)
 let rec max_quant (r:regex) : quantid =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> 0
+  | Re_empty | Re_character _ | Re_anchor _ -> 0
   | Re_alt (r1, r2) | Re_con (r1, r2) -> max (max_quant r1) (max_quant r2)
   | Re_lookaround (_,_,r1) | Re_capture  (_,r1) -> max_quant r1
   | Re_quant(_,qid,_,r1) -> max qid (max_quant r1)
@@ -395,7 +402,7 @@ let rec max_quant (r:regex) : quantid =
 (* we consider every counted repetition that ends in a nullable greedy plus (min>0,max=None,greedy) *)
 let rec nullable_plus_quantid' (r:regex) (lq:quantid list) : quantid list =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> lq
+  | Re_empty | Re_character _ | Re_anchor _ -> lq
   | Re_alt (r1, r2) | Re_con (r1, r2) ->
      nullable_plus_quantid' r2 (nullable_plus_quantid' r1 lq)
   | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> nullable_plus_quantid' r1 lq
@@ -415,7 +422,7 @@ let nullable_plus_quantid (r:regex) : quantid list =
 (* we consider every counted repetition that ends in a nullable greedy plus (min>0,max=None,greedy) *)
 let rec cdn_plus_list' (r:regex) (lq:quantid list) : quantid list =
 match r with
-| Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> lq
+| Re_empty | Re_character _ | Re_anchor _ -> lq
 | Re_alt (r1, r2) | Re_con (r1, r2) ->
    cdn_plus_list' r2 (cdn_plus_list' r1 lq)
 | Re_lookaround (_,_,r1) | Re_capture (_, r1) -> cdn_plus_list' r1 lq
@@ -488,15 +495,19 @@ let rec rep_class (c:char_class) : string =
 
 let report_class (c:char_class) : string =
   "["^rep_class c^"]"
+
+let report_character (c:character) : string =
+  match c with
+  | Char x -> "Char(\'"^String.make 1 x^"\')"
+  | Dot -> "Dot"
+  | Group g -> "Group("^report_group g^")"
+  | Class cl -> "Class("^report_class cl^")"
+  | NegClass cl -> "NegClass("^report_class cl^")"
   
 let rec report_raw (raw:raw_regex) : string =
   match raw with
   | Raw_empty -> "Raw_empty"
-  | Raw_char x -> "Raw_char(\'"^String.make 1 x^"\')"
-  | Raw_dot -> "Raw_dot"
-  | Raw_group g -> "Raw_group("^report_group g^")"
-  | Raw_class c -> "Raw_class("^report_class c^")"
-  | Raw_neg_class c -> "Raw_neg_class("^report_class c^")"
+  | Raw_character c -> "Raw_character("^report_character c^")"
   | Raw_alt (r1,r2) -> "Raw_alt("^report_raw r1^","^report_raw r2^")"
   | Raw_con (r1,r2) -> "Raw_con("^report_raw r1^","^report_raw r2^")"
   | Raw_quant (q,r1) -> "Raw_quant("^report_quant q^","^report_raw r1^")"
@@ -514,7 +525,7 @@ let rec report_raw (raw:raw_regex) : string =
 (* ln is the number of nullable lazy + *)
 let rec plus_stats (r:regex) : int * int * int * int * int =
   match r with
-  | Re_empty | Re_char _ | Re_dot | Re_class _ | Re_neg_class _ | Re_anchor _ -> (0,0,0,0,0)
+  | Re_empty | Re_character _ | Re_anchor _ -> (0,0,0,0,0)
   | Re_alt (r1,r2) | Re_con (r1,r2) ->
      let (nn1,cdn1,cin1,lnn1,ln1) = plus_stats r1 in
      let (nn2,cdn2,cin2,lnn2,ln2) = plus_stats r2 in

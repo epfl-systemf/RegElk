@@ -23,7 +23,7 @@ let max_tests = 1000
 
 let max_counted = 10
 
-let max_class = 20
+let max_class = 7
 
 (** * Creating Random Regexes  *)
    
@@ -90,39 +90,44 @@ let random_class () : char_class =
   let size = Random.int max_class in
   List.init size (fun _ -> random_elt())
 
+let random_character () : character =
+  match (Random.int 5) with
+  | 0 -> let c = random_char() in Char c
+  | 1 -> Dot
+  | 2 -> let g = random_group() in Group g
+  | 3 -> let cl = random_class() in Class cl
+  | 4 -> let cl = random_class() in NegClass cl
+  | _ -> failwith "random range error"       
+
 (* with a maximal number of recursion [depth] *)
 (* the [look] boolean specifies if lookarounds are allowed *)
 let rec random_regex (depth:int) (look:bool): raw_regex =
-  let max = if look then 15 else 13 in
+  let max = if look then 13 else 11 in
   let rand = if (depth=0) then Random.int 3 else Random.int max in
   match rand with
   | 0 -> Raw_empty
-  | 1 -> let x = random_char() in Raw_char x
-  | 2 -> Raw_dot
-  | 3 -> let g = random_group () in Raw_group g
-  | 4 -> let cl = random_class() in Raw_class cl
-  | 5 -> let cl = random_class() in Raw_neg_class cl
-  | 6 -> let a = random_anchor() in Raw_anchor a
-  | 7 ->
+  | 1 | 2 | 3 -> let x = random_character() in Raw_character x
+  | 4 -> let a = random_anchor() in Raw_anchor a
+  | 5 ->
      let r1 = random_regex (depth-1) look in
      let r2 = random_regex (depth-1) look in
      Raw_alt (r1, r2)
-  | 8 ->
+  | 6 ->
      let r1 = random_regex (depth-1) look in
      let r2 = random_regex (depth-1) look in
      Raw_con (r1, r2)
-  | 9 ->
+  | 7 ->
      let r1 = random_regex (depth-1) look in
      let q = random_quant() in
      Raw_quant(q, r1)
-  | 10 ->
+  | 8 ->
      let r1 = random_regex (depth-1) look in
      let q = random_counted_quant() in
      Raw_count(q, r1)
-  | 11 | 12 ->
+  | 9 | 10 ->
      let r1 = random_regex (depth-1) look in
      Raw_capture(r1)
-  | 13 | 14 ->
+  | 11 | 12 ->
      let r1 = random_regex (depth-1) look in
      let l = random_look() in
      Raw_lookaround(l, r1)

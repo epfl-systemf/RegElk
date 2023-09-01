@@ -18,11 +18,7 @@ let noncap (s:string) : string =
 let rec print_js (ra:raw_regex) : string =
   match ra with
   | Raw_empty -> ""
-  | Raw_char ch -> String.make 1 ch
-  | Raw_dot -> "."
-  | Raw_group g -> print_group g
-  | Raw_class cl -> "["^print_class cl^"]"
-  | Raw_neg_class cl -> "[^"^print_class cl^"]"
+  | Raw_character c -> print_character c
   | Raw_alt (r1, r2) -> noncap(print_js r1) ^ "|" ^ noncap(print_js r2)
   | Raw_con (r1, r2) -> noncap(print_js r1) ^ noncap(print_js r2)
   | Raw_quant (q, r1) -> noncap(print_js r1) ^ print_quant q

@@ -50,26 +50,16 @@ type comp_type =
 let rec compile (r:regex) (fresh:label) (ctype:comp_type) : instruction treelist * label =
   match r with
   | Re_empty -> (Leaf [], fresh)
-  | Re_char ch ->
-     begin match ctype with
-     | Progress -> (Leaf [Consume (Single ch)], fresh+1)
-     | ReconstructNulled -> (Leaf [Fail], fresh+1)
-     end
-  | Re_dot ->
-     begin match ctype with
-     | Progress -> (Leaf [Consume All], fresh+1)
-     | ReconstructNulled -> (Leaf [Fail], fresh+1)
-     end
-  | Re_class cl ->
-     begin match ctype with
-     | Progress -> (Leaf [Consume (Ranges (class_to_range cl))], fresh+1)
-     | ReconstructNulled -> (Leaf [Fail], fresh+1)
-     end
-  | Re_neg_class cl ->
-     begin match ctype with
-     | Progress -> (Leaf [Consume (Ranges (range_neg (class_to_range cl)))], fresh+1)
-     | ReconstructNulled -> (Leaf [Fail], fresh+1)
-     end
+  | Re_character c ->
+     if (ctype = ReconstructNulled) then (Leaf [Fail], fresh+1)
+     else
+       begin match c with
+       | Char ch -> (Leaf [Consume (Single ch)], fresh+1)
+       | Dot -> (Leaf [Consume All], fresh+1)
+       | Group g -> (Leaf [Consume (Ranges (group_to_range g))], fresh+1)
+       | Class cl -> (Leaf [Consume (Ranges (class_to_range cl))], fresh+1)
+       | NegClass cl -> (Leaf [Consume (Ranges (range_neg (class_to_range cl)))], fresh+1)
+       end
   | Re_con (r1, r2) ->
      let (l1, f1) = compile r1 fresh ctype in
      let (l2, f2) = compile r2 f1 ctype in

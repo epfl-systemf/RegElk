@@ -107,7 +107,7 @@ let run_benchmark (b:benchmark) : unit =
    
 (* (a(?=a*b))* *)
 let lookahead_star_reg: raw_regex = 
-  Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_con(Raw_quant(Star,Raw_char('a')),Raw_char('b'))))) 
+  Raw_quant(Star,Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_con(Raw_quant(Star,raw_char('a')),raw_char('b'))))) 
 
 let a_repeat_b : str_param = fun str_size -> 
   (String.make str_size 'a') ^ (String.make 1 'b')
@@ -120,8 +120,8 @@ let lookahead_star : benchmark =
 (* a(?=a) -> a(?=a(?=a)) -> a(?=a(?=a(?=a))) -> ... *)
 let rec nested_lookahead_reg : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_char('a')
-  | _ -> Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,nested_lookahead_reg(reg_size-1)))
+  | 0 -> raw_char('a')
+  | _ -> Raw_con(raw_char('a'),Raw_lookaround(Lookahead,nested_lookahead_reg(reg_size-1)))
 
 let nested_string : string =
   String.make 600 'a'
@@ -133,7 +133,7 @@ let lookahead_nested : benchmark =
 (** * Double Star Explosion  *)
   (* (a* )*b explodes on aaaaa, so let's try ((a(?=.))* )*b to add a lookahead *)
 let explosion_reg : raw_regex =
-  Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_con(Raw_char('a'),Raw_lookaround(Lookahead,Raw_dot)))),Raw_char('b'))
+  Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_con(raw_char('a'),Raw_lookaround(Lookahead,raw_dot)))),raw_char('b'))
 
 let a_repeat : str_param = fun str_size ->
   String.make str_size 'a'
@@ -149,7 +149,7 @@ let double_star_explosion : benchmark =
 
 let rec quadratic_bytecode : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_dot
+  | 0 -> raw_dot
   | _ -> Raw_quant(Star, Raw_capture (quadratic_bytecode (reg_size-1)))
 
 let quadratic_string : string =
@@ -180,7 +180,7 @@ let experimental_benchmark () =
 
 let rec quadratic_plus_reg : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_dot
+  | 0 -> raw_dot
   | _ -> Raw_quant(Plus,quadratic_plus_reg (reg_size - 1))
 
 let quadratic_plus_str : string =
@@ -194,8 +194,8 @@ let quadratic_plus : benchmark =
   
 let rec nested_nullable_reg : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_quant(Star,Raw_alt(Raw_empty,Raw_dot))
-  | _ -> Raw_quant(Star,Raw_alt(nested_nullable_reg (reg_size - 1),Raw_dot))
+  | 0 -> Raw_quant(Star,Raw_alt(Raw_empty,raw_dot))
+  | _ -> Raw_quant(Star,Raw_alt(nested_nullable_reg (reg_size - 1),raw_dot))
 
 let nested_null_string : string =
   String.make 999 'a'           (* <1000, not JS compiled *)
@@ -208,7 +208,7 @@ let nested_nullable : benchmark =
   
 let rec cin_plus_reg : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_alt(Raw_dot,Raw_empty)
+  | 0 -> Raw_alt(raw_dot,Raw_empty)
   | _ -> Raw_quant(Plus,cin_plus_reg (reg_size - 1))
 
 let cin_plus_str : string =
@@ -222,7 +222,7 @@ let cin_plus : benchmark =
   
 let rec cdn_plus_reg : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_alt(Raw_dot,Raw_lookaround(Lookahead,Raw_dot))
+  | 0 -> Raw_alt(raw_dot,Raw_lookaround(Lookahead,raw_dot))
   | _ -> Raw_quant(Plus,cdn_plus_reg (reg_size - 1))
 
 let cdn_plus_str : string =
@@ -239,8 +239,8 @@ let int_to_alphabet (idx:int) : char =
 let many_forks_reg : reg_param = 
   let rec many_forks_reg : reg_param = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_char('a')
-  | _ -> Raw_capture(Raw_alt(many_forks_reg (reg_size-1),Raw_char(int_to_alphabet reg_size)))
+  | 0 -> raw_char('a')
+  | _ -> Raw_capture(Raw_alt(many_forks_reg (reg_size-1),raw_char(int_to_alphabet reg_size)))
   in
   fun reg_size ->         
   Raw_quant(Star,many_forks_reg reg_size)
