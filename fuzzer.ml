@@ -6,6 +6,7 @@ open Tojs
 open Regex
 open Random
 open Charclasses
+open Flags
 
 let _ = Random.self_init()
 
@@ -183,6 +184,9 @@ let fuzzer () : unit =
 
 (* calling the fuzzer *)
 let main =
+
+  verbose := false;
+  debug := false;
   
   let speclist =
     [("-tests", Arg.Set_int max_tests, "Number of tests");

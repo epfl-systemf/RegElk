@@ -6,6 +6,7 @@ open Sys
 open Filename
 open Linear
 open Charclasses
+open Flags
 
 (** * JS Regex pretty-printing  *)
 (* printing regexes in the JS style so that we can compare our results to a JS engine *)
@@ -69,22 +70,34 @@ type compare_result =
   | Error
 
 
-let compare_js_ocaml ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : compare_result =
+let compare_js_ocaml (raw:raw_regex) (str:string) : compare_result =
+  (* saving the values of debug and verbose *)
+  (* because this compares the output string, verbose and debug needs to be turned off *)
+  let dbg_save = !debug in
+  let ver_save = !verbose in
+  debug := false;
+  verbose := false;
+  
   Printf.printf "\027[36mRegex:\027[0m %s || " (print_regex (annotate raw));
   Printf.printf "\027[36mJS Regex:\027[0m %s || " (print_js raw);
   Printf.printf "\027[36mString:\027[0m \"%s\"\n%!" str;
   Printf.printf "%s\n%!" (report_raw raw);
   let sjs = get_js_result raw str in
   Printf.printf "\027[35mJS result:\027[0m\n%s%!" sjs;
-  let sl = get_linear_result ~verbose ~debug raw str in
+  let sl = get_linear_result raw str in
   Printf.printf "\027[35mLinear result:\027[0m\n%s%!" sl;
-  if (String.compare sjs "Timeout\n\n" = 0) then Timeout
-  else if (String.compare sjs sl = 0) then Equal else Error
+  let result = if (String.compare sjs "Timeout\n\n" = 0) then Timeout
+               else if (String.compare sjs sl = 0) then Equal else Error in
+  
+  (* resetting flag values *)
+  debug := dbg_save;
+  verbose := ver_save;
+  result
                                                 
 
 (* fails on errors, and returns false on timeouts (we couldn't verify the equality) *)
-let compare_engines ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : bool =
-  let cr = compare_js_ocaml ~verbose ~debug raw str in
+let compare_engines (raw:raw_regex) (str:string) : bool =
+  let cr = compare_js_ocaml raw str in
   match cr with
   | Error -> failwith "Mismatch between backtracking and linear"
   | Timeout -> false

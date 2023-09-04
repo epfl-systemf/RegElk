@@ -6,6 +6,7 @@ open Regex
 open Compiler
 open Interpreter
 open Cdn
+open Flags
 
 (** * Bulding the Oracle  *)
 
@@ -18,7 +19,7 @@ let reverse_type (l:lookaround) (r:regex) : regex =
    
 (* we consider lookarounds by reverse order of their identifiers *)
 (* we do not need to do this for the main regex *)
-let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
+let build_oracle (r:regex) (str:string): oracle =
   let max = max_lookaround r in
   let o = create_oracle (String.length str) (max + 1) in
   for lid = max downto 1 do
@@ -29,7 +30,7 @@ let build_oracle ?(verbose=true) ?(debug=false) (r:regex) (str:string): oracle =
     let bytecode = compile_to_write lookreg lid in
     let direction = oracle_direction looktype in
     let lookcdn = compile_cdns lookreg in
-    ignore (interp_default_init ~verbose ~debug lookreg bytecode str o direction lookcdn)
+    ignore (interp_default_init lookreg bytecode str o direction lookcdn)
            (* we don't want the return value, we just want to write to the oracle *)
   done;
   o                             (* returning the modified oracle *)
@@ -51,7 +52,7 @@ let capture_type (l:lookaround) : bool =
                                 
 
 (* returns the register array if there is a match *)
-let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracle): (int Array.t) option =
+let build_capture (r:regex) (str:string) (o:oracle): (int Array.t) option =
   let max_look = max_lookaround r in
   let max_cap = max_group r in
   let max_quant = max_quant r in
@@ -62,7 +63,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
   let main_regex = lazy_prefix r in (* lazy star prefix, only for the main expression *)
   let main_bytecode = compile_to_bytecode main_regex in
   let main_cdn = compile_cdns main_regex in
-  let main_result = interp ~verbose ~debug r main_bytecode str o Forward 0 capture look quant 0 main_cdn in
+  let main_result = interp r main_bytecode str o Forward 0 capture look quant 0 main_cdn in
   match main_result with
   | None -> None
   | Some thread ->              (* we have a match and want to rebuild capture groups *)
@@ -79,7 +80,7 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
             let bytecode = compile_to_bytecode lookreg in
             let direction = capture_direction looktype in
             let lookcdn = compile_cdns lookreg in
-            let result = interp ~verbose ~debug lookreg bytecode str o direction cp !capture !look !quant 0 lookcdn in
+            let result = interp lookreg bytecode str o direction cp !capture !look !quant 0 lookcdn in
             begin match result with
             | None -> failwith "result expected from the oracle"
             | Some t ->
@@ -89,22 +90,22 @@ let build_capture ?(verbose=true) ?(debug=false) (r:regex) (str:string) (o:oracl
                quant := t.quant_regs
             end
      done;
-     if debug then Printf.printf "regs: %s\n%!" (Interpreter.Regs.to_string !capture);
+     if !debug then Printf.printf "regs: %s\n%!" (Interpreter.Regs.to_string !capture);
      let match_capture = filter_reset r !capture !look !quant (-1) in (* filtering old values *)
-     if debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
+     if !debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
      Some (match_capture)
      
   
-let full_match ?(verbose=true) ?(debug=false) (raw:raw_regex) (str:string) : (int Array.t) option =
+let full_match (raw:raw_regex) (str:string) : (int Array.t) option =
   let re = annotate raw in
-  let o = build_oracle ~verbose ~debug re str in
-  if debug then
+  let o = build_oracle re str in
+  if !debug then
     Printf.printf "%s\n" (print_oracle o);
-  let ca = build_capture ~verbose ~debug re str o in
-  if verbose then
+  let ca = build_capture re str o in
+  if !verbose then
     Printf.printf "%s\n" (print_result re str ca);
   ca
             
-let get_linear_result ?(verbose=false) ?(debug=false) (raw:raw_regex) (str:string) : string =
-  let capop = full_match ~verbose ~debug raw str in
-  print_result ~verbose (annotate raw) str capop
+let get_linear_result (raw:raw_regex) (str:string) : string =
+  let capop = full_match raw str in
+  print_result (annotate raw) str capop

@@ -11,15 +11,23 @@ open Toexp
 open Torust
 open Charclasses
 open Complexity_exp
+open Flags
 
   
 let main =
+
+  
   
   let bug = (raw_class([CRange(char_of_int(39),char_of_int(97))]),"-babbababb-b--aaaaa-aaa-bab-b--") in
-  ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
+  
+  verbose := true;
+  debug := true;
+  ignore (get_linear_result (fst bug) (snd bug));
+  
   ignore (compare_engines (fst bug) (snd bug))
     
-    
+
+         (* TODO: make some benchmark binaries *)
   (* run_benchmark(many_forks) *)
   (* many_forks_rust_benchmark() *)
 
