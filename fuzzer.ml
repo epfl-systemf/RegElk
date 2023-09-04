@@ -19,7 +19,7 @@ let max_depth = 50
 
 let max_string = 100
 
-let max_tests = 1000
+let max_tests = ref 1000
 
 let max_counted = 10
 
@@ -156,7 +156,7 @@ let fuzzer () : unit =
   let total_ln = ref 0 in
   let total_timeout = ref 0 in
   
-  for i = 0 to max_tests do 
+  for i = 0 to !max_tests do 
     let raw = random_raw() in
     let str = random_string() in
     let comp = compare_engines raw str in
@@ -172,10 +172,22 @@ let fuzzer () : unit =
   done;
 
   Printf.printf "\n=====\n\n";
-  Printf.printf "Total tests:                 %d\n" max_tests;
+  Printf.printf "Total tests:                 %d\n" !max_tests;
   Printf.printf "NonNullable+:                %d\n" !total_nn;
   Printf.printf "ContextDependentNullable+:   %d\n" !total_cdn;
   Printf.printf "ContextIndependentNullable+: %d\n" !total_cin;
   Printf.printf "NonNullableLazy+:            %d\n" !total_lnn;
   Printf.printf "NullableLazy+:               %d\n" !total_ln;
   Printf.printf "JS Backtracking Timeouts:    %d\n" !total_timeout
+
+
+(* calling the fuzzer *)
+let main =
+  
+  let speclist =
+    [("-tests", Arg.Set_int max_tests, "Number of tests");
+    ] in
+
+  let usage = "./fuzzer.native [-tests 1000]" in
+  Arg.parse speclist (fun _ -> ()) usage;
+  fuzzer()

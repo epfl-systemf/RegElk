@@ -319,4 +319,8 @@ let paper_example () =
   let reg_example : raw_regex = Raw_alt(right_branch_example,left_branch_example) in
   let str_example = "aaab" in
   full_match reg_example str_example
-  
+
+
+(* Running all tests *)
+let main =
+  tests()

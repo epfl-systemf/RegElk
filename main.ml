@@ -10,20 +10,15 @@ open Tore2
 open Toexp
 open Torust
 open Charclasses
-open Diff_fuzzer
 open Complexity_exp
-open Tests
 
   
 let main =
   
-  (* let bug = (Raw_class([CRange(char_of_int(39),char_of_int(97))]),"-babbababb-b--aaaaa-aaa-bab-b--") in
-   * ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
-   * ignore (compare_engines (fst bug) (snd bug)) *)
+  let bug = (raw_class([CRange(char_of_int(39),char_of_int(97))]),"-babbababb-b--aaaaa-aaa-bab-b--") in
+  ignore (get_linear_result ~verbose:true ~debug:true (fst bug) (snd bug));
+  ignore (compare_engines (fst bug) (snd bug))
     
-
-  tests()
-  (* fuzzer() *)
     
   (* run_benchmark(many_forks) *)
   (* many_forks_rust_benchmark() *)
