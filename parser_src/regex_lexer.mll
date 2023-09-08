@@ -31,6 +31,7 @@ rule token = parse
 | '<' { LESS }
 | '>' { MORE }
 | '=' { EQUAL }
+| '-' { MINUS }
 | '!' { EXCL }
 | "\\b" { WORDBOUND }
 | "\\B" { NONWORDBOUND }

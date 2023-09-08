@@ -7,7 +7,7 @@
 %token LBRACK RBRACK
 %token STAR PLUS QMARK
 %token HAT DOLLAR BACKSL DOT
-%token COLONS LESS MORE EQUAL EXCL
+%token COLONS LESS MORE EQUAL MINUS EXCL
 %token WORDBOUND NONWORDBOUND
 %token DIGITCLASS NONDIGITCLASS
 %token SPACECLASS NONSPACECLASS
@@ -28,7 +28,14 @@
 %type  <Regex.counted_quantifier> counted_quantifier
 %type  <Charclasses.char_group> characterclassescape
 %type  <char> characterescape
+%type  <char> controlescape
 %type  <char> identityescape
+%type  <Regex.character> characterclass
+%type  <Charclasses.char_class> classcontents
+%type  <Charclasses.char_class> nonemptyclassranges
+%type  <Charclasses.char_class> nonemptyclassrangesnodash
+%type  <char> classatomnodash
+%type  <char> classatom
 
 %%
 
@@ -94,21 +101,20 @@ atom:
   | LESS { Raw_character(Char('<')) }
   | MORE { Raw_character(Char('>')) }
   | EQUAL { Raw_character(Char('=')) }
+  | MINUS { Raw_character(Char('-')) }
   | EXCL { Raw_character(Char('!')) }
   | d=DIGIT { Raw_character(Char(d)) }
 /* TODO: { for instance can be parsed as single char. But not (. I'm not sure where this is in the spec. Also I'm not sure why, if I add a similar rule for LBRAC, it does not work */
   | DOT { Raw_character(Dot) }
   | a=atomescape { a }
-/* TODO: character class */
+  | c=characterclass { Raw_character c }
   | LPAR d=disjunction RPAR { Raw_capture d }
 /* TODO: fail if there is a group specifier */
   | LPAR QMARK COLONS d=disjunction RPAR { d }
 
 atomescape:
-/* TODO: decimalescape */
   | c=characterclassescape { Raw_character(Group c) }
   | c=characterescape { Raw_character(Char c) }
-/* TODO characterescape */
 
 characterclassescape:
   | DIGITCLASS { Digit }
@@ -119,12 +125,14 @@ characterclassescape:
   | NONWORDCLASS { NonWord }
 
 characterescape:
-/* ControlEscape characters  */
+  | c=controlescape { c }
+  | BACKSL i=identityescape { i }
+
+controlescape:
   | FORMFEED { '\x0C' }
   | NEWLINE { '\n' }
   | CARRIAGE { '\r' }
   | TAB { '\t' }
-  | BACKSL i=identityescape { i }
 
 identityescape:
   | ALT { '|' }
@@ -146,7 +154,67 @@ identityescape:
   | LESS { '<' }
   | MORE { '>' }
   | EQUAL { '=' }
+  | MINUS { '-' }
   | EXCL { '!' }
   | c=CHAR { c }
+
+
+characterclass:
+  | LBRACK HAT c=classcontents RBRACK { NegClass c }
+  | LBRACK c=classcontents RBRACK { Class c }
+
+classcontents:
+  | { [] }
+  | n=nonemptyclassranges { n }
+
+nonemptyclassranges:
+  | g=characterclassescape  { [CGroup g] }
+  | a=classatom { [CChar a] }
+  | g=characterclassescape n=nonemptyclassrangesnodash { (CGroup g)::n }
+  | a=classatom n=nonemptyclassrangesnodash { (CChar a)::n }
+  | a1=classatom MINUS a2=classatom c=classcontents { CRange (a1,a2)::c }
+
+nonemptyclassrangesnodash:
+  | g=characterclassescape  { [CGroup g] }
+  | a=classatom { [CChar a] }
+  | g=characterclassescape n=nonemptyclassrangesnodash { (CGroup g)::n }
+  | a=classatomnodash n=nonemptyclassrangesnodash { (CChar a)::n }
+  | a1=classatomnodash MINUS a2=classatom c=classcontents { CRange (a1,a2)::c }
+
+
+/* I'm removing the character groups \s \w... */
+/* and making it a special rule */
+/* otherwise I'm not sure how to type it for ranges */
+/* Note that there might be a problem with e.g [\w-a] */
+
+classatom:
+  | MINUS { '-' }
+  | c=classatomnodash { c }
+
+classatomnodash:
+  | c=controlescape { c }
+  | BACKSL i=identityescape { i }
+  | ALT { '|' }
+  | LPAR { '(' }
+  | RPAR { ')' }
+  | LBRACK { '[' }
+  | LBRAC { '{' }
+  | RBRAC { '}' }
+  | COMMA { ',' }
+  | STAR { '*' }
+  | PLUS { '+' }
+  | QMARK { '?' }
+  | HAT { '^' }
+  | DOLLAR { '$' }
+  | DOT { '.' }
+  | COLONS { ':' }
+  | LESS { '<' }
+  | MORE { '>' }
+  | EQUAL { '=' }
+  | EXCL { '!' }
+  | c=CHAR { c }
+
+
+
 
 %%
