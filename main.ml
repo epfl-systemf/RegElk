@@ -18,6 +18,7 @@ let main =
 
   let s = read_line () in
   let r:raw_regex = Regex_parser.main Regex_lexer.token (Lexing.from_string s) in
+  assert (regex_wf r);
   Printf.printf "%s\n" (report_raw r)
   
   (* let bug = (raw_class([CRange(char_of_int(39),char_of_int(97))]),"-babbababb-b--aaaaa-aaa-bab-b--") in

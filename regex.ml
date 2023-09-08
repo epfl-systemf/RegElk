@@ -545,4 +545,40 @@ let rec plus_stats (r:regex) : int * int * int * int * int =
      else if (quant.min > 0 && quant.max = None && not quant.greedy && (nul = CDNullable || nul = CINullable))
      then (nn1,cdn1,cin1,lnn1,ln1+1)
      else (nn1,cdn1,cin1,lnn1,ln1) (* not a plus *)
+
      
+(** * Regex Well-Formedness  *)
+(* Checking that a regex is well-formed *)
+(* In practice, this means checking that ranges are well defined (the max is greater than the min) *)
+(* and that the counted repetitions are well defined as well when there is a maximum *)
+
+(* maybe I should check this during parsing instead? *)
+(* I like having a separate function for now *)
+
+let class_elt_wf (e:char_class_elt) : bool =
+  match e with
+  | CChar _ | CGroup _ -> true
+  | CRange (c1,c2) -> c1 <= c2
+     
+let class_wf (cl:char_class) : bool =
+  List.fold_left (&&) true (List.map class_elt_wf cl)
+     
+let rec regex_wf (r:raw_regex) : bool =
+  match r with
+  | Raw_empty | Raw_anchor _ -> true
+  | Raw_alt(r1,r2) | Raw_con(r1,r2) ->
+     regex_wf r1 && regex_wf r2
+  | Raw_quant (_,r1) | Raw_capture r1 | Raw_lookaround(_,r1) ->
+     regex_wf r1
+  | Raw_count (c,r1) ->
+     let ok_range = begin match c.max with
+                    | None -> true
+                    | Some m -> c.min <= m
+                    end in
+     ok_range && regex_wf r1
+  | Raw_character c ->
+     begin match c with
+     | Char _ | Dot | Group _ -> true
+     | Class cl | NegClass cl -> class_wf cl
+     end
+      
