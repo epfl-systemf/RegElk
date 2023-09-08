@@ -1,27 +1,39 @@
 
 %token <char> CHAR
-%token <int> DIGITS
+%token <char> DIGIT
 %token ALT
 %token LPAR RPAR
-%token LBRACK RBRACK COMMA
+%token LBRAC RBRAC COMMA
+%token LBRACK RBRACK
 %token STAR PLUS QMARK
 %token HAT DOLLAR BACKSL DOT
-%token COLONS LESS EQUAL EXCL
+%token COLONS LESS MORE EQUAL EXCL
 %token WORDBOUND NONWORDBOUND
+%token DIGITCLASS NONDIGITCLASS
+%token SPACECLASS NONSPACECLASS
+%token WORDCLASS NONWORDCLASS
+%token FORMFEED NEWLINE CARRIAGE TAB
 %token EOF
 
 %start <Regex.raw_regex> main
+%type  <string> decimaldigits
 %type  <Regex.raw_regex> pattern
 %type  <Regex.raw_regex> disjunction
 %type  <Regex.raw_regex> alternative
 %type  <Regex.raw_regex> term
 %type  <Regex.raw_regex> assertion
 %type  <Regex.raw_regex> atom
+%type  <Regex.raw_regex> atomescape
 %type  <Regex.quantifier> quantifier
 %type  <Regex.counted_quantifier> counted_quantifier
+%type  <Charclasses.char_group> characterclassescape
+%type  <char> characterescape
 
 %%
 
+decimaldigits:
+  | d1=decimaldigits d2=DIGIT { d1 ^ String.make 1 d2 }
+  | d=DIGIT { String.make 1 d }
 
 
 /* https://tc39.es/ecma262/#sec-patterns */
@@ -66,23 +78,50 @@ quantifier:
   | QMARK QMARK { LazyQuestionMark }
 
 counted_quantifier:
-  | LBRACK d=DIGITS RBRACK { {min=d; max=Some d; greedy=true} }
-  | LBRACK d=DIGITS RBRACK QMARK{ {min=d; max=Some d; greedy=false} }
-  | LBRACK d=DIGITS COMMA RBRACK { {min=d; max=None; greedy=true} }
-  | LBRACK d=DIGITS COMMA RBRACK QMARK { {min=d; max=None; greedy=false} }
-  | LBRACK dmin=DIGITS COMMA dmax=DIGITS RBRACK { {min=dmin; max=Some dmax; greedy=true} }
-  | LBRACK dmin=DIGITS COMMA dmax=DIGITS RBRACK QMARK { {min=dmin; max=Some dmax; greedy=false} }
-
+  | LBRAC d=decimaldigits RBRAC { {min=int_of_string d; max=Some (int_of_string d); greedy=true} }
+  | LBRAC d=decimaldigits RBRAC QMARK{ {min=int_of_string d; max=Some (int_of_string d); greedy=false} }
+  | LBRAC d=decimaldigits COMMA RBRAC { {min=int_of_string d; max=None; greedy=true} }
+  | LBRAC d=decimaldigits COMMA RBRAC QMARK { {min=int_of_string d; max=None; greedy=false} }
+  | LBRAC dmin=decimaldigits COMMA dmax=decimaldigits RBRAC { {min=int_of_string dmin; max=Some (int_of_string dmax); greedy=true} }
+  | LBRAC dmin=decimaldigits COMMA dmax=decimaldigits RBRAC QMARK { {min=int_of_string dmin; max=Some (int_of_string dmax); greedy=false} }
 
 atom:
-  | c=CHAR { Raw_character(Char c) } /* todo: patterncharacter */
+  | c=CHAR { Raw_character(Char c) }
+/* also adding the tokens that can be parsed as simple characters */
+  | COMMA { Raw_character(Char(',')) }
+  | COLONS { Raw_character(Char(':')) }
+  | LESS { Raw_character(Char('<')) }
+  | MORE { Raw_character(Char('>')) }
+  | EQUAL { Raw_character(Char('=')) }
+  | EXCL { Raw_character(Char('!')) }
+  | d=DIGIT { Raw_character(Char(d)) }
+/* TODO: { for instance can be parsed as single char. But not (. I'm not sure where this is in the spec. Also I'm not sure why, if I add a similar rule for LBRAC, it does not work */
   | DOT { Raw_character(Dot) }
-/* TODO: atom escape */
+  | a=atomescape { a }
 /* TODO: character class */
   | LPAR d=disjunction RPAR { Raw_capture d }
 /* TODO: fail if there is a group specifier */
   | LPAR QMARK COLONS d=disjunction RPAR { d }
-/* TODO */
 
+atomescape:
+/* TODO: decimalescape */
+  | c=characterclassescape { Raw_character(Group c) }
+  | c=characterescape { Raw_character(Char c) }
+/* TODO characterescape */
+
+characterclassescape:
+  | DIGITCLASS { Digit }
+  | NONDIGITCLASS { NonDigit }
+  | SPACECLASS { Space }
+  | NONSPACECLASS { NonSpace }
+  | WORDCLASS { Word }
+  | NONWORDCLASS { NonWord }
+
+characterescape:
+/* ControlEscape characters  */
+  | FORMFEED { '\x0C' }
+  | NEWLINE { '\n' }
+  | CARRIAGE { '\r' }
+  | TAB { '\t' }
 
 %%
