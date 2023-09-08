@@ -28,6 +28,7 @@
 %type  <Regex.counted_quantifier> counted_quantifier
 %type  <Charclasses.char_group> characterclassescape
 %type  <char> characterescape
+%type  <char> identityescape
 
 %%
 
@@ -123,5 +124,29 @@ characterescape:
   | NEWLINE { '\n' }
   | CARRIAGE { '\r' }
   | TAB { '\t' }
+  | BACKSL i=identityescape { i }
+
+identityescape:
+  | ALT { '|' }
+  | LPAR { '(' }
+  | RPAR { ')' }
+  | LBRACK { '[' }
+  | RBRACK { ']' }
+  | LBRAC { '{' }
+  | RBRAC { '}' }
+  | COMMA { ',' }
+  | STAR { '*' }
+  | PLUS { '+' }
+  | QMARK { '?' }
+  | HAT { '^' }
+  | DOLLAR { '$' }
+  | BACKSL { '\\' }
+  | DOT { '.' }
+  | COLONS { ':' }
+  | LESS { '<' }
+  | MORE { '>' }
+  | EQUAL { '=' }
+  | EXCL { '!' }
+  | c=CHAR { c }
 
 %%
