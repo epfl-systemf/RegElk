@@ -101,7 +101,18 @@ let run_benchmark (b:benchmark) : unit =
      let command = "python3.7 plot_exps.py " ^ name ^ " StringSize " ^ " &" in
      ignore(string_of_command command)
      
-  
+
+(** * Simple Nested Plus  *)
+(* I use two characters because Irregexp has been optimized when there is a single character in the repetition *)
+     (* (aa+ )+ *)
+let nested_plus_reg: raw_regex =
+  Raw_con(Raw_quant(Plus,Raw_quant(Plus,Raw_con(raw_char('a'),raw_char('a')))),raw_char('b'))
+
+let odd_a : str_param = fun str_size ->
+  String.make (2*str_size +1) 'a'
+
+let nested_plus : benchmark =
+  StrSize (nested_plus_reg, odd_a, 0, 23, 5000, "NestedPlus")
    
 (** * Lookahead in a Star  *)
    
@@ -111,7 +122,7 @@ let lookahead_star_reg: raw_regex =
 
 let a_repeat_b : str_param = fun str_size -> 
   (String.make str_size 'a') ^ (String.make 1 'b')
-
+  
 let lookahead_star : benchmark =
   StrSize (lookahead_star_reg, a_repeat_b, 0, 3000, 3000, "Lookahead_Star")
   

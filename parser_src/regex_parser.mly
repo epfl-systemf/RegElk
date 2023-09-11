@@ -13,7 +13,7 @@
 %token SPACECLASS NONSPACECLASS
 %token WORDCLASS NONWORDCLASS
 %token FORMFEED NEWLINE CARRIAGE TAB
-%token EOF
+%token NULL EOF
 
 %start <Regex.raw_regex> main
 %type  <string> decimaldigits
@@ -103,6 +103,7 @@ atom:
   | EQUAL { Raw_character(Char('=')) }
   | MINUS { Raw_character(Char('-')) }
   | EXCL { Raw_character(Char('!')) }
+  | NULL { Raw_character(Char(char_of_int 0)) }
   | d=DIGIT { Raw_character(Char(d)) }
 /* TODO: { for instance can be parsed as single char. But not (. I'm not sure where this is in the spec. Also I'm not sure why, if I add a similar rule for LBRAC, it does not work */
   | DOT { Raw_character(Dot) }

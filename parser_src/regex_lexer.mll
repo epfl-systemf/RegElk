@@ -2,13 +2,20 @@
 open Regex_parser
 open Lexing
 
+exception Unsupported_Vtab
+exception Unsupported_named_groups
+exception Unsupported_hex
+exception Unsupported_unicode
+exception Unsupported_prop
+exception Unsupported_backref
+
 exception SyntaxError of string
 }
 
 let digit = ['0'-'9']
 let syntaxcharacter = ['^' '$' '\\' '.' '*' '+' '?' '(' ')' '[' ']' '{' '}' '|']
 let patterncharacter = _#syntaxcharacter
-let backref = '\\'digit
+let backref = '\\'['1'-'9']
 
 rule token = parse
 | digit as d { DIGIT d }
@@ -45,11 +52,12 @@ rule token = parse
 | "\\n" { NEWLINE }
 | "\\r" { CARRIAGE }
 | "\\t" { TAB }
-| "\\v" { raise (SyntaxError "Unsupported ControlEscape: vertical tab") }
-| "\\k" { raise (SyntaxError "Named Capture Groups are unsupported") }
-| "\\x" { raise (SyntaxError "Hex Escape unsupported") }
-| "\\u" { raise (SyntaxError "Unicode Escape unsupported") }
-| "\\p" { raise (SyntaxError "Unicode Property unsupported") }
-| backref { raise (SyntaxError "Backreferences unsupported") }
+| "\\0" { NULL }
+| "\\v" { raise Unsupported_Vtab }
+| "\\k" { raise Unsupported_named_groups }
+| "\\x" { raise Unsupported_hex }
+| "\\u" { raise Unsupported_unicode }
+| "\\p" { raise Unsupported_prop }
+| backref { raise Unsupported_backref }
 | patterncharacter as c { CHAR c }
 | eof { EOF }
