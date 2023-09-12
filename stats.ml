@@ -75,7 +75,28 @@ let rec has_nullplus (r:raw_regex) : bool =
   | Raw_count (q,r1) ->
      has_nullplus r1 || (raw_nullable r1 <> NonNullable && q.min > 0 && q.greedy)
 
+(* detecting regexes that can be supported by the memoryless lookbehind only *)
+(* they need to have lookbehinds without groups in them or negative lookbehinds *)
+(* they also need to not have any lookaheads or positive lookbehinds with groups *)
+exception NotMemoryLess
 
+let rec lookbehind_only (r:raw_regex) : bool =
+  match r with
+  | Raw_empty | Raw_character _ | Raw_anchor _ -> false
+  | Raw_con(r1,r2) | Raw_alt(r1,r2) -> lookbehind_only r1 || lookbehind_only r2
+  | Raw_capture r1 | Raw_quant (_,r1) | Raw_count (_,r1) -> lookbehind_only r1
+  | Raw_lookaround (l,r1) ->
+     let _ = lookbehind_only r1 in (* possibly raising exceptions *)
+     match l with
+     | Lookahead | NegLookahead -> raise NotMemoryLess
+     | NegLookbehind -> true
+     | Lookbehind -> 
+        if (has_groups r1) then raise NotMemoryLess else true
+
+let memoryless_lookbehind (r:raw_regex) : bool =
+  try (lookbehind_only r) with NotMemoryLess -> false
+
+    
 (** * Parsing and analysing the Corpus  *)
    
 type parse_result =
@@ -101,11 +122,12 @@ type support_stats = {
     mutable lookaround:int;
     mutable nn:int;
     mutable null_plus:int;
+    mutable ml_behind:int;
   }
 
 let init_stats () : support_stats =
   { vtab=0; named=0; hex=0; unicode=0; prop=0; backref=0; notwf=0; errors=0; parsed=0; total=0;
-    null_quant=0; quant_groups=0; lookaround=0; nn=0; null_plus=0; }
+    null_quant=0; quant_groups=0; lookaround=0; nn=0; null_plus=0; ml_behind=0; }
 
 (* parsing a string for a regex *)
 let parse (str:string) (stats:support_stats): parse_result =
@@ -121,6 +143,7 @@ let parse (str:string) (stats:support_stats): parse_result =
         if (has_lookaround r) then stats.lookaround <- stats.lookaround + 1;
         if (has_nn r) then stats.nn <- stats.nn + 1;
         if (has_nullplus r) then stats.null_plus <- stats.null_plus + 1;
+        if (memoryless_lookbehind r) then stats.ml_behind <- stats.ml_behind + 1;
         OK r
       end
     else begin stats.notwf <- stats.notwf + 1; NotWF end
@@ -162,7 +185,8 @@ let print_stats (s:support_stats) : string =
   "\nCapture Groups in Quantifiers: " ^ string_of_int s.quant_groups ^
   "\nLookarounds: " ^ string_of_int s.lookaround ^
   "\nNonNullable, min>0 quantifiers: " ^ string_of_int s.nn ^
-  "\nNullable Greedy min>0 quantifiers (CIN&CDN): " ^ string_of_int s.null_plus ^ 
+  "\nNullable Greedy min>0 quantifiers (CIN&CDN): " ^ string_of_int s.null_plus ^
+  "\nMemoryLess Lookbehinds without groups: " ^ string_of_int s.ml_behind ^ 
   "\n"
     
    
@@ -176,9 +200,13 @@ let main =
   try
     while true; do
       let regex_str = input_line chan in
-      Printf.printf "\n\027[36m%s\027[0m\n%!" regex_str; 
       let result = parse regex_str stats in
-      Printf.printf "%s\n%!" (print_result result)
+      match result with
+      | OK r -> if memoryless_lookbehind r then 
+                  begin Printf.printf "\n\027[36m%s\027[0m\n%!" regex_str; 
+                        Printf.printf "%s\n%!" (print_result result)
+                  end
+      | _ -> ()
     done;
   with End_of_file ->
     close_in chan;
