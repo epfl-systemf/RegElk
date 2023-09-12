@@ -12,7 +12,12 @@ open Torust
 open Charclasses
 open Complexity_exp
 open Flags
-open Parser
+
+(* fails if the regex is not correct *)
+let parse_raw (str:string) : raw_regex =
+  let r:raw_regex = Regex_parser.main Regex_lexer.token (Lexing.from_string str) in
+  assert (regex_wf r);
+  r
 
   
 let main =

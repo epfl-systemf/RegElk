@@ -112,6 +112,8 @@ atom:
   | LPAR d=disjunction RPAR { Raw_capture d }
 /* TODO: fail if there is a group specifier */
   | LPAR QMARK COLONS d=disjunction RPAR { d }
+/* TODO I have another bug when parsing for instance \\s. maybe I need a token for each letter than can mean something when preceded by a backsash? just like comma and colon... */
+/* TODO I have another bug when a character class gets quantified like [a]* */
 
 atomescape:
   | c=characterclassescape { Raw_character(Group c) }
