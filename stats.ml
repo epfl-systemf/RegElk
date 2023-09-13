@@ -193,12 +193,8 @@ let print_stats (s:support_stats) : string =
   "\nMemoryLess Lookbehinds without groups: " ^ string_of_int s.ml_behind ^ 
   "\n"
     
-   
 
-  
-   
-let main =
-  let filename = "corpus/npm.corpus" in
+let analyze_corpus (filename:string) =
   let stats = init_stats() in
   let chan = open_in filename in
   try
@@ -215,5 +211,9 @@ let main =
     done;
   with End_of_file ->
     close_in chan;
-    Printf.printf ("\n%s\n") (print_stats stats)
-    
+    Printf.printf ("\nCorpus \027[33m%s\027[0m:\n%s\n") filename (print_stats stats)
+  
+   
+let main =
+  let filename = "corpus/npm.corpus" in
+  analyze_corpus filename

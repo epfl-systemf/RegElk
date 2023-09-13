@@ -561,13 +561,18 @@ let rec plus_stats (r:regex) : int * int * int * int * int =
 (* Checking that a regex is well-formed *)
 (* In practice, this means checking that ranges are well defined (the max is greater than the min) *)
 (* and that the counted repetitions are well defined as well when there is a maximum *)
+(* We also check that this only uses ascii characters < 128 *)
 
 (* maybe I should check this during parsing instead? *)
 (* I like having a separate function for now *)
 
+let char_wf (c:char) : bool =
+  int_of_char c < 128
+     
 let class_elt_wf (e:char_class_elt) : bool =
   match e with
-  | CChar _ | CGroup _ -> true
+  | CChar c -> char_wf c
+  | CGroup _ -> true
   | CRange (c1,c2) -> c1 <= c2
      
 let class_wf (cl:char_class) : bool =
@@ -588,7 +593,8 @@ let rec regex_wf (r:raw_regex) : bool =
      ok_range && regex_wf r1
   | Raw_character c ->
      begin match c with
-     | Char _ | Dot | Group _ -> true
+     | Char c -> char_wf c
+     | Dot | Group _ -> true
      | Class cl | NegClass cl -> class_wf cl
      end
       
