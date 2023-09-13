@@ -113,6 +113,7 @@ type support_stats = {
     mutable unicode:int;
     mutable prop:int;
     mutable backref:int;
+    mutable octal:int;
     mutable notwf:int;
     mutable errors:int;
     mutable parsed:int;
@@ -126,7 +127,8 @@ type support_stats = {
   }
 
 let init_stats () : support_stats =
-  { vtab=0; named=0; hex=0; unicode=0; prop=0; backref=0; notwf=0; errors=0; parsed=0; total=0;
+  { vtab=0; named=0; hex=0; unicode=0; prop=0; backref=0; notwf=0; octal=0;
+    errors=0; parsed=0; total=0;
     null_quant=0; quant_groups=0; lookaround=0; nn=0; null_plus=0; ml_behind=0; }
 
 (* parsing a string for a regex *)
@@ -154,6 +156,7 @@ let parse (str:string) (stats:support_stats): parse_result =
   | Unsupported_unicode -> stats.unicode <- stats.unicode + 1; Unsupported
   | Unsupported_prop -> stats.prop <- stats.prop + 1; Unsupported
   | Unsupported_backref -> stats.backref <- stats.backref + 1; Unsupported
+  | Unsupported_octal -> stats.octal <- stats.octal + 1; Unsupported
   | _ -> stats.errors <- stats.errors + 1; ParseError
 
 
@@ -178,6 +181,7 @@ let print_stats (s:support_stats) : string =
   "\nUnsupported Unicode Escapes: " ^ string_of_int s.unicode ^
   "\nUnsupported Unicode Properties: " ^ string_of_int s.prop ^
   "\nUnsupported Backreferences: " ^ string_of_int s.backref ^
+  "\nUnsupported Octal: " ^ string_of_int s.octal ^ 
   "\nNot WellFormed: " ^ string_of_int s.notwf ^
   "\nErrors: " ^ string_of_int s.errors ^
   "\nPARSED REGEXES / TOTAL REGEXES: " ^ string_of_int s.parsed ^ " / " ^ string_of_int s.total ^
@@ -191,7 +195,7 @@ let print_stats (s:support_stats) : string =
     
    
 
-
+  
    
 let main =
   let filename = "corpus/npm.corpus" in
@@ -206,6 +210,7 @@ let main =
                   begin Printf.printf "\n\027[36m%s\027[0m\n%!" regex_str; 
                         Printf.printf "%s\n%!" (print_result result)
                   end
+      | ParseError -> ()
       | _ -> ()
     done;
   with End_of_file ->
