@@ -113,6 +113,16 @@ let rec class_flatten (c:char_class) : (char*char) list =
   | (CChar x)::c' -> (x,x)::(class_flatten c')
   | (CRange (c1,c2))::c' -> (c1,c2)::(class_flatten c')
   | (CGroup g)::c'-> (group_to_range g) @ (class_flatten c')
+
+(* used by the parser *)
+(* what happens when two elements are separated with a dash? *)
+(* if it's two characters, it becomes a range *)
+(* otherwise, the dash needs to be interpreted as a '-' character *)
+let make_range (e1:char_class_elt) (e2:char_class_elt) : char_class =
+  match e1, e2 with
+  | CChar c1, CChar c2 -> [CRange (c1,c2)]
+  | _, _ -> [e1; CChar '-'; e2]
+                   
            
 
 (** * Character Acceptance  *)

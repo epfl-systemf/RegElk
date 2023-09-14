@@ -36,9 +36,10 @@
 %type  <Charclasses.char_class> classcontents
 %type  <Charclasses.char_class> nonemptyclassranges
 %type  <Charclasses.char_class> nonemptyclassrangesnodash
-%type  <char> classatomnodash
-%type  <char> classatom
-%type  <char> classescape
+%type  <Charclasses.char_class_elt> classatomnodash
+%type  <char> classatomnodashchar
+%type  <Charclasses.char_class_elt> classatom
+%type  <Charclasses.char_class_elt> classescape
 
 %%
 
@@ -220,20 +221,14 @@ classcontents:
   | n=nonemptyclassranges { n }
 
 nonemptyclassranges:
-  | BACKSL g=characterclassescape  { [CGroup g] }
-  | a=classatom { [CChar a] }
-  | BACKSL g=characterclassescape n=nonemptyclassrangesnodash { (CGroup g)::n }
-  | a=classatom n=nonemptyclassrangesnodash { (CChar a)::n }
-  | BACKSL g=characterclassescape MINUS c=classcontents { (CGroup g)::(CChar '-')::c }
-  | a1=classatom MINUS a2=classatom c=classcontents { CRange (a1,a2)::c }
+  | a=classatom { [a] }
+  | a=classatom n=nonemptyclassrangesnodash { a::n }
+  | a1=classatom MINUS a2=classatom c=classcontents { (Charclasses.make_range a1 a2) @ c }
 
 nonemptyclassrangesnodash:
-  | BACKSL g=characterclassescape  { [CGroup g] }
-  | a=classatom { [CChar a] }
-  | BACKSL g=characterclassescape n=nonemptyclassrangesnodash { (CGroup g)::n }
-  | a=classatomnodash n=nonemptyclassrangesnodash { (CChar a)::n }
-  | BACKSL g=characterclassescape MINUS c=classcontents { (CGroup g)::(CChar '-')::c } 
-  | a1=classatomnodash MINUS a2=classatom c=classcontents { CRange (a1,a2)::c }
+  | a=classatom { [a] }
+  | a=classatomnodash n=nonemptyclassrangesnodash { a::n }
+  | a1=classatomnodash MINUS a2=classatom c=classcontents { (Charclasses.make_range a1 a2) @ c }
   
 
 
@@ -243,11 +238,14 @@ nonemptyclassrangesnodash:
 /* Note that there still is a bug with e.g [a-\d] */
 
 classatom:
-  | MINUS { '-' }
+  | MINUS { CChar '-' }
   | c=classatomnodash { c }
 
 classatomnodash:
   | BACKSL c=classescape { c }
+  | c=classatomnodashchar { CChar c }
+
+classatomnodashchar:
 /* all characters except \, ] and - */
   | HAT { '^' }
   | DOLLAR { '$' }
@@ -289,8 +287,9 @@ classatomnodash:
   | d=decimaldigit { d }
 
 classescape:
-  | LOWB { char_of_int 8 }	/* basckspace ascii character */
-  | c=characterescape  { c }
+  | LOWB { CChar (char_of_int 8) }	/* basckspace ascii character */
+  | c=characterclassescape { CGroup c }
+  | c=characterescape  { CChar c }
   | d=decimalescape { raise Regex.Unsupported_octal }
 
 

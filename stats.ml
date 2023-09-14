@@ -173,6 +173,7 @@ let parse_raw (str:string) : raw_regex =
 
 (* printing statistics results *)
 let print_stats (s:support_stats) : string =
+  "Note that some octal escapes may be counted as backrefs here. Anyway, both are unsupported\n" ^
   "\nUnsupported Named Groups: " ^ string_of_int s.named ^
   "\nUnsupported Hex Escapes: " ^ string_of_int s.hex ^
   "\nUnsupported Unicode Escapes: " ^ string_of_int s.unicode ^
