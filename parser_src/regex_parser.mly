@@ -183,7 +183,7 @@ controlescape:
   | LOWN { '\n' }
   | LOWR { '\r' }
   | LOWT { '\t' }
-  | LOWV { raise Regex.Unsupported_Vtab }
+  | LOWV { char_of_int 11 }
 
 identityescape:
   | s=syntaxcharacter { s }

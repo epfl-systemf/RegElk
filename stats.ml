@@ -107,7 +107,6 @@ type parse_result =
 
 (* Statistics record when analyzing a vast corpus of regexes *)
 type support_stats = {
-    mutable vtab:int;
     mutable named:int;
     mutable hex:int;
     mutable unicode:int;
@@ -127,7 +126,7 @@ type support_stats = {
   }
 
 let init_stats () : support_stats =
-  { vtab=0; named=0; hex=0; unicode=0; prop=0; backref=0; notwf=0; octal=0;
+  { named=0; hex=0; unicode=0; prop=0; backref=0; notwf=0; octal=0;
     errors=0; parsed=0; total=0;
     null_quant=0; quant_groups=0; lookaround=0; nn=0; null_plus=0; ml_behind=0; }
 
@@ -150,7 +149,6 @@ let parse (str:string) (stats:support_stats): parse_result =
       end
     else begin stats.notwf <- stats.notwf + 1; NotWF end
   with 
-  | Unsupported_Vtab -> stats.vtab <- stats.vtab + 1; Unsupported
   | Unsupported_named_groups -> stats.named <- stats.named + 1; Unsupported
   | Unsupported_hex -> stats.hex <- stats.hex + 1; Unsupported
   | Unsupported_unicode -> stats.unicode <- stats.unicode + 1; Unsupported
@@ -175,7 +173,6 @@ let parse_raw (str:string) : raw_regex =
 
 (* printing statistics results *)
 let print_stats (s:support_stats) : string =
-  "Unsupported Vtabs: " ^ string_of_int s.vtab ^
   "\nUnsupported Named Groups: " ^ string_of_int s.named ^
   "\nUnsupported Hex Escapes: " ^ string_of_int s.hex ^
   "\nUnsupported Unicode Escapes: " ^ string_of_int s.unicode ^

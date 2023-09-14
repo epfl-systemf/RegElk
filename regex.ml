@@ -5,7 +5,6 @@ open Charclasses
 
 (** * Parsing Exceptions  *)
 (* constructs that are unsupported in our regex AST *)
-exception Unsupported_Vtab
 exception Unsupported_named_groups
 exception Unsupported_hex
 exception Unsupported_unicode
