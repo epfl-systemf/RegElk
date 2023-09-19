@@ -237,8 +237,8 @@ let analyze_single_corpus filename single: unit =
 let main =
   let corpora = [("corpus/npm-uniquePatterns.json",true);
                  ("corpus/pypi-uniquePatterns.json",true);
-                 (* ("corpus/internetSources-regExLib.json",false);
-                  * ("corpus/internetSources-stackoverflow.json",false); *)
+                 ("corpus/internetSources-regExLib.json",false);
+                 (* ("corpus/internetSources-stackoverflow.json",false); *)
                  (* ("corpus/uniq-regexes-8.json",true) *)] in
 
   (* individual stats *)
