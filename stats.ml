@@ -231,14 +231,14 @@ let analyze_corpus (filename:string) (single:bool) (st:support_stats option) : s
 
 let analyze_single_corpus filename single: unit =
   let result = analyze_corpus filename single None in
-  Printf.printf ("%s\n") result
+  Printf.printf ("%s\n%!") result
   
   
 let main =
   let corpora = [("corpus/npm-uniquePatterns.json",true);
                  ("corpus/pypi-uniquePatterns.json",true);
                  ("corpus/internetSources-regExLib.json",false);
-                 (* ("corpus/internetSources-stackoverflow.json",false); *)
+                 ("corpus/internetSources-stackoverflow.json",false);
                  (* ("corpus/uniq-regexes-8.json",true) *)] in
 
   (* individual stats *)
