@@ -76,8 +76,8 @@ let random_group () : char_group =
   | _ -> failwith "random range error"
 
 let random_range () : char * char =
-  let minc = Random.int 256 in
-  let offset = Random.int (256-minc) in
+  let minc = Random.int 128 in
+  let offset = Random.int (128-minc) in
   (char_of_int minc, char_of_int (minc+offset))
 
 let random_elt () : char_class_elt =
