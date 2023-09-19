@@ -4,7 +4,8 @@
 open Regex
 open Regex_parser
 open Regex_lexer
-
+open Yojson
+open Yojson.Basic.Util
 
 (** * Gathering Statistics  *)
 let rec has_groups (r:raw_regex) : bool =
@@ -173,7 +174,7 @@ let parse_raw (str:string) : raw_regex =
 
 (* printing statistics results *)
 let print_stats (s:support_stats) : string =
-  "Note that some octal escapes may be counted as backrefs here. Anyway, both are unsupported\n" ^
+  "Note that some octal escapes may be counted as backrefs here. Anyway, both are unsupported." ^
   "\nUnsupported Named Groups: " ^ string_of_int s.named ^
   "\nUnsupported Hex Escapes: " ^ string_of_int s.hex ^
   "\nUnsupported Unicode Escapes: " ^ string_of_int s.unicode ^
@@ -192,26 +193,59 @@ let print_stats (s:support_stats) : string =
   "\n"
     
 
-let analyze_corpus (filename:string) =
-  let stats = init_stats() in
+let analyze_regex (regex_str:string) (stats:support_stats) =
+  let result = parse regex_str stats in
+  match result with
+  | OK r -> if false then   (* select what you want to print *)
+              begin Printf.printf "\n\027[36m%s\027[0m\n%!" regex_str; 
+                    Printf.printf "%s\n%!" (print_result result)
+              end
+  | ParseError -> ()
+  | _ -> ()
+  
+let analyze_corpus (filename:string) (single:bool) (st:support_stats option) : string =
+  let stats =
+    match st with
+    | None -> init_stats()
+    | Some s -> s in
   let chan = open_in filename in
   try
     while true; do
-      let regex_str = input_line chan in
-      let result = parse regex_str stats in
-      match result with
-      | OK r -> if memoryless_lookbehind r then 
-                  begin Printf.printf "\n\027[36m%s\027[0m\n%!" regex_str; 
-                        Printf.printf "%s\n%!" (print_result result)
-                  end
-      | ParseError -> ()
-      | _ -> ()
-    done;
+      let str = input_line chan in
+      (* the list of all patterns defined on that line *)
+      let regex_str = try
+          let json_str = Yojson.Basic.from_string str in
+          if single then 
+            [json_str |> member "pattern" |> to_string]
+          else
+            List.map (to_string) (json_str |> member "patterns" |> to_list)
+        with
+        | Yojson.Json_error _ -> []
+        | Yojson.Basic.Util.Type_error _ -> []
+      in
+      List.iter (fun str -> analyze_regex str stats) regex_str
+    done; ""
   with End_of_file ->
     close_in chan;
-    Printf.printf ("\nCorpus \027[33m%s\027[0m:\n%s\n") filename (print_stats stats)
+    "\nCorpus \027[33m" ^ filename ^ "\027[0m:\n" ^ print_stats stats ^ "\n"
+
+let analyze_single_corpus filename single: unit =
+  let result = analyze_corpus filename single None in
+  Printf.printf ("%s\n") result
   
-   
+  
 let main =
-  let filename = "corpus/npm.corpus" in
-  analyze_corpus filename
+  let corpora = [("corpus/npm-uniquePatterns.json",true);
+                 (* ("corpus/pypi-uniquePatterns.json",true); *)
+                 (* ("corpus/internetSources-regExLib.json",false);
+                  * ("corpus/internetSources-stackoverflow.json",false); *)
+                 (* ("corpus/uniq-regexes-8.json",true) *)] in
+
+  (* individual stats *)
+  List.iter (fun (f,b) -> analyze_single_corpus f b) corpora;
+
+  (* getting total stats *)
+  let stats = init_stats() in
+  List.iter (fun (f,b) -> ignore(analyze_corpus f b (Some stats))) corpora;
+  Printf.printf ("\027[33mAll Corpus\027[0m:\n%s\n") (print_stats stats)
+    
