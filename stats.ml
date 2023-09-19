@@ -239,7 +239,7 @@ let main =
                  ("corpus/pypi-uniquePatterns.json",true);
                  ("corpus/internetSources-regExLib.json",false);
                  ("corpus/internetSources-stackoverflow.json",false);
-                 (* ("corpus/uniq-regexes-8.json",true) *)] in
+                 ("corpus/uniq-regexes-8.json",true)] in
 
   (* individual stats *)
   List.iter (fun (f,b) -> analyze_single_corpus f b) corpora;
