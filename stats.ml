@@ -58,7 +58,7 @@ let rec has_nn (r:raw_regex) : bool =
      | _ -> has_nn r1
      end
   | Raw_count (q,r1) ->
-     has_nn r1 || (raw_nullable r1 = NonNullable && q.min > 0)
+     has_nn r1 || (raw_nullable r1 = NonNullable && q.min > 0 && q.max=None)
 
 (* detects regexes with CIN or CDN+ *)
 (* regexes with a quantifier with nullable body and min>0 *)
