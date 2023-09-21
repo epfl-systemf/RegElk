@@ -10,6 +10,7 @@ open Tojs
 open Toexp
 open Tore2
 open Torust
+open Todotnet
 open Linear
 open Sys
 open Unix
@@ -298,4 +299,20 @@ let many_forks_rust_benchmark () =
   close_out oc;
   (* plotting the results *)
   let command = "python3.7 plot_single.py rust_many_forks Rust &" in
+  ignore(string_of_command command)
+
+
+(** * .NET non-linear  benchmark  *)
+let dotnet_benchmark () =
+  let double_star = Raw_con (Raw_quant(Star,Raw_capture(Raw_quant(Star,raw_char('a')))),raw_char('b')) in
+  let oc = open_out (exp_dir^"double_star_dotnet.csv") in
+  for i = 0 to 26 do
+    Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+    let str = a_repeat i in
+    let tdn = get_time_dotnet false double_star str in
+    Printf.fprintf oc "%d,%s\n%!" i tdn;
+  done;
+  close_out oc;
+  (* plotting the results *)
+  let command = "python3.7 plot_single.py double_star_dotnet DotNet &" in
   ignore(string_of_command command)

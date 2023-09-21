@@ -1,6 +1,6 @@
 all:main tests fuzzer stats
 
-FILES = oracle.ml regex.ml bytecode.ml compiler.ml interpreter.ml linear.ml tojs.ml tore2.ml toexp.ml torust.ml jsmatcher.js complexity_exp.ml cdn.ml anchors.ml tests.ml charclasses.ml flags.ml
+FILES = oracle.ml regex.ml bytecode.ml compiler.ml interpreter.ml linear.ml tojs.ml tore2.ml toexp.ml torust.ml todotnet.ml jsmatcher.js complexity_exp.ml cdn.ml anchors.ml tests.ml charclasses.ml flags.ml
 
 PARSER_SRC = parser_src/regex_lexer.mll parser_src/regex_parser.mly
 PARSER_FILES = parser/regex_lexer.ml parser/regex_parser.ml

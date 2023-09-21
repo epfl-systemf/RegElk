@@ -9,6 +9,7 @@ open Tojs
 open Tore2
 open Toexp
 open Torust
+open Todotnet
 open Charclasses
 open Complexity_exp
 open Flags
@@ -30,7 +31,6 @@ let parse_raw (str:string) : raw_regex =
   
 let main =
   
-
   let speclist =
     [("-regex", Arg.Tuple [Arg.Set_string input_regex; Arg.Set rgx_set], "Regex");
      ("-string", Arg.Tuple [Arg.Set_string input_str; Arg.Set str_set], "String");
