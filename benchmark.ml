@@ -15,7 +15,7 @@ open Arg
 
 let bench_dir = "results_bench/"
 
-(* the number of times we reapeat each test *)
+(* the number of times we repeat each test *)
 let repetitions = ref 10
 
 type engine =
@@ -45,6 +45,7 @@ let get_time_ocaml (r:raw_regex) (str:string) : float =
   let tend = Unix.gettimeofday() in
   tend -. tstart
 
+(* todo rename js to irregexp and experimental to V8Linear *)
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
   match e with
   | OCaml -> string_of_float (get_time_ocaml r str)
@@ -76,7 +77,7 @@ let run_regex_config (ec:engine_conf) (param_regex:int->raw_regex) (str:string) 
   Unix.sleep 1
 
 let run_regex_benchmark (rb:regex_benchmark) : unit =
-  Printf.printf ("generating .csv files for benchmark %s:\n") (rb.name);
+  Printf.printf ("Generating .csv files for benchmark %s:\n") (rb.name);
   List.iter (fun rc -> run_regex_config rc rb.param_regex rb.input_str rb.name) rb.confs
 
 

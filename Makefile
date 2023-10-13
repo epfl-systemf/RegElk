@@ -1,4 +1,4 @@
-all:main tests fuzzer stats benchmark
+all:main tests fuzzer stats benchmark matcher
 
 FILES = oracle.ml regex.ml bytecode.ml compiler.ml interpreter.ml linear.ml tojs.ml tore2.ml toexp.ml torust.ml todotnet.ml jsmatcher.js complexity_exp.ml cdn.ml anchors.ml tests.ml charclasses.ml flags.ml
 
@@ -24,6 +24,7 @@ tests: tests.native
 fuzzer: fuzzer.native
 stats: stats.native
 benchmark: benchmark.native
+matcher: matcher.native
 
 clean: parser_clean
 	-rm -R _build
