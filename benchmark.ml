@@ -36,14 +36,17 @@ type engine_conf =
     max_size: int               (* maximum size of the benchmark *)
   }
 
+(* let now () = Unix.gettimeofday () *)
+let now () = Ocaml_intrinsics.Perfmon.rdtsc ()
+let elapsed from = Int64.(to_float (sub (now ()) from))
+
 (* also measures compilation time... *)
 (* TODO: change this? *)
 let get_time_ocaml (r:raw_regex) (str:string) : float =
   Gc.full_major();               (* triggering the GC *)
-  let tstart = Unix.gettimeofday() in
+  let tstart = now () in
   ignore(get_linear_result r str);
-  let tend = Unix.gettimeofday() in
-  tend -. tstart
+  elapsed tstart
 
 (* todo rename js to irregexp and experimental to V8Linear *)
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
