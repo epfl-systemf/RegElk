@@ -2,7 +2,7 @@
 (* Using the Re2 OCaml wrapper from JaneStreet *)
 
 open Regex
-open Linear
+open Interpreter
 open Re2
 open Unix
 open Gc

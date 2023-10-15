@@ -2,7 +2,7 @@
 (* using the cargos rust_matcher and rust_timer *)
 
 open Regex
-open Linear
+open Interpreter
 open Tojs
 open Charclasses
 

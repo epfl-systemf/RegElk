@@ -201,14 +201,19 @@ let compile_reconstruct_nulled (r:regex): code =
 (* but if we want to benchmark against other engines that do all of the compilation ahead of time *)
 (* we should do the same *)
 type compiled_regex =
-  { ast: regex;
-    main: code;                 (* main bytecode *)
-    looktypes: lookaround Array.t; (* the type of each lookaround *)
-    lookcdns: cdns Array.t; (* the cdn formulas of each lookaround *)
-    lookast: regex Array.t;
-    build_look: code Array.t;    (* lookaround bytecodes for building the oracle *)
-    capture_look: code Array.t; (* lookarounds bytecodes for constructing capture groups *)
-    plus_code: code Array.t;     (* nulled plus bytecodes *)
+  {                             
+    (* data for the main expression *)
+    main_ast: regex;
+    main_bc: code;
+    main_cdns: cdns;
+    (* lookaround data *)
+    look_types: lookaround Array.t; (* the type of each lookaround *)
+    look_cdns: cdns Array.t; (* the cdns restricted to each lookaround *)
+    look_ast: regex Array.t; (* the ast of each lookaround *)
+    look_build_bc: code Array.t;    (* lookaround bytecodes for building the oracle *)
+    look_capture_bc: code Array.t; (* lookarounds bytecodes for constructing capture groups *)
+    (* Plus data *)
+    plus_bc: code Array.t;      (* CDN & CIN plus bytecode *)
   }
 
 (* the regex used when builing the oracle *)
@@ -224,7 +229,7 @@ let capture_regex (looktype:lookaround) (l:regex): regex =
   | Lookbehind -> reverse_regex l
   | _ -> Re_empty               (* no capture groups defined in negative lookarounds *)
 
-(* recursively sets the two kinds of bytecode for each lookaround *)
+(* recursively sets the two kinds of bytecode for each lookaround and nullable plus *)
 let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
   match r with
   | Re_empty | Re_character _ | Re_anchor _ -> ()
@@ -236,7 +241,7 @@ let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
      if (quant.min > 0 && quant.max = None && nul <> NonNullable && quant.greedy) then
        begin
          let quant_code = compile_reconstruct_nulled r1 in
-         c.plus_code.(qid) <- quant_code
+         c.plus_bc.(qid) <- quant_code
        end;
      compile_extra_bytecode r1 c
   | Re_lookaround (lid, la, body) ->
@@ -245,11 +250,11 @@ let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
      let capture_reg = capture_regex la body in
      let build_code = compile_to_write build_reg lid in
      let capture_code = compile_to_bytecode capture_reg in
-     c.looktypes.(lid) <- la;
-     c.lookcdns.(lid) <- compile_cdns capture_reg;
-     c.lookast.(lid) <- body;
-     c.build_look.(lid) <- build_code;
-     c.capture_look.(lid) <- capture_code;
+     c.look_types.(lid) <- la;
+     c.look_cdns.(lid) <- compile_cdns capture_reg;
+     c.look_ast.(lid) <- body;
+     c.look_build_bc.(lid) <- build_code;
+     c.look_capture_bc.(lid) <- capture_code;
      compile_extra_bytecode body c
   
 let full_compilation (r:regex) : compiled_regex =
@@ -263,8 +268,12 @@ let full_compilation (r:regex) : compiled_regex =
   let capture_look = Array.make maxlook empty_code in
   let plus_code = Array.make maxquant empty_code in
   let main_code = compile_to_bytecode (lazy_prefix r) in
-  let compiled = { ast=r; main=main_code; looktypes=looktypes; lookcdns=lookcdns; lookast=lookast; 
-                   build_look=build_look; capture_look=capture_look; plus_code=plus_code } in
+  let main_cdns = compile_cdns r in
+  let compiled = {
+      main_ast = r; main_bc = main_code; main_cdns = main_cdns;
+      look_types = looktypes; look_cdns = lookcdns; look_ast = lookast;
+      look_build_bc = build_look; look_capture_bc = capture_look;
+      plus_bc = plus_code } in
   compile_extra_bytecode r compiled; (* compile lookarounds, CIN & CDN *)
   compiled
   

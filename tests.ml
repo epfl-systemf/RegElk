@@ -8,7 +8,6 @@ open Bytecode
 open Compiler
 open Cdn
 open Interpreter
-open Linear
 open Tojs
 open Flags
 
