@@ -393,7 +393,7 @@ let rec interpreter (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:
 (** * Reconstructing Nullable + Values  *)
 (* when the winning thread of a match decided to go through the nullable path of a +, we might need to reconstruct any groups set during that nullable path *)
 
-let reconstruct_plus_groups (thread:thread) (r:regex) (s:string) (o:oracle) (dir:direction): thread =
+let reconstruct_plus_groups (thread:thread) (cr:compiled_regex) (s:string) (o:oracle) (dir:direction): thread =
   let capture = ref thread.capture_regs in
   let look = ref thread.look_regs in
   let quant = ref thread.quant_regs in
@@ -413,7 +413,7 @@ let reconstruct_plus_groups (thread:thread) (r:regex) (s:string) (o:oracle) (dir
        | Some start_cp ->
           (* with no recursive calls: inner + will be reconstructed automatically *)
           let start_clock = int_of_opt (Regs.get_clock !quant qid) in
-          let bytecode = compile_reconstruct_nulled body in
+          let bytecode = cr.plus_code.(qid) in
           let ctx = cp_context start_cp s dir in 
           let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o in
           begin match result with
@@ -426,7 +426,7 @@ let reconstruct_plus_groups (thread:thread) (r:regex) (s:string) (o:oracle) (dir
           end
        end
   in
-  nulled_plus r;
+  nulled_plus cr.ast;
   {pc = thread.pc; capture_regs = !capture; look_regs = !look; quant_regs = !quant; exit_allowed = thread.exit_allowed}
   
  
@@ -434,35 +434,35 @@ let reconstruct_plus_groups (thread:thread) (r:regex) (s:string) (o:oracle) (dir
   
 (* running the interpreter on some code, with a particular initial interpreter state *)
 (* also reconstructs the + groups *)
-let interp (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (start_cp:int) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (start_clock:int) (cdn:cdns): thread option =
+let interp (cr:compiled_regex) (s:string) (o:oracle) (dir:direction) (start_cp:int) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (start_clock:int) (cdn:cdns): thread option =
   if !verbose then Printf.printf "%s - %s\n" ("\n\027[36mInterpreter:\027[0m "^s) (print_direction dir);
-  if !verbose then Printf.printf "%s\n" (print_code c);
+  if !verbose then Printf.printf "%s\n" (print_code cr.main);
   if !verbose then Printf.printf "%s\n" (print_cdns cdn);
   if !verbose then Printf.printf "%s\n" (print_context (cp_context start_cp s dir));
-  let result = interpreter c s (init_state c start_cp capture look quant start_clock (cp_context start_cp s dir)) o dir cdn in
+  let result = interpreter cr.main s (init_state cr.main start_cp capture look quant start_clock (cp_context start_cp s dir)) o dir cdn in
   (* reconstruct + groups *)
   let full_result = 
     match result with
     | None -> None
-    | Some thread -> Some (reconstruct_plus_groups thread r s o dir)
+    | Some thread -> Some (reconstruct_plus_groups thread cr s o dir)
   in
   if !verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
   full_result
 
 
 (* running the interpreter using the default initial state *)
-let interp_default_init (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (cdn:cdns): thread option =
-  let maxcap = max_group r in
-  let maxlook = max_lookaround r in
-  let maxquant = max_quant r in
+let interp_default_init (cr:compiled_regex) (s:string) (o:oracle) (dir:direction) (cdn:cdns): thread option =
+  let maxcap = max_group cr.ast in
+  let maxlook = max_lookaround cr.ast in
+  let maxquant = max_quant cr.ast in
   let capture = Regs.init_regs (2*maxcap+2) in
   let look = Regs.init_regs (maxlook+1) in
   let quant = Regs.init_regs (maxquant+1) in
-  interp r c s o dir (init_cp dir (String.length s)) capture look quant 0 cdn
+  interp cr s o dir (init_cp dir (String.length s)) capture look quant 0 cdn
 
 (* for tests, sometimes we only want to know if there is a match *)
-let boolean_interp (r:regex) (c:code) (s:string) (o:oracle) (dir:direction) (cdn:cdns): bool =
-  match (interp_default_init r c s o dir cdn) with
+let boolean_interp (cr:compiled_regex) (s:string) (o:oracle) (dir:direction) (cdn:cdns): bool =
+  match (interp_default_init cr s o dir cdn) with
   | None -> false
   | _ -> true
 
