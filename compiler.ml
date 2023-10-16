@@ -147,8 +147,8 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type): instruction treelist 
      else
        (* in all other cases *)
        (* we only have to compile one iteration, since only the last iteration matters and iterations don't consume *)
-       let (l1, f1) = compile r1 (fresh) ReconstructNulled in
-       (l1, f1)
+       let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
+       (Leaf [SetQuantToClock (qid,false)] @@ l1, f1)
          
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) ctype in

@@ -261,9 +261,12 @@ let empty_bytecode: (raw_regex*string) list =
   [(Raw_capture(Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_count({min=9;max=Some 10;greedy=false},Raw_anchor(NonWordBoundary))))),"-b-a--b-bababbaab-ba-aa--bb-a-bb-aaab-aababba---a-b-bbb-ab--ba-a-a-bba-ba-a--ba-ababb--baab-b--ba");
    (Raw_capture(Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_count({min=1;max=None;greedy=false},Raw_anchor(NonWordBoundary))))),"-b")]
 
-
+(* fixed! don't forget SetQuantToClock in the default CIN ReconstructNulled case *)
+(* and don't forget to count the number of instructions so that instructions don't overlap *)
 let cin_clock_mismatch: (raw_regex*string) list=
-  [(Raw_count({min=9;max=None;greedy=true},Raw_count({min=9;max=Some 13;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_alt(Raw_anchor(NonWordBoundary),Raw_empty))))),"aabaaaabbaabb-aa-a-a-baba-bb-baba-a-abbaabaa")]
+  [(Raw_count({min=9;max=None;greedy=true},Raw_count({min=9;max=Some 13;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_alt(Raw_anchor(NonWordBoundary),Raw_empty))))),"aabaaaabbaabb-aa-a-a-baba-bb-baba-a-abbaabaa");
+   (Raw_count({min=2;max=None;greedy=true},Raw_count({min=2;max=Some 2;greedy=true},Raw_capture(Raw_empty))),"a");
+   (Raw_count({min=2;max=None;greedy=true},Raw_count({min=2;max=Some 2;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_empty)))),"a")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =

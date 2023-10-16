@@ -333,7 +333,7 @@ let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs
 (* calls itself recursively until there are no more active threads *)
 (* the direction is only used to evaluate anchors *)
 let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) (dir:direction) : unit =
-  if !debug then Printf.printf "%s\n%!" ("Epsilon active: " ^ print_active s.active);
+  if !debug then Printf.printf "%s\n%!" ("Clock "^string_of_int s.clock^"|Epsilon active: " ^ print_active s.active);
     
   match s.active with
   | [] -> () (* done advancing epsilon transitions *)
@@ -534,7 +534,7 @@ let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (
           let start_clock = int_of_opt (Regs.get_clock !quant qid) in
           let bytecode = plus_bc.(qid) in
           let ctx = cp_context start_cp s dir in
-          if !debug then Printf.printf ("QID %d\n") qid;
+          if !debug then Printf.printf ("QID: %d | start_clock: %d\n") qid start_clock;
           let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o dir cdn in
           (* here I give it the full cdn table. 
              just like lookarounds, I could give it a specialized version *)
@@ -670,8 +670,11 @@ let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) opt
      if !debug then
        begin
          Printf.printf "regs: %s\n%!" (Regs.to_string !capture);
-         let (prefilter,_) = Regs.to_arrays(!capture) in
+         let (prefilter,preclocks) = Regs.to_arrays(!capture) in
+         let (_,quantclocks) = Regs.to_arrays(!quant) in
          Printf.printf "pre-filtering regs: %s\n%!" (debug_regs prefilter);
+         Printf.printf "pre-filtering clocks: %s\n%!" (debug_regs preclocks);
+         Printf.printf "pre-filtering quant clocks: %s\n%!" (debug_regs quantclocks);
        end;
      let match_capture = filter_reset cr.main_ast !capture !look !quant (-1) in (* filtering old values *)
      if !debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
