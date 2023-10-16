@@ -251,7 +251,7 @@ let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
      let build_code = compile_to_write build_reg lid in
      let capture_code = compile_to_bytecode capture_reg in
      c.look_types.(lid) <- la;
-     c.look_cdns.(lid) <- compile_cdns capture_reg;
+     c.look_cdns.(lid) <- compile_cdns body;
      c.look_ast.(lid) <- body;
      c.look_build_bc.(lid) <- build_code;
      c.look_capture_bc.(lid) <- capture_code;
