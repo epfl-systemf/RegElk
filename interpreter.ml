@@ -440,7 +440,7 @@ let rec consume (s:interpreter_state): unit =
 (* an interpreter that does not read the string, but instead simply follows epsilon transitions *)
 (* this is used to reconstruct the capture groups of last nulled plus iteration at the end of a match *)
 (* the direction is only used to evaluate anchors *)
-let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction): thread option =
+let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
   if !verbose then Printf.printf "%s CP%d\n" ("\n\027[36mNull Interpreter:\027[0m ") (s.cp);
   if !verbose then Printf.printf "%s\n" (print_code c);
   if !debug then
@@ -448,6 +448,12 @@ let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction): threa
       Printf.printf "%s" (print_cp s.cp);
       Printf.printf "%s" (print_active s.active);
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
+    end;
+  (* building the CDN table *)
+  s.cdn <- build_cdn cdn s.cp o s.context dir;
+  if !debug then
+    begin
+      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));
     end;
   (* follow epsilon transitions *)  
   advance_epsilon c s o dir;
@@ -507,7 +513,7 @@ let rec find_match (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:d
 (* for this, we need the bytecode of every nullable plus, and the AST of the regex we previously matched *)
 (* so that we can reconstruct exactly the plusses that are defined inside that AST *)
 
-let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (s:string) (o:oracle) (dir:direction): thread =
+let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (s:string) (o:oracle) (dir:direction) (cdn:cdns): thread =
   let capture = ref thread.capture_regs in
   let look = ref thread.look_regs in
   let quant = ref thread.quant_regs in
@@ -525,12 +531,14 @@ let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (
        begin match (Regs.get_cp !quant qid) with
        | None -> nulled_plus body (* recursive call: an inner + may have been nulled *)
        | Some start_cp ->
-          (* with no recursive calls: inner + will be reconstructed automatically *)
-          (* TODO: change that to recusrive so that compilation is non-quadratic *)
           let start_clock = int_of_opt (Regs.get_clock !quant qid) in
           let bytecode = plus_bc.(qid) in
-          let ctx = cp_context start_cp s dir in 
-          let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o dir in
+          let ctx = cp_context start_cp s dir in
+          if !debug then Printf.printf ("QID %d\n") qid;
+          let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o dir cdn in
+          (* here I give it the full cdn table. 
+             just like lookarounds, I could give it a specialized version *)
+          (* but since the null interpreter only builds it once, this does not change complexity *)
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
@@ -538,7 +546,8 @@ let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (
              capture := w.capture_regs;
              look := w.look_regs;
              quant := w.quant_regs;
-          end
+          end;
+          nulled_plus body
        end
   in
   nulled_plus ast;
@@ -560,7 +569,7 @@ let find_match_plus (c:code) (ast:regex) (plus_bc:code Array.t) (s:string) (o:or
   let full_result = 
     match result with
     | None -> None
-    | Some thread -> Some (reconstruct_plus_groups thread ast plus_bc s o dir)
+    | Some thread -> Some (reconstruct_plus_groups thread ast plus_bc s o dir cdn)
   in
   if !verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
   full_result
@@ -658,7 +667,12 @@ let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) opt
                quant := t.quant_regs
             end
      done;
-     if !debug then Printf.printf "regs: %s\n%!" (Regs.to_string !capture);
+     if !debug then
+       begin
+         Printf.printf "regs: %s\n%!" (Regs.to_string !capture);
+         let (prefilter,_) = Regs.to_arrays(!capture) in
+         Printf.printf "pre-filtering regs: %s\n%!" (debug_regs prefilter);
+       end;
      let match_capture = filter_reset cr.main_ast !capture !look !quant (-1) in (* filtering old values *)
      if !debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
      Some (match_capture)

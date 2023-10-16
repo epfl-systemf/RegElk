@@ -177,6 +177,7 @@ let cdn_empty: (raw_regex*string) list =
 (* FIXED, when we don't forget to build a CDN table when reconstructing the + groups *)
 let nullable_expected: (raw_regex*string) list =
   [(Raw_capture(Raw_con(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,raw_char('b'))))))),Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,raw_dot)))),"caabcbbcbcbcbacacaacbaccabaabbabbcbbbccbbbccac");
+   (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,raw_char('b')))),"cb");
    (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_empty)))),"caccaacbaabaaabaaacccaacacbbcabbababbacabbabcacabbcaabcbcaaacbabbcccbbcbbbcabbcaccacbacbb");
    (Raw_con(Raw_lookaround(Lookbehind,Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_alt(Raw_capture(Raw_capture(Raw_lookaround(NegLookahead,raw_char('c')))),Raw_alt(raw_dot,Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_lookaround(Lookbehind,raw_char('b'))))))))))),Raw_con(Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)),raw_char('b'))),"ababcbcaccbbcbbacccbcbccbbabaaaabbbbbabacacbccbabcbbbbabaacabaccabb");
    (Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_capture(raw_dot)))),"aaccbcbccccccbbbccccbcbaabbaccbcccaabbacacccabbccaabbcabb");
@@ -254,6 +255,15 @@ let js_export_bug: (raw_regex*string) list =
    (raw_class([CGroup(Digit);CRange(char_of_int(55),char_of_int(195));CRange(char_of_int(239),char_of_int(254));CRange(char_of_int(80),char_of_int(166));CRange(char_of_int(109),char_of_int(250));CGroup(Digit);CChar(char_of_int(45));CChar(char_of_int(97));CGroup(NonSpace);CGroup(Digit);CRange(char_of_int(190),char_of_int(196));CRange(char_of_int(83),char_of_int(89));CGroup(Digit);CRange(char_of_int(43),char_of_int(64));CRange(char_of_int(7),char_of_int(93));CRange(char_of_int(2),char_of_int(205));CRange(char_of_int(146),char_of_int(166));CChar(char_of_int(98));CRange(char_of_int(195),char_of_int(205))]),"-b---abba-baab----a-abaabb----aa--b--b-abba-a-a--b-b-bb-a--aa-bbbaaab--aaaaaab");
    (raw_class([CGroup(NonSpace);CRange(char_of_int(7),char_of_int(93))]),"-");
    (raw_class([CChar(char_of_int(98));CRange(char_of_int(242),char_of_int(252));CRange(char_of_int(39),char_of_int(223));CRange(char_of_int(200),char_of_int(239));CGroup(Digit);CRange(char_of_int(234),char_of_int(242));CRange(char_of_int(230),char_of_int(254));CGroup(NonDigit);CGroup(Space);CGroup(Digit)]),"-babbababb-b--aaaaa-aaa-bab-b--")]
+
+(* fixed: don't generate a SetQuantToClock(true) instruction or quantifiers that are not CIN/CDN *)
+let empty_bytecode: (raw_regex*string) list =
+  [(Raw_capture(Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_count({min=9;max=Some 10;greedy=false},Raw_anchor(NonWordBoundary))))),"-b-a--b-bababbaab-ba-aa--bb-a-bb-aaab-aababba---a-b-bbb-ab--ba-a-a-bba-ba-a--ba-ababb--baab-b--ba");
+   (Raw_capture(Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_count({min=1;max=None;greedy=false},Raw_anchor(NonWordBoundary))))),"-b")]
+
+
+let cin_clock_mismatch: (raw_regex*string) list=
+  [(Raw_count({min=9;max=None;greedy=true},Raw_count({min=9;max=Some 13;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_alt(Raw_anchor(NonWordBoundary),Raw_empty))))),"aabaaaabbaabb-aa-a-a-baba-bb-baba-a-abbaabaa")]
   
 (* JS is stuck (timeout), but not our engine *)
 let redos : (raw_regex*string) list =
@@ -311,6 +321,8 @@ let tests () =
   replay_bugs(class_negation);
   replay_bugs(class_escape);
   replay_bugs(js_export_bug);
+  replay_bugs(empty_bytecode);
+  replay_bugs(cin_clock_mismatch);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 

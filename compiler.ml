@@ -132,13 +132,23 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type): instruction treelist 
 
   (* when ctype = ReconstrutNulled, ie we only want to find the top-priority nullable path *)
   | Re_quant (nul, qid, quant, r1) ->
-     if (quant.min = 0) then (Leaf [], fresh) (* optional repetitions can't consume the empty string, so skip it *)
-     else if (nul = NonNullable) then (Leaf [Fail], fresh+1) (* you won't be able to null that expression *)
+     if (quant.min = 0) then (Leaf [], fresh)
+     (* optional repetitions can't consume the empty string, so skip it *)  
+     else if (nul = NonNullable) then
+       (* you won't be able to null that expression *)
+       (Leaf [Fail], fresh+1)
+     else if (quant.max = None && nul = CINullable && quant.greedy) then
+       (* CIN Plus should not be compiled recursively *)
+       (* but we indicate that the inner plus was nulled as well *)
+       (Leaf [SetQuantToClock(qid,true)], fresh+1)
+     else if (quant.max = None && nul = CDNullable && quant.greedy) then
+       (* same for CDN plus *)
+       (Leaf [CheckNullable qid; SetQuantToClock(qid,true)], fresh+2)
      else
-       (* in the case where min>0, and the body might be nullable  *)
+       (* in all other cases *)
        (* we only have to compile one iteration, since only the last iteration matters and iterations don't consume *)
-       let (l1, f1) = compile r1 (fresh+1) ReconstructNulled in
-       (Leaf [SetQuantToClock (qid,true)] @@ l1, f1)
+       let (l1, f1) = compile r1 (fresh) ReconstructNulled in
+       (l1, f1)
          
   | Re_capture (cid, r1) ->
      let (l1, f1) = compile r1 (fresh+1) ctype in
@@ -237,7 +247,6 @@ let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
   | Re_alt(r1,r2) | Re_con(r1,r2) -> compile_extra_bytecode r1 c; compile_extra_bytecode r2 c
   | Re_quant (nul, qid, quant, r1) ->
      (* only for CIN and CDN *)
-     (* TODO: this might introduce quadraticity during compilation *)
      if (quant.min > 0 && quant.max = None && nul <> NonNullable && quant.greedy) then
        begin
          let quant_code = compile_reconstruct_nulled r1 in
