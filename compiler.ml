@@ -209,10 +209,9 @@ type compiled_regex =
     (* lookaround data *)
     look_types: lookaround Array.t; (* the type of each lookaround *)
     look_ast: regex Array.t; (* the ast of each lookaround *)
+    look_cdns: cdns Array.t; (* the cdns restricted to each lookaround *)
     look_build_bc: code Array.t;    (* lookaround bytecodes for building the oracle *)
     look_capture_bc: code Array.t; (* lookarounds bytecodes for constructing capture groups *)
-    look_build_cdns: cdns Array.t; (* the cdns restricted to each lookaround *)
-    look_capture_cdns: cdns Array.t;
     (* Plus data *)
     plus_bc: code Array.t;      (* CDN & CIN plus bytecode *)
   }
@@ -252,8 +251,7 @@ let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
      let build_code = compile_to_write build_reg lid in
      let capture_code = compile_to_bytecode capture_reg in
      c.look_types.(lid) <- la;
-     c.look_build_cdns.(lid) <- compile_cdns build_reg;
-     c.look_capture_cdns.(lid) <- compile_cdns capture_reg;
+     c.look_cdns.(lid) <- compile_cdns body;
      c.look_ast.(lid) <- body;
      c.look_build_bc.(lid) <- build_code;
      c.look_capture_bc.(lid) <- capture_code;
@@ -264,8 +262,7 @@ let full_compilation (r:regex) : compiled_regex =
   let maxquant = max_quant r in
   let empty_code : code = Array.of_list [] in
   let looktypes = Array.make (maxlook+1) Lookahead in
-  let lookbuildcdns = Array.make (maxlook+1) [] in
-  let lookcapcdns = Array.make (maxlook+1) [] in
+  let lookcdns = Array.make (maxlook+1) [] in
   let lookast = Array.make (maxlook+1) Re_empty in
   let build_look = Array.make (maxlook+1) empty_code in
   let capture_look = Array.make (maxlook+1) empty_code in
@@ -274,8 +271,7 @@ let full_compilation (r:regex) : compiled_regex =
   let main_cdns = compile_cdns r in
   let compiled = {
       main_ast = r; main_bc = main_code; main_cdns = main_cdns;
-      look_types = looktypes; look_build_cdns = lookbuildcdns; look_capture_cdns=lookcapcdns;
-      look_ast = lookast;
+      look_types = looktypes; look_cdns = lookcdns; look_ast = lookast;
       look_build_bc = build_look; look_capture_bc = capture_look;
       plus_bc = plus_code } in
   compile_extra_bytecode r compiled; (* compile lookarounds, CIN & CDN *)

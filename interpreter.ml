@@ -20,10 +20,6 @@ open Flags
 (* Backward is used when building the oracle for lookaheads *)
 (* Or when building capture groups for lookbehinds *)
 
-type direction =
-  | Forward
-  | Backward
-
 let print_direction (d:direction) : string =
   match d with
   | Forward -> "Forward"
@@ -335,7 +331,8 @@ let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs
 
 (* modifies the state by advancing all threads along epsilon transitions *)
 (* calls itself recursively until there are no more active threads *)
-let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) : unit =
+(* the direction is only used to evaluate anchors *)
+let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) (dir:direction) : unit =
   if !debug then Printf.printf "%s\n%!" ("Epsilon active: " ^ print_active s.active);
     
   match s.active with
@@ -343,7 +340,7 @@ let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) : unit =
   | t::ac -> (* t: highest priority active thread *)
      let i = get_instr c t.pc in
      if (bpc_mem s.processed t.pc t.exit_allowed) then (* killing the lower priority thread if it has already been processed *)
-       begin s.active <- ac; advance_epsilon c s o end
+       begin s.active <- ac; advance_epsilon c s o dir end
      else begin
        s.clock <- s.clock + 1;  (* augmenting the global clock *)
        bpc_add s.processed t.pc t.exit_allowed; (* adding the current pc being handled to the set of proccessed pcs *)
@@ -351,14 +348,14 @@ let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) : unit =
        | Consume ce -> (* adding the thread to the list of blocked thread if it isn't already there *)
           s.blocked <- add_thread t ce s.blocked s.isblocked; (* also updates isblocked *)
           s.active <- ac;
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | Accept ->             (* updates the best match and don't consider the remain active threads *)
           s.active <- [];
           s.bestmatch <- Some t;
           () (* no recursive call *)
        | Jmp x ->
           t.pc <- x;
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | Fork (x,y) ->           (* x has higher priority *)
           t.pc <- y;
           s.active <- {pc = x;
@@ -366,19 +363,19 @@ let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) : unit =
                        look_regs = Regs.copy t.look_regs;
                        quant_regs = Regs.copy t.quant_regs;
                        exit_allowed = t.exit_allowed}::s.active;
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | SetRegisterToCP r ->
           (* modifying the capture regs of the current thread *)
           t.capture_regs <- Regs.set_reg t.capture_regs r (Some s.cp) s.clock; 
           t.pc <- t.pc + 1;
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | SetQuantToClock (q,b) ->
           (* saving the current cp if we are nulling a + *)
           let ocp = if b then (Some s.cp) else None in
           (* adding the last iteration clock *)
           t.quant_regs <- Regs.set_reg t.quant_regs q ocp s.clock;
           t.pc <- t.pc + 1;
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | CheckOracle l ->
           if (get_oracle o s.cp l)
           then begin
@@ -387,41 +384,41 @@ let rec advance_epsilon (c:code) (s:interpreter_state) (o:oracle) : unit =
               t.look_regs <- Regs.set_reg t.look_regs l (Some s.cp) s.clock;
             end
           else s.active <- ac;  (* killing the thread *)
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | NegCheckOracle l ->
           if (get_oracle o s.cp l)
           then s.active <- ac   (* killing the thread *)
           else t.pc <- t.pc + 1;(* keeping the thread alive *)
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | WriteOracle l ->
           (* we reached a match but we want to write that into the oracle. we don't discard lower priority threads *)
           s.active <- ac;       (* no need to consider that thread anymore *)
           set_oracle o s.cp l;    (* writing to the oracle *)
-          advance_epsilon c s o (* we keep searching for more matches *)
+          advance_epsilon c s o dir (* we keep searching for more matches *) 
        | BeginLoop ->
        (* we need to set exit_allowed to false: now exiting a loop is forbidden according to JS semantics *)
           t.exit_allowed <- false;
           t.pc <- t.pc + 1;
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | EndLoop ->
           (* this transition is only possible if we didn't begin this loop during this epsilon transition phase *)
           begin match t.exit_allowed with
-          | true -> t.pc <- t.pc+1; advance_epsilon c s o
-          | false -> s.active <- ac; advance_epsilon c s o (* killing the current thread *)
+          | true -> t.pc <- t.pc+1; advance_epsilon c s o dir
+          | false -> s.active <- ac; advance_epsilon c s o dir (* killing the current thread *)
           end
        | CheckNullable qid ->
           if (cdn_get s.cdn qid)
           then t.pc <- t.pc+1   (* keeping the thread alive *)
           else s.active <- ac;  (* killing the thread *)
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | AnchorAssertion a ->
-          if (is_satisfied a s.context)
+          if (is_satisfied a s.context dir)
           then t.pc <- t.pc+1   (* keeping the thread alive *)
           else s.active <- ac;  (* killing the thread *)
-          advance_epsilon c s o
+          advance_epsilon c s o dir
        | Fail ->
           s.active <- ac;       (* killing the current thread *)
-          advance_epsilon c s o
+          advance_epsilon c s o dir
      end
 
      
@@ -442,8 +439,8 @@ let rec consume (s:interpreter_state): unit =
 (** * Null interpreter  *)
 (* an interpreter that does not read the string, but instead simply follows epsilon transitions *)
 (* this is used to reconstruct the capture groups of last nulled plus iteration at the end of a match *)
-     
-let null_interp (c:code) (s:interpreter_state) (o:oracle): thread option =
+(* the direction is only used to evaluate anchors *)
+let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction): thread option =
   if !verbose then Printf.printf "%s CP%d\n" ("\n\027[36mNull Interpreter:\027[0m ") (s.cp);
   if !verbose then Printf.printf "%s\n" (print_code c);
   if !debug then
@@ -453,7 +450,7 @@ let null_interp (c:code) (s:interpreter_state) (o:oracle): thread option =
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
   (* follow epsilon transitions *)  
-  advance_epsilon c s o;
+  advance_epsilon c s o dir;
   if !debug then
     begin
       Printf.printf "%s\n%!" (print_blocked s.blocked);
@@ -473,14 +470,14 @@ let rec find_match (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:d
     end;
 
   (* building the CDN table *)
-  s.cdn <- build_cdn cdn s.cp o s.context;
+  s.cdn <- build_cdn cdn s.cp o s.context dir;
   if !debug then
     begin
       Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));
     end;
   
   (* follow epsilon transitions *)  
-  advance_epsilon c s o;
+  advance_epsilon c s o dir;
   if !debug then
     begin
       Printf.printf "%s\n%!" (print_blocked s.blocked);
@@ -533,7 +530,7 @@ let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (
           let start_clock = int_of_opt (Regs.get_clock !quant qid) in
           let bytecode = plus_bc.(qid) in
           let ctx = cp_context start_cp s dir in 
-          let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o in
+          let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o dir in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
@@ -602,7 +599,7 @@ let build_oracle (cr:compiled_regex) (str:string): oracle =
     let bytecode = cr.look_build_bc.(lid) in
     let looktype = cr.look_types.(lid) in
     let direction = oracle_direction looktype in
-    let lookcdn = cr.look_build_cdns.(lid) in
+    let lookcdn = cr.look_cdns.(lid) in
     let initcp = init_cp direction (String.length str) in
     let initctx = cp_context initcp str direction in
     (* TODO: we could reuse capture, lookmem and quants instead of reallocating for each lookaround *)
@@ -649,7 +646,7 @@ let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) opt
           if (capture_type looktype) then (* not for negative lookarounds *)
             let bytecode = cr.look_capture_bc.(lid) in
             let direction = capture_direction looktype in
-            let lookcdn = cr.look_capture_cdns.(lid) in
+            let lookcdn = cr.look_cdns.(lid) in
             let lookast = cr.look_ast.(lid) in
             let result = find_match_plus bytecode lookast cr.plus_bc str o direction cp !capture !look !quant 0 lookcdn in            
             begin match result with
