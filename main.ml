@@ -29,6 +29,12 @@ let parse_raw (str:string) : raw_regex =
 
   
 let main =
+
+  debug := true;
+  verbose := true;
+  let bug = (Raw_lookaround(Lookbehind,Raw_alt(Raw_quant(Plus,Raw_anchor(BeginInput)),Raw_quant(Plus,raw_char('a')))),"a") in
+  let _ = get_linear_result (fst bug) (snd bug) in
+  ignore(compare_engines (fst bug) (snd bug));
   
   let speclist =
     [("-regex", Arg.Tuple [Arg.Set_string input_regex; Arg.Set rgx_set], "Regex");

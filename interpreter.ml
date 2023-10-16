@@ -602,7 +602,7 @@ let build_oracle (cr:compiled_regex) (str:string): oracle =
     let bytecode = cr.look_build_bc.(lid) in
     let looktype = cr.look_types.(lid) in
     let direction = oracle_direction looktype in
-    let lookcdn = cr.look_cdns.(lid) in
+    let lookcdn = cr.look_build_cdns.(lid) in
     let initcp = init_cp direction (String.length str) in
     let initctx = cp_context initcp str direction in
     (* TODO: we could reuse capture, lookmem and quants instead of reallocating for each lookaround *)
@@ -610,6 +610,8 @@ let build_oracle (cr:compiled_regex) (str:string): oracle =
     let lookmem = Regs.init_regs (maxlook+1) in
     let quant = Regs.init_regs (maxquant+1) in
     let initstate = init_state bytecode initcp capture lookmem quant 0 initctx in
+    if !verbose then Printf.printf "%s\n" (print_code bytecode);
+    if !verbose then Printf.printf "%s\n" (print_cdns lookcdn);
     (* no need to call find_match_plus, we don't care about any capture groups *)
     (* inside lookarounds in the oracle building phase *)
       ignore (find_match bytecode str initstate o direction lookcdn)
@@ -647,7 +649,7 @@ let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) opt
           if (capture_type looktype) then (* not for negative lookarounds *)
             let bytecode = cr.look_capture_bc.(lid) in
             let direction = capture_direction looktype in
-            let lookcdn = cr.look_cdns.(lid) in
+            let lookcdn = cr.look_capture_cdns.(lid) in
             let lookast = cr.look_ast.(lid) in
             let result = find_match_plus bytecode lookast cr.plus_bc str o direction cp !capture !look !quant 0 lookcdn in            
             begin match result with
