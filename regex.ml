@@ -305,12 +305,15 @@ let lazy_prefix (r:regex) : regex =
 (* Note that we only need to reverse the concatenation *)
 (* For the alternation, the left subexpr still has priority over the right one when looking for groups *)
 (* For instance, in [ab(?<=(ab|b))] over "ab", group 1 contains "ab", not "b" *)
+
+
 (* we also need to reverse anchors: the end of input becomes the beginning and vice-versa *)
-let reverse_anchor (a:anchor) : anchor =
-  match a with
-  | BeginInput -> EndInput
-  | EndInput -> BeginInput
-  | _ -> a
+(* let reverse_anchor (a:anchor) : anchor =
+ *   match a with
+ *   | BeginInput -> EndInput
+ *   | EndInput -> BeginInput
+ *   | _ -> a *)
+(* deprecated: we no longer reverse anchors. instead, the behavior of the anchor changes depending on the interpreter direction *)
   
 let rec reverse_regex (r:regex) : regex =
   match r with
@@ -320,7 +323,7 @@ let rec reverse_regex (r:regex) : regex =
   | Re_quant (nul, qid, quant, r1) -> Re_quant (nul, qid, quant, reverse_regex r1)
   | Re_capture (cid, r1) -> Re_capture (cid, reverse_regex r1)
   | Re_lookaround (lid, look, r1) -> Re_lookaround (lid, look, reverse_regex r1)
-  | Re_anchor a -> Re_anchor (reverse_anchor a)
+  | Re_anchor a -> Re_anchor a
 
 
 (* during the 1st stage of the algorithm, we don't care about extracting capture groups *)

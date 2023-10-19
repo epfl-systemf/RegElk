@@ -4,7 +4,6 @@ open Bytecode
 open Compiler
 open Cdn
 open Interpreter
-open Linear
 open Tojs
 open Tore2
 open Toexp
@@ -30,6 +29,12 @@ let parse_raw (str:string) : raw_regex =
 
   
 let main =
+
+  (* let bug = (Raw_count({min=2;max=None;greedy=true},Raw_count({min=2;max=Some 2;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_empty)))),"a") in
+   * debug := true;
+   * verbose := true;
+   * ignore(get_linear_result (fst bug) (snd bug));
+   * ignore(compare_engines (fst bug) (snd bug)); *)
   
   let speclist =
     [("-regex", Arg.Tuple [Arg.Set_string input_regex; Arg.Set rgx_set], "Regex");

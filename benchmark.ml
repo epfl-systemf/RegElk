@@ -5,7 +5,7 @@
 open Regex
 open Tojs
 open Toexp
-open Linear
+open Interpreter
 open Sys
 open Unix
 open Gc

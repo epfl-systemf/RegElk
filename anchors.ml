@@ -5,6 +5,14 @@
 
 open Regex
 open Charclasses
+
+
+(* our algorithms can go through the string in two possible directions *)
+(* this changes the behaviors of the anchors *)
+type direction =
+  | Forward
+  | Backward
+
    
 (** * Char Contexts  *)
 (* a context here describes the surrounding characters of a position (or None, if we reached the end/begin of the input) *)
@@ -41,9 +49,11 @@ let is_boundary (ctx:char_context) : bool =
   | Some prev, Some next ->
      (is_ascii_word_character prev) <> (is_ascii_word_character next) (* xor *)
                                     
-let is_satisfied (a:anchor) (ctx:char_context) : bool =
-  match a with
-  | BeginInput -> ctx.prevchar = None
-  | EndInput -> ctx.nextchar = None
-  | WordBoundary -> is_boundary ctx
-  | NonWordBoundary -> not (is_boundary ctx)
+let is_satisfied (a:anchor) (ctx:char_context) (dir:direction): bool =
+  match a,dir with
+  | BeginInput,Forward -> ctx.prevchar = None
+  | BeginInput,Backward -> ctx.nextchar = None
+  | EndInput,Forward -> ctx.nextchar = None
+  | EndInput,Backward -> ctx.prevchar = None
+  | WordBoundary,_ -> is_boundary ctx
+  | NonWordBoundary,_ -> not (is_boundary ctx)

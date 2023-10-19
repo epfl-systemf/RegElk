@@ -4,7 +4,7 @@
 open Regex
 open Sys
 open Filename
-open Linear
+open Interpreter
 open Charclasses
 open Flags
 

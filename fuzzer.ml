@@ -1,7 +1,7 @@
 (** * Differential Fuzzer  *)
 (* randomly generating regexes and strings and comparing the output of our algorithm VS the JS matcher *)
 
-open Linear
+open Interpreter
 open Tojs
 open Regex
 open Random
