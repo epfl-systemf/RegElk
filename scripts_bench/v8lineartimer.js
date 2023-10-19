@@ -1,5 +1,5 @@
 // getting the arguments
-load('params.js')
+load('scripts_bench/v8params.js')
 
 function timer() {
     // building the regex
@@ -11,11 +11,11 @@ function timer() {
     }
     // triggering garbage collector
     gc();
-    // Measuring one match
-    let start = performance.now()
+    // Measuring one match, using our patched V8 for rdtsc
+    let start = performance.rdtsc()
     let r_match = string.match(re);
-    let end = performance.now();
-    return ((end - start)/1000);
+    let end = performance.rdtsc();
+    return (end-start);
 }
 
 console.log(timer());

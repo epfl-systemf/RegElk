@@ -13,8 +13,20 @@ open Flags
 open Arg
 
 
+(* path to V8 executable *)
+(* this V8 executable needs to be patched in two ways: *)
+(* - first, we augment the kMaxReplicationFactor, so that we can try more regexes to demonstrate regex-size-exponential complexity *)
+(* second, we define performance.rdtsc() to return rdtsc counter *)
+let v8_path = ref "~/v8/v8/out/x64.release/d8"
+let v8_args = " --expose-gc --enable-experimental-regexp-engine "
+
+   
 (* where the results are stored *)
 let bench_dir = "results_bench/"
+(* where we store the argument to the d8 matcher *)
+let param_path = "scripts_bench/v8params.js"
+(* the V8 linear program that measures time *)
+let v8lineartimer = "scripts_bench/v8lineartimer.js"
 
 (* the number of times we warmup before each test *)
 let warmups = ref 10
@@ -32,13 +44,6 @@ let engine_name (e:engine) : string =
   | V8Linear -> "V8linear"
   | Irregexp -> "Irregexp"
 
-(* an engine configuration to test *)
-type engine_conf =
-  { eng: engine;                (* which engine *)
-    min_size: int;              (* minimum size of the benchmark *)
-    max_size: int               (* maximum size of the benchmark *)
-  }
-
 
 (* calling the matcher.native executable *)
 (* returning the rdtsc measuring *)
@@ -48,14 +53,34 @@ let get_time_ocaml (r:raw_regex) (str:string): string =
   let sys = "./matcher.native " ^ regex_string ^ input_string ^ string_of_int !warmups in
   string_of_command(sys)
 
-  
-(* todo rename js to irregexp and experimental to V8Linear *)
+(* modifies the parameter files that is read by the V8 D8 interpreter *)
+let write_v8_params (r:raw_regex) (str:string): unit =
+  let oc = open_out param_path in
+  Printf.fprintf oc "const regex= \"%s\"\nconst string= \"%s\"\nconst warmups= %d\n" (print_js r) str !warmups;
+  close_out oc
+
+
+let get_time_v8linear (r:raw_regex) (str:string): string =
+  write_v8_params r str;
+  let sys = !v8_path ^ v8_args ^ v8lineartimer in
+  string_of_command(sys)
+
+(* measures rdtsc time for each engine *)
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
   match e with
   | OCaml -> get_time_ocaml r str
-  | V8Linear -> failwith "TODO: bench V8Linear"
+  | V8Linear -> get_time_v8linear r str
   | Irregexp -> failwith "TODO: bench Irregexp"
 
+
+(* an engine configuration to test *)
+type engine_conf =
+  { eng: engine;                (* which engine *)
+    min_size: int;              (* minimum size of the benchmark *)
+    max_size: int               (* maximum size of the benchmark *)
+  }
+
+              
 (* A benchmark where we vary the length of the regex *)
 type regex_benchmark =
   { name: string;
@@ -100,7 +125,7 @@ let nested_nn_plus_string = String.make 100 'a'
 
 let nn_plus_confs =
   [ {eng=OCaml; min_size=0; max_size=500 };
-    {eng=V8Linear; min_size=0; max_size=0 } ]
+    {eng=V8Linear; min_size=0; max_size=20 } ]
 
 let nested_nn_plus : regex_benchmark =
   { name = "NNPlus";
