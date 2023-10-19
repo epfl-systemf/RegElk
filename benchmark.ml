@@ -13,9 +13,12 @@ open Flags
 open Arg
 
 
+(* where the results are stored *)
 let bench_dir = "results_bench/"
 
-(* the number of times we repeat each test *)
+(* the number of times we warmup before each test *)
+let warmups = ref 10
+(* the number of times we perform each test *)
 let repetitions = ref 10
 
 type engine =
@@ -36,24 +39,22 @@ type engine_conf =
     max_size: int               (* maximum size of the benchmark *)
   }
 
-(* let now () = Unix.gettimeofday () *)
-let now () = Ocaml_intrinsics.Perfmon.rdtsc ()
-let elapsed from = Int64.(to_float (sub (now ()) from))
 
-(* also measures compilation time... *)
-(* TODO: change this? *)
-let get_time_ocaml (r:raw_regex) (str:string) : float =
-  Gc.full_major();               (* triggering the GC *)
-  let tstart = now () in
-  ignore(get_linear_result r str);
-  elapsed tstart
+(* calling the matcher.native executable *)
+(* returning the rdtsc measuring *)
+let get_time_ocaml (r:raw_regex) (str:string): string =
+  let regex_string = " \""^print_js r^"\" " in
+  let input_string = " \""^str^"\" " in
+  let sys = "./matcher.native " ^ regex_string ^ input_string ^ string_of_int !warmups in
+  string_of_command(sys)
 
+  
 (* todo rename js to irregexp and experimental to V8Linear *)
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
   match e with
-  | OCaml -> string_of_float (get_time_ocaml r str)
-  | V8Linear -> get_time_experimental r str
-  | Irregexp -> get_time_js r str
+  | OCaml -> get_time_ocaml r str
+  | V8Linear -> failwith "TODO: bench V8Linear"
+  | Irregexp -> failwith "TODO: bench Irregexp"
 
 (* A benchmark where we vary the length of the regex *)
 type regex_benchmark =
@@ -70,9 +71,9 @@ let run_regex_config (ec:engine_conf) (param_regex:int->raw_regex) (str:string) 
   for i = ec.min_size to ec.max_size do
     Printf.printf " %s\r%!" (string_of_int i); (* live update *)
     let reg = param_regex i in
-    for j = 0 to !repetitions do
+    for j = 0 to (!repetitions-1) do
       let time = get_time ec.eng reg str in
-      Printf.fprintf oc "%d,%s\n%!" i time; (* printing to the csv file *)
+      Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
     done;
   done;
   close_out oc;
@@ -98,8 +99,8 @@ let rec nested_nn_plus_reg = fun reg_size ->
 let nested_nn_plus_string = String.make 100 'a'
 
 let nn_plus_confs =
-  [ {eng=OCaml; min_size=0; max_size=100 };
-    {eng=V8Linear; min_size=0; max_size=4 } ]
+  [ {eng=OCaml; min_size=0; max_size=500 };
+    {eng=V8Linear; min_size=0; max_size=0 } ]
 
 let nested_nn_plus : regex_benchmark =
   { name = "NNPlus";
@@ -134,6 +135,6 @@ let clocks : regex_benchmark =
 
 let main =
   run_regex_benchmark nested_nn_plus;
-  run_regex_benchmark clocks;
+  (* run_regex_benchmark clocks; *)
   ()
     
