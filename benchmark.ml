@@ -27,6 +27,8 @@ let bench_dir = "results_bench/"
 let param_path = "scripts_bench/v8params.js"
 (* the V8 linear program that measures time *)
 let v8lineartimer = "scripts_bench/v8lineartimer.js"
+(* the irregexp program that measures time *)
+let irregexptimer = "scripts_bench/irregexptimer.js"
 
 (* the number of times we warmup before each test *)
 let warmups = ref 10
@@ -59,18 +61,23 @@ let write_v8_params (r:raw_regex) (str:string): unit =
   Printf.fprintf oc "const regex= \"%s\"\nconst string= \"%s\"\nconst warmups= %d\n" (print_js r) str !warmups;
   close_out oc
 
-
 let get_time_v8linear (r:raw_regex) (str:string): string =
   write_v8_params r str;
   let sys = !v8_path ^ v8_args ^ v8lineartimer in
   string_of_command(sys)
 
+let get_time_irregexp (r:raw_regex) (str:string): string =
+  write_v8_params r str;
+  let sys = !v8_path ^ v8_args ^ irregexptimer in
+  string_of_command(sys)
+
+  
 (* measures rdtsc time for each engine *)
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
   match e with
   | OCaml -> get_time_ocaml r str
   | V8Linear -> get_time_v8linear r str
-  | Irregexp -> failwith "TODO: bench Irregexp"
+  | Irregexp -> get_time_irregexp r str
 
 
 (* an engine configuration to test *)
