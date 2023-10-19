@@ -146,8 +146,8 @@ let rec clocks_reg = fun reg_size ->
 let clocks_string = String.make 100 'a'
 
 let clocks_conf =
-  [ {eng=OCaml; min_size=0; max_size=300 };
-    {eng=V8Linear; min_size=0; max_size=300 } ]
+  [ {eng=OCaml; min_size=0; max_size=200 };
+    {eng=V8Linear; min_size=0; max_size=150 } ]
 
 let clocks : regex_benchmark =
   { name = "Clocks";
@@ -156,10 +156,33 @@ let clocks : regex_benchmark =
     input_str = clocks_string;
   }
               
-  
 
+let all_bench = [nested_nn_plus; clocks]
+
+let bench_names = List.map (fun b -> b.name) all_bench
+let bench_names_string =
+  List.fold_left (fun a b -> a ^ " " ^ b) "" bench_names
+
+let exec_bench (name:string) : unit =
+  try
+    let bench = List.find (fun b -> b.name = name) all_bench in
+    run_regex_benchmark bench
+  with Not_found -> ()
+  
+                  
 let main =
-  run_regex_benchmark nested_nn_plus;
-  (* run_regex_benchmark clocks; *)
-  ()
+  debug := false;
+  verbose := false;
+
+  let bench_list = ref [] in
+  
+  let speclist =
+    [("-v8", Arg.Set_string v8_path, "V8 path");
+     ("-warmups", Arg.Set_int warmups, "Number of Warmup Repetitions per iteration");
+     ("-repet", Arg.Set_int repetitions, "Number of Measured Repetitions");   
+    ] in
+  let usage = "./benchmark.native [-v8 path_to_d8] [-warmups 10] [-repet 10] benchmark list\n" in
+  let full_usage = usage ^ "\nAvailable benchmarks: " ^ bench_names_string in
+  Arg.parse speclist (fun s -> bench_list := s::!bench_list) full_usage;
+  List.iter exec_bench !bench_list
     
