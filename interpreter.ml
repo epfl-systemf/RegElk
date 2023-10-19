@@ -702,7 +702,3 @@ let full_match (raw:raw_regex) (str:string) : (int Array.t) option =
 let get_linear_result (raw:raw_regex) (str:string) : string =
   let capop = full_match raw str in
   print_result (annotate raw) str capop
-
-  
-
-          

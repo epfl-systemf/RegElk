@@ -52,30 +52,25 @@ let compiler_tests () =
   assert (Array.to_list code = [SetRegisterToCP 0; Fork (2,7); SetQuantToClock (1,false); BeginLoop; Consume (Single 'a'); EndLoop; Jmp 1; Consume (Single 'b'); SetRegisterToCP 1; Accept])
 
 let interpreter_tests () =
-  let o = create_oracle 1 1 in
   let raw = Raw_con (Raw_quant (Star, raw_char 'a'), raw_char 'b') in
-  let re = annotate raw in
-  let code = compile_to_bytecode re in
-  let cdn = compile_cdns re in
   let str1 = "aab" in
   let str2 = "aaa" in
-  (* assert (boolean_interp re code str1 o Forward cdn = true);
-   * assert (boolean_interp re code str2 o Forward cdn = false) *)
-  assert(true)                  (* TODO: function interface changed *)
+  assert (full_match raw str1 <> None);
+  assert (full_match raw str2 = None)
 
 let build_oracle_tests () =
   let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (raw_char 'a',raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in
   let re = annotate raw in
+  let cr = full_compilation re in
   let str = "aaab" in
   Printf.printf "%s\n" (print_regex re);
-  (* let o = build_oracle re str in
-   * Printf.printf "%s\n" (print_oracle o);
-   * assert (get_oracle o 4 2 = true);
-   * assert (get_oracle o 3 2 = false);
-   * assert (get_oracle o 2 1 = true);
-   * assert (get_oracle o 2 0 = false);
-   * assert (get_oracle o 4 1 = false) *)
-  assert(true)                  (* TODO: function interface changed *)
+  let o = build_oracle cr str in
+  Printf.printf "%s\n" (print_oracle o);
+  assert (get_oracle o 4 2 = true);
+  assert (get_oracle o 3 2 = false);
+  assert (get_oracle o 2 1 = true);
+  assert (get_oracle o 2 0 = false);
+  assert (get_oracle o 4 1 = false)
 
 let full_algo_tests () =
   let raw = Raw_con (raw_char 'a', Raw_lookaround (Lookahead, Raw_capture(raw_char 'b'))) in
@@ -132,6 +127,7 @@ let should_not_clear : (raw_regex*string) list =
 
 (* here we agree with Experimental, but Experimental does not agree with Irregexp! *)
 (* The problem here is that we merge threads that may have a different future according to the JS semantics *)
+(* this is now fixed, both here and in experimental *)
 let empty_repetitions : (raw_regex*string) list =
   [(Raw_quant(Plus,Raw_con(Raw_alt(raw_char('a'),Raw_empty),Raw_quant(LazyStar,Raw_capture(raw_dot)))),"bab");
    (Raw_quant(Star,Raw_con(Raw_alt(raw_char('a'),Raw_empty),Raw_quant(LazyStar,raw_dot))),"ab"); (* simplified example *)
@@ -256,7 +252,7 @@ let js_export_bug: (raw_regex*string) list =
    (raw_class([CGroup(NonSpace);CRange(char_of_int(7),char_of_int(93))]),"-");
    (raw_class([CChar(char_of_int(98));CRange(char_of_int(242),char_of_int(252));CRange(char_of_int(39),char_of_int(223));CRange(char_of_int(200),char_of_int(239));CGroup(Digit);CRange(char_of_int(234),char_of_int(242));CRange(char_of_int(230),char_of_int(254));CGroup(NonDigit);CGroup(Space);CGroup(Digit)]),"-babbababb-b--aaaaa-aaa-bab-b--")]
 
-(* fixed: don't generate a SetQuantToClock(true) instruction or quantifiers that are not CIN/CDN *)
+(* fixed. I called non-compiled code *)
 let empty_bytecode: (raw_regex*string) list =
   [(Raw_capture(Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_count({min=9;max=Some 10;greedy=false},Raw_anchor(NonWordBoundary))))),"-b-a--b-bababbaab-ba-aa--bb-a-bb-aaab-aababba---a-b-bbb-ab--ba-a-a-bba-ba-a--ba-ababb--baab-b--ba");
    (Raw_capture(Raw_lookaround(Lookahead,Raw_quant(Plus,Raw_count({min=1;max=None;greedy=false},Raw_anchor(NonWordBoundary))))),"-b")]
@@ -269,6 +265,7 @@ let cin_clock_mismatch: (raw_regex*string) list=
    (Raw_count({min=2;max=None;greedy=true},Raw_count({min=2;max=Some 2;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_empty)))),"a")]
   
 (* JS is stuck (timeout), but not our engine *)
+(* I quickly stopped listing these *)
 let redos : (raw_regex*string) list =
   [(Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(NegLookahead,raw_dot),Raw_quant(LazyPlus,Raw_capture(Raw_con(Raw_quant(Star,raw_char('a')),Raw_con(Raw_alt(Raw_empty,raw_dot),raw_dot)))))),"cbabbccccbbcccaaaaaccabccbaabaabcaaacbca");
    (Raw_con(Raw_con(Raw_lookaround(Lookahead,Raw_capture(Raw_capture(raw_dot))),Raw_capture(Raw_alt(Raw_lookaround(Lookahead,raw_dot),Raw_alt(Raw_con(Raw_capture(Raw_quant(Star,raw_char('c'))),Raw_capture(raw_char('a'))),Raw_alt(Raw_capture(Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)))),Raw_capture(Raw_alt(Raw_alt(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_con(Raw_capture(raw_dot),Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(raw_char('a'),Raw_quant(LazyPlus,Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_empty))),Raw_quant(Plus,Raw_alt(raw_dot,Raw_capture(Raw_capture(raw_dot))))))))),Raw_empty)))),Raw_lookaround(Lookahead,raw_char('c')))))),raw_dot),raw_dot))))))),Raw_con(Raw_alt(Raw_con(Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_con(Raw_capture(raw_char('b')),Raw_alt(Raw_empty,raw_char('c'))))),raw_dot),raw_dot),Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_empty)))),Raw_lookaround(NegLookahead,Raw_alt(Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_lookaround(Lookbehind,Raw_empty)),Raw_lookaround(Lookahead,Raw_empty))))),"ccaacababbbcccbbbabcbbbccaaabccacbcb");
@@ -331,6 +328,7 @@ let tests () =
 
 
 (* the example I put in the written description of the algorithm *)
+(* the paper has now changed a lot, but I'm keeping this one just in case *)
 let paper_example () =
   let lookahead_example = Raw_con(raw_char('a'),Raw_capture(raw_dot)) in
   let left_branch_example = Raw_con(Raw_quant(Star,raw_char('a')),Raw_capture(raw_char('b'))) in

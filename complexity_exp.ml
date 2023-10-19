@@ -46,7 +46,7 @@ let prepare_core_benchmark (b:benchmark) =
   let open Core_bench in
   match b with
   | RegSize (rp, str, min, max_js, max_ocaml, name) ->
-     let inputs = Array.init (max_ocaml-min+1) rp in
+     let inputs = Array.init (max_ocaml-min+1) ~f:rp in
      let matcher_fn i =
        let r = inputs.(i) in
        (* todo live update i and try with a sleep *)

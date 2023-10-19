@@ -1,4 +1,4 @@
-// getting the command line arguments
+// getting the arguments
 load('params.js')
 
 function timer() {
@@ -10,13 +10,10 @@ function timer() {
 	let w_match = string.match(re);
     }
     // triggering garbage collector
-    // TODO: this should be done inside the loop but we shouldn't measure the time the GC takes
     gc();
-    // Measuring the repetitions
+    // Measuring one match
     let start = performance.now()
-    for (let i = 0; i < repetitions; i++) {
-	let r_match = string.match(re);
-    }
+    let r_match = string.match(re);
     let end = performance.now();
     return ((end - start)/1000);
 }
