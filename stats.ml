@@ -76,6 +76,22 @@ let rec has_nullplus (r:raw_regex) : bool =
   | Raw_count (q,r1) ->
      has_nullplus r1 || (raw_nullable r1 <> NonNullable && q.min > 0 && q.greedy)
 
+(* same thing for the lazy nullable +?, that we don't know how to handle linearly *)
+let rec has_lazy_nullplus (r:raw_regex) : bool =
+  match r with
+  | Raw_empty | Raw_character _ | Raw_anchor _ -> false
+  | Raw_con(r1,r2) | Raw_alt(r1,r2) -> has_lazy_nullplus r1 || has_lazy_nullplus r2
+  | Raw_capture r1 | Raw_lookaround (_,r1) -> has_lazy_nullplus r1
+  | Raw_quant (q,r1) ->
+     begin match q with
+     | LazyPlus -> has_lazy_nullplus r1 || raw_nullable r1 = CINullable || raw_nullable r1 = CDNullable
+     | _ -> has_lazy_nullplus r1
+     end
+  | Raw_count (q,r1) ->
+     has_lazy_nullplus r1 || (raw_nullable r1 <> NonNullable && q.min > 0 && not(q.greedy))
+
+
+    
 (* detecting regexes that can be supported by the memoryless lookbehind only *)
 (* they need to have lookbehinds without groups in them or negative lookbehinds *)
 (* they also need to not have any lookaheads or positive lookbehinds with groups *)
@@ -123,13 +139,14 @@ type support_stats = {
     mutable lookaround:int;
     mutable nn:int;
     mutable null_plus:int;
+    mutable lazy_nullplus: int;
     mutable ml_behind:int;
   }
 
 let init_stats () : support_stats =
   { named=0; hex=0; unicode=0; prop=0; backref=0; notwf=0; octal=0;
     errors=0; parsed=0; total=0;
-    null_quant=0; quant_groups=0; lookaround=0; nn=0; null_plus=0; ml_behind=0; }
+    null_quant=0; quant_groups=0; lookaround=0; nn=0; null_plus=0; lazy_nullplus=0; ml_behind=0; }
 
 (* parsing a string for a regex *)
 let parse (str:string) (stats:support_stats): parse_result =
@@ -145,6 +162,7 @@ let parse (str:string) (stats:support_stats): parse_result =
         if (has_lookaround r) then stats.lookaround <- stats.lookaround + 1;
         if (has_nn r) then stats.nn <- stats.nn + 1;
         if (has_nullplus r) then stats.null_plus <- stats.null_plus + 1;
+        if (has_lazy_nullplus r) then stats.lazy_nullplus <- stats.lazy_nullplus + 1;
         if (memoryless_lookbehind r) then stats.ml_behind <- stats.ml_behind + 1;
         OK r
       end
@@ -189,6 +207,7 @@ let print_stats (s:support_stats) : string =
   "\nLookarounds: " ^ string_of_int s.lookaround ^
   "\nNonNullable, min>0 quantifiers: " ^ string_of_int s.nn ^
   "\nNullable Greedy min>0 quantifiers (CIN&CDN): " ^ string_of_int s.null_plus ^
+  "\nNullable NonGreedy min>0 quantifiers (CIN&CDN): " ^ string_of_int s.lazy_nullplus ^
   "\nMemoryLess Lookbehinds without groups: " ^ string_of_int s.ml_behind ^ 
   "\n"
     
