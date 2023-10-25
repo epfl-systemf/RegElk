@@ -140,6 +140,30 @@ let nested_nn_plus : regex_benchmark =
     param_regex = nested_nn_plus_reg;
     input_str = nested_nn_plus_string;
   }
+
+(** * Nested CDN Plus  *)
+(* I pick an example with anchors rather than lookarounds *)
+(* so that we can compare the results to V8Linear *)
+
+(* r0 = a|^ *)
+(* rn = rn-1+ *)
+let rec nested_cdn_reg = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_alt(raw_char('a'),Raw_anchor(BeginInput))
+  | _ -> raw_plus(nested_cdn_reg (reg_size - 1))
+
+let nested_cdn_string = String.make 100 'a'
+
+let nested_cdn_confs =
+  [ {eng=OCaml; min_size=0; max_size=500 };
+    {eng=V8Linear; min_size=0; max_size=20 } ]
+
+let nested_cdn : regex_benchmark =
+  { name = "CDN";
+    confs = nested_cdn_confs;
+    param_regex = nested_cdn_reg;
+    input_str = nested_cdn_string;
+  }
   
 
 (** * Clocks have a better complexity than dynamic clearing of registers  *)
@@ -164,7 +188,7 @@ let clocks : regex_benchmark =
   }
               
 
-let all_bench = [nested_nn_plus; clocks]
+let all_bench = [nested_nn_plus; nested_cdn; clocks]
 
 let bench_names = List.map (fun b -> b.name) all_bench
 let bench_names_string =
@@ -174,7 +198,7 @@ let exec_bench (name:string) : unit =
   try
     let bench = List.find (fun b -> b.name = name) all_bench in
     run_regex_benchmark bench
-  with Not_found -> ()
+  with Not_found -> Printf.printf "Couldn't find benchmark %s\nAvailable benchmarks: %s\n" name bench_names_string
   
                   
 let main =
