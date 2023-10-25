@@ -142,17 +142,23 @@ let nested_nn_plus : regex_benchmark =
   }
 
 (** * Nested CDN Plus  *)
-(* I pick an example with anchors rather than lookarounds *)
+(* I picked an example with anchors rather than lookarounds *)
 (* so that we can compare the results to V8Linear *)
+(* I picked an example where all CDNs end up nulled and need to reconstruct a group *)
+
+(* TODO: this is quadratic for now. *)
+(* My guess: we recompute the cdn table for each CDN, even for nested ones at the same string position cp *)
+(* We can either remember the full cdn table for each position but this brings memory complexity *)
+(* Or we can just remember it for the same current position instead of recomputing it. this will work for nested CDNs for instance that each got nulled at the same position. *)
 
 (* r0 = a|^ *)
 (* rn = rn-1+ *)
 let rec nested_cdn_reg = fun reg_size ->
   match reg_size with
-  | 0 -> Raw_alt(raw_char('a'),Raw_anchor(BeginInput))
+  | 0 -> Raw_alt(raw_char('a'),Raw_capture(Raw_anchor(BeginInput)))
   | _ -> raw_plus(nested_cdn_reg (reg_size - 1))
 
-let nested_cdn_string = String.make 100 'a'
+let nested_cdn_string = "b"
 
 let nested_cdn_confs =
   [ {eng=OCaml; min_size=0; max_size=500 };
