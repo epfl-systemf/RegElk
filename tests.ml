@@ -263,6 +263,10 @@ let cin_clock_mismatch: (raw_regex*string) list=
   [(Raw_count({min=9;max=None;greedy=true},Raw_count({min=9;max=Some 13;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_alt(Raw_anchor(NonWordBoundary),Raw_empty))))),"aabaaaabbaabb-aa-a-a-baba-bb-baba-a-abbaabaa");
    (Raw_count({min=2;max=None;greedy=true},Raw_count({min=2;max=Some 2;greedy=true},Raw_capture(Raw_empty))),"a");
    (Raw_count({min=2;max=None;greedy=true},Raw_count({min=2;max=Some 2;greedy=true},Raw_alt(Raw_character(Char('a')),Raw_capture(Raw_empty)))),"a")]
+
+(* shows that we cannot use the standard Plus construction without duplication for lazy CIN/CDN plus *)
+let lazy_cin: (raw_regex*string) list =
+  [(Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(QuestionMark,Raw_quant(LazyPlus,Raw_character(Dot))))))))),Raw_character(Char('a'))),"b--b-ab-bb--bbbaaa--bbabab-aab-a-bb-a-abbb-bbbaa--bbabb--ba--bbab--aabb---ab-----bbb-bbbba--")]
   
 (* JS is stuck (timeout), but not our engine *)
 (* I quickly stopped listing these *)
@@ -323,6 +327,7 @@ let tests () =
   replay_bugs(js_export_bug);
   replay_bugs(empty_bytecode);
   replay_bugs(cin_clock_mismatch);
+  replay_bugs(lazy_cin);
   replay_stuck(redos);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
