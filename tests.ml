@@ -266,7 +266,8 @@ let cin_clock_mismatch: (raw_regex*string) list=
 
 (* shows that we cannot use the standard Plus construction without duplication for lazy CIN/CDN plus *)
 let lazy_cin: (raw_regex*string) list =
-  [(Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(QuestionMark,Raw_quant(LazyPlus,Raw_character(Dot))))))))),Raw_character(Char('a'))),"b--b-ab-bb--bbbaaa--bbabab-aab-a-bb-a-abbb-bbbaa--bbabb--ba--bbab--aabb---ab-----bbb-bbbba--")]
+  [(Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(LazyPlus,Raw_quant(QuestionMark,Raw_quant(LazyPlus,Raw_character(Dot))))))))),Raw_character(Char('a'))),"b--b-ab-bb--bbbaaa--bbabab-aab-a-bb-a-abbb-bbbaa--bbabb--ba--bbab--aabb---ab-----bbb-bbbba--");
+  (Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_character(Dot)))),Raw_character(Char('a'))),"b-a")]
   
 (* JS is stuck (timeout), but not our engine *)
 (* I quickly stopped listing these *)
