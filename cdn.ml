@@ -107,12 +107,33 @@ let rec compile_cdnf (r:regex) : cdn_formula =
 (* associates to each cdn quantifier id its nullable formula *)
 type cdns = (quantid * cdn_formula) list
 
-let compile_cdns (r:regex) : cdns =
-  let cdn_list = cdn_plus_list r in
-  List.map (fun qid ->
-      let (body,_) = get_quant r qid in
-      let formula = compile_cdnf body in
-      (qid, formula)) cdn_list
+(* deprecated: quadratic because of get_quant *)
+(* let compile_cdns (r:regex) : cdns =
+ *   let cdn_list = cdn_plus_list r in
+ *   List.map (fun qid ->
+ *       let (body,_) = get_quant r qid in
+ *       let formula = compile_cdnf body in
+ *       (qid, formula)) cdn_list *)
+
+(* linear: done in a single AST traversal *)
+let rec compile_cdns_rec (r:regex) (c:cdns): cdns =
+  match r with
+  | Re_empty | Re_character _ | Re_anchor _ -> c
+  | Re_alt(r1,r2) | Re_con(r1,r2) ->
+     compile_cdns_rec r2 (compile_cdns_rec r1 c)
+  | Re_lookaround(_,_,r1) | Re_capture (_,r1) ->
+     compile_cdns_rec r1 c
+  | Re_quant (nul,qid,quant,r1) ->
+     if (nul=CDNullable && quant.min > 0 && quant.max = None && quant.greedy)
+     then begin
+         (* compiled_cdnf does not recursively explores CDNs *)
+         let formula = compile_cdnf r1 in
+         compile_cdns_rec r1 ((qid,formula)::c)
+       end
+     else compile_cdns_rec r1 c
+
+let compile_cdns (r:regex): cdns =
+  compile_cdns_rec r []
 
      
 (** * Building the CDN Table  *)
