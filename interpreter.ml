@@ -440,7 +440,8 @@ let rec consume (s:interpreter_state): unit =
 (* an interpreter that does not read the string, but instead simply follows epsilon transitions *)
 (* this is used to reconstruct the capture groups of last nulled plus iteration at the end of a match *)
 (* the direction is only used to evaluate anchors *)
-let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:cdns): thread option =
+(* This function expects that s contains an up-to-date cp, context and cdn table *)
+let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction): thread option =
   if !verbose then Printf.printf "%s CP%d\n" ("\n\027[36mNull Interpreter:\027[0m ") (s.cp);
   if !verbose then Printf.printf "%s\n" (print_code c);
   if !debug then
@@ -449,11 +450,9 @@ let null_interp (c:code) (s:interpreter_state) (o:oracle) (dir:direction) (cdn:c
       Printf.printf "%s" (print_active s.active);
       Printf.printf "%s%!" (print_bestmatch s.bestmatch);
     end;
-  (* building the CDN table *)
-  s.cdn <- build_cdn cdn s.cp o s.context dir;
   if !debug then
     begin
-      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));
+      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn);
     end;
   (* follow epsilon transitions *)  
   advance_epsilon c s o dir;
@@ -479,7 +478,7 @@ let rec find_match (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:d
   s.cdn <- build_cdn cdn s.cp o s.context dir;
   if !debug then
     begin
-      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn (List.map fst cdn));
+      Printf.printf "At CP%d, CDN table:%s\n" (s.cp) (print_cdn_table s.cdn);
     end;
   
   (* follow epsilon transitions *)  
@@ -513,7 +512,7 @@ let rec find_match (c:code) (str:string) (s:interpreter_state) (o:oracle) (dir:d
 (* for this, we need the bytecode of every nullable plus, and the AST of the regex we previously matched *)
 (* so that we can reconstruct exactly the plusses that are defined inside that AST *)
 
-let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (s:string) (o:oracle) (dir:direction) (cdn:cdns): thread =
+let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (s:string) (o:oracle) (dir:direction): thread =
   let capture = ref thread.capture_regs in
   let look = ref thread.look_regs in
   let quant = ref thread.quant_regs in
@@ -530,15 +529,16 @@ let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (
     | Re_quant (nul,qid,quanttype,body) ->
        begin match (Regs.get_cp !quant qid) with
        | None -> nulled_plus body (* recursive call: an inner + may have been nulled *)
-       | Some start_cp ->
+       | Some start_cp ->         (* the last iteration of the plus was nulling *)
           let start_clock = int_of_opt (Regs.get_clock !quant qid) in
+          if !debug then Printf.printf ("QID: %d | start_clock: %d\n") qid start_clock;
           let bytecode = plus_bc.(qid) in
           let ctx = cp_context start_cp s dir in
-          if !debug then Printf.printf ("QID: %d | start_clock: %d\n") qid start_clock;
-          let result = null_interp bytecode (init_state bytecode start_cp !capture !look !quant start_clock ctx) o dir cdn in
-          (* here I give it the full cdn table. 
-             just like lookarounds, I could give it a specialized version *)
-          (* but since the null interpreter only builds it once, this does not change complexity *)
+          let inits = (init_state bytecode start_cp !capture !look !quant start_clock ctx) in
+          let subcdn = compile_cdns body in
+          let subtable = build_cdn subcdn start_cp o ctx dir in
+          inits.cdn <- subtable;
+          let result = null_interp bytecode inits o dir in
           begin match result with
           | None -> failwith "expected a nullable plus"
           | Some w ->             (* there's a winning thread when nulling *)
@@ -547,7 +547,42 @@ let reconstruct_plus_groups (thread:thread) (ast:regex) (plus_bc:code Array.t) (
              look := w.look_regs;
              quant := w.quant_regs;
           end;
-          nulled_plus body
+          nulled_children body subtable start_cp
+       end
+  (* goes through the subregex when a plus above was nulled *)
+  (* for all its children that got nulled while nulling the parent plus, *)
+  (* the CDN table can be shared *)
+  and nulled_children (reg:regex) (cdnt:cdn_table) (cp:int) : unit =
+    match reg with
+    | Re_empty | Re_character _ -> ()
+    | Re_alt (r1, r2) | Re_con (r1, r2) ->
+       nulled_children r1 cdnt cp; nulled_children r2 cdnt cp
+    | Re_capture (_,r1) -> nulled_children r1 cdnt cp
+    | Re_lookaround (lid,lk,r1) -> () 
+    | Re_anchor _ -> ()
+    | Re_quant (nul,qid,quanttype,body) ->
+       begin match (Regs.get_cp !quant qid) with
+       | None -> nulled_children body cdnt cp
+       | Some start_cp ->
+          if (start_cp = cp) then begin
+              (* otherwise we don't have to reconstruct, it was nulled in a previous iteration *)
+              let start_clock = int_of_opt (Regs.get_clock !quant qid) in
+              let bytecode = plus_bc.(qid) in
+              let ctx = cp_context cp s dir in
+              let inits = (init_state bytecode cp !capture !look !quant start_clock ctx) in
+              inits.cdn <- cdnt;
+              let result = null_interp bytecode inits o dir in
+              begin match result with
+              | None -> failwith "expected a nullable children plus"
+              | Some w ->             (* there's a winning thread when nulling *)
+                 (* updating all registers *)
+                 capture := w.capture_regs;
+                 look := w.look_regs;
+                 quant := w.quant_regs;
+              end;
+              nulled_children body cdnt cp
+            end
+          else ()
        end
   in
   nulled_plus ast;
@@ -569,7 +604,7 @@ let find_match_plus (c:code) (ast:regex) (plus_bc:code Array.t) (s:string) (o:or
   let full_result = 
     match result with
     | None -> None
-    | Some thread -> Some (reconstruct_plus_groups thread ast plus_bc s o dir cdn)
+    | Some thread -> Some (reconstruct_plus_groups thread ast plus_bc s o dir)
   in
   if !verbose then Printf.printf "%s\n" ("\027[36mResult:\027[0m "^(print_match full_result));
   full_result

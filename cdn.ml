@@ -148,12 +148,11 @@ let rec build_cdn (cdns:cdns) (cp:int) (o:oracle) (ctx:char_context) (dir:direct
 
 
 (** * Pretty-printing  *)
-let print_cdn_table (table:cdn_table) (cdnl:quantid list) : string =
-  List.fold_left (fun str quantid ->
-      let b = cdn_get table quantid in
-      let s = string_of_int quantid ^ ":" ^ print_bool b in
+let print_cdn_table (table:cdn_table) : string =
+  IntMap.fold (fun quantid _ str ->
+      let s = string_of_int quantid in
       str ^ ", " ^ s
-    ) "" cdnl
+    ) table "" 
     
 let rec print_formula (f:cdn_formula) : string =
   match f with
