@@ -17,7 +17,7 @@ open Arg
 (* this V8 executable needs to be patched in two ways: *)
 (* - first, we augment the kMaxReplicationFactor, so that we can try more regexes to demonstrate regex-size-exponential complexity *)
 (* second, we define performance.rdtsc() to return rdtsc counter *)
-let v8_path = ref "~/v8/v8/out/x64.release/d8"
+let v8_path = ref "~/v8/before/v8/out/x64.release/d8"
 let v8_args = " --expose-gc --enable-experimental-regexp-engine "
 
    
@@ -95,8 +95,24 @@ type regex_benchmark =
     param_regex: int -> raw_regex; (* the family of regexes *)
     input_str: string;             (* the string on which to match *)
   }
-    
-(* runs a benchmark on a single engine and prints the result to a csv file *)
+
+type string_benchmark =
+  { name: string;
+    confs: engine_conf list;
+    param_str: int -> string;
+    rgx: raw_regex;
+  }
+
+type benchmark =
+  | RB of regex_benchmark
+  | SB of string_benchmark
+
+let bench_name (b:benchmark) : string =
+  match b with
+  | RB r -> r.name
+  | SB s -> s.name
+        
+(* runs a regex-size benchmark on a single engine and prints the result to a csv file *)
 let run_regex_config (ec:engine_conf) (param_regex:int->raw_regex) (str:string) (name:string) : unit =
   Printf.printf "Testing engine %s:\n%!" (engine_name ec.eng);
   let oc = open_out (bench_dir^name^"_"^(engine_name ec.eng)^".csv") in
@@ -112,9 +128,30 @@ let run_regex_config (ec:engine_conf) (param_regex:int->raw_regex) (str:string) 
   Printf.printf "\n%!";
   Unix.sleep 1
 
+(* runs a string-size benchmark on a single engine and prints the result to a csv file *)
+let run_string_config (ec:engine_conf) (param_str:int->string) (reg:raw_regex) (name:string) : unit =
+  Printf.printf "Testing engine %s:\n%!" (engine_name ec.eng);
+  let oc = open_out (bench_dir^name^"_"^(engine_name ec.eng)^".csv") in
+  for i = ec.min_size to ec.max_size do
+    Printf.printf " %s\r%!" (string_of_int i); (* live update *)
+    let str = param_str i in
+    for j = 0 to (!repetitions-1) do
+      let time = get_time ec.eng reg str in
+      Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
+    done;
+  done;
+  close_out oc;
+  Printf.printf "\n%!";
+  Unix.sleep 1
+
+  
 let run_regex_benchmark (rb:regex_benchmark) : unit =
   Printf.printf ("Generating .csv files for benchmark %s:\n") (rb.name);
   List.iter (fun rc -> run_regex_config rc rb.param_regex rb.input_str rb.name) rb.confs
+
+let run_string_benchmark (sb:string_benchmark) : unit =
+  Printf.printf ("Generating .csv files for benchmark %s:\n") (sb.name);
+  List.iter (fun rc -> run_string_config rc sb.param_str sb.rgx sb.name) sb.confs
 
 
 (** * Defining benchmarks *)
@@ -188,18 +225,60 @@ let clocks : regex_benchmark =
     param_regex = clocks_reg;
     input_str = clocks_string;
   }
-              
 
-let all_bench = [nested_nn_plus; nested_cdn; clocks]
+(** * Nested Lookarounds Regex-Size *)
+(* r0 = ( a* )b *)
+(* rn = a (?= rn-1 ) *)
+let rec nested_look_reg = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_con(Raw_capture(raw_star(raw_char('a'))),raw_char('b'))
+  | _ -> Raw_con(raw_char('a'),Raw_lookaround(Lookahead,nested_look_reg (reg_size -1)))
+       
+let nested_look_reg_str = String.make 100 'a' ^ "b"
 
-let bench_names = List.map (fun b -> b.name) all_bench
+let nested_look_conf =
+  [ {eng=OCaml; min_size=0; max_size=300 };
+    {eng=Irregexp; min_size=0; max_size=300 } ]
+
+let nested_lookarounds : regex_benchmark =
+  { name = "NestedLA";
+    confs = nested_look_conf;
+    param_regex = nested_look_reg;
+    input_str = nested_look_reg_str;
+  }
+
+(** * Nested Lookarounds String-Size  *)
+(* (?: a (?= a* b) )* *)
+let nested_la_reg = raw_star(Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_con(raw_star(raw_char('a')),raw_char('b')))))
+
+let nested_la_param_str = fun str_size ->
+  String.make str_size 'a' ^ "b"
+
+let nested_look_str_conf =
+  [ {eng=OCaml; min_size=0; max_size=3000 };
+    {eng=Irregexp; min_size=0; max_size=3000 } ]
+
+let nested_lookarounds_string : string_benchmark =
+  { name = "NestedLAstr";
+    confs = nested_look_str_conf;
+    param_str = nested_la_param_str;
+    rgx = nested_la_reg;
+  }
+
+let all_bench : benchmark list =
+  [RB nested_nn_plus; RB nested_cdn; RB clocks;
+   RB nested_lookarounds; SB nested_lookarounds_string; ]
+
+let bench_names = List.map (fun b -> bench_name b) all_bench
 let bench_names_string =
   List.fold_left (fun a b -> a ^ " " ^ b) "" bench_names
 
 let exec_bench (name:string) : unit =
   try
-    let bench = List.find (fun b -> b.name = name) all_bench in
-    run_regex_benchmark bench
+    let bench = List.find (fun b -> bench_name b = name) all_bench in
+    match bench with
+    | RB b -> run_regex_benchmark b
+    | SB b -> run_string_benchmark b
   with Not_found -> Printf.printf "Couldn't find benchmark %s\nAvailable benchmarks: %s\n" name bench_names_string
   
                   
