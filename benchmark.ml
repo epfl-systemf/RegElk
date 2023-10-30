@@ -52,13 +52,13 @@ let engine_name (e:engine) : string =
 let get_time_ocaml (r:raw_regex) (str:string): string =
   let regex_string = " \""^print_js r^"\" " in
   let input_string = " \""^str^"\" " in
-  let sys = "./matcher.native " ^ regex_string ^ input_string ^ string_of_int !warmups in
+  let sys = "./matcher.native " ^ regex_string ^ input_string ^ string_of_int !warmups ^ " " ^ string_of_int !repetitions in
   string_of_command(sys)
 
 (* modifies the parameter files that is read by the V8 D8 interpreter *)
 let write_v8_params (r:raw_regex) (str:string): unit =
   let oc = open_out param_path in
-  Printf.fprintf oc "const regex= \"%s\"\nconst string= \"%s\"\nconst warmups= %d\n" (print_js r) str !warmups;
+  Printf.fprintf oc "const regex= \"%s\"\nconst string= \"%s\"\nconst warmups= %d\nconst repetitions =%d" (print_js r) str !warmups !repetitions;
   close_out oc
 
 let get_time_v8linear (r:raw_regex) (str:string): string =
@@ -119,10 +119,8 @@ let run_regex_config (ec:engine_conf) (param_regex:int->raw_regex) (str:string) 
   for i = ec.min_size to ec.max_size do
     Printf.printf " %s\r%!" (string_of_int i); (* live update *)
     let reg = param_regex i in
-    for j = 0 to (!repetitions-1) do
-      let time = get_time ec.eng reg str in
-      Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
-    done;
+    let time = get_time ec.eng reg str in
+    Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
   done;
   close_out oc;
   Printf.printf "\n%!";
@@ -135,10 +133,8 @@ let run_string_config (ec:engine_conf) (param_str:int->string) (reg:raw_regex) (
   for i = ec.min_size to ec.max_size do
     Printf.printf " %s\r%!" (string_of_int i); (* live update *)
     let str = param_str i in
-    for j = 0 to (!repetitions-1) do
-      let time = get_time ec.eng reg str in
-      Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
-    done;
+    let time = get_time ec.eng reg str in
+    Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
   done;
   close_out oc;
   Printf.printf "\n%!";
@@ -241,7 +237,7 @@ let nested_look_conf =
     {eng=Irregexp; min_size=0; max_size=300 } ]
 
 let nested_lookarounds : regex_benchmark =
-  { name = "NestedLA";
+  { name = "NestedLAreg";
     confs = nested_look_conf;
     param_regex = nested_look_reg;
     input_str = nested_look_reg_str;

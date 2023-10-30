@@ -11,9 +11,11 @@ function timer() {
     }
     // triggering garbage collector
     gc();
-    // Measuring one match, using our patched V8 for rdtsc
+    // Measuring matches, using our patched V8 for rdtsc
     let start = performance.rdtsc()
-    let r_match = string.match(re);
+    for (let i = 0; i < repetitions; i++) {
+	let r_match = string.match(re);
+    }
     let end = performance.rdtsc();
     return (end-start);
 }

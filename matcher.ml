@@ -52,6 +52,7 @@ let main =
   let regex = Sys.argv.(1) in
   let string = Sys.argv.(2) in
   let warmups = int_of_string(Sys.argv.(3)) in
+  let repetitions = int_of_string(Sys.argv.(4)) in
 
   (* building the regex *)
   let parsed_regex = parse_raw regex in
@@ -70,10 +71,12 @@ let main =
   (* triggering garbage collector *)
   Gc.full_major();
 
-  (* measuring one match *)
+  (* measuring matches *)
   let tstart = now() in
-  let o = build_oracle compiled_regex string in
-  let _ = build_capture compiled_regex string o in
+  for i = 0 to (repetitions - 1) do
+    let o = build_oracle compiled_regex string in
+    ignore(build_capture compiled_regex string o)
+  done;
   let time = elapsed tstart in
   
   Printf.printf ("%Li\n") time
