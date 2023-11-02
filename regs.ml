@@ -27,6 +27,7 @@ module type REGS =
     val copy: regs -> regs
     val to_arrays: regs -> int Array.t * int Array.t
     val to_string: regs -> string (* for debugging purposes *)
+    val name: string
   end
 
 (* several implementations represent None with -1 *)
@@ -87,6 +88,8 @@ module Array_Regs =
         s := !s ^ string_of_int c ^ ": " ^ string_of_int (regs.a_cp.(c)) ^ " | "
       done;
       !s
+
+    let name : string = "ArrayRegs"
   end
 
 module List_Regs =
@@ -159,6 +162,8 @@ module List_Regs =
          "(" ^ string_of_int k ^ "," ^ string_of_int cp ^ ")::" ^ to_string_rec l'
       in
       to_string_rec regs.setlist
+
+    let name : string = "ListRegs"
   end
 
 
@@ -215,6 +220,7 @@ module Map_Regs =
       done;
       !s
 
+    let name : string = "MapRegs"
   end
         
            
