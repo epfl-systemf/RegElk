@@ -261,9 +261,37 @@ let nested_lookarounds_string : string_benchmark =
     rgx = nested_la_reg;
   }
 
+(** * Register Data-Structure Benchmark  *)
+(* The goal is to launch this benchmark several times, switching the register implementation in the interpreter *)
+(* Later I'll make the interpreter a functor to switch dynamically, here you need to recompile each time. *)
+(* we'll compare the results of each register data_structure (ds) *)
+
+let rec ds_reg = fun reg_size ->
+  match reg_size with
+  | 0 -> raw_qmark(Raw_capture(raw_char('a')))
+  | _ -> Raw_con(raw_qmark(Raw_capture(raw_char('a'))),ds_reg (reg_size - 1))
+
+let ds_param_reg = fun reg_size ->
+  raw_star(ds_reg reg_size)
+
+let ds_str = String.make 1000 'a'
+
+let ds_conf =
+  [{eng=OCaml; min_size=0; max_size=100}]
+
+let ds : regex_benchmark =
+  { name = Interpreter.Regs.name;
+    confs = ds_conf;
+    param_regex = ds_param_reg;
+    input_str = ds_str }
+  
+
+(** * Benchmark Executable  *)
+  
 let all_bench : benchmark list =
   [RB nested_nn_plus; RB nested_cdn; RB clocks;
-   RB nested_lookarounds; SB nested_lookarounds_string; ]
+   RB nested_lookarounds; SB nested_lookarounds_string;
+   RB ds]
 
 let bench_names = List.map (fun b -> bench_name b) all_bench
 let bench_names_string =

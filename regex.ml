@@ -92,6 +92,7 @@ let raw_char (x:char): raw_regex  = Raw_character (Char x)
 let raw_dot: raw_regex = Raw_character Dot
 let raw_star (r:raw_regex) : raw_regex = Raw_quant(Star, r)
 let raw_plus (r:raw_regex) : raw_regex = Raw_quant(Plus, r)
+let raw_qmark (r:raw_regex) : raw_regex = Raw_quant(QuestionMark, r)
 let raw_group (g:char_group) : raw_regex = Raw_character (Group g)
 let raw_class (c:char_class) : raw_regex = Raw_character (Class c)
 let raw_neg_class (c:char_class) : raw_regex = Raw_character (NegClass c)
