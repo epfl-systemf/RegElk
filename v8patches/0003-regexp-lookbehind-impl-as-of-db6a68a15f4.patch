@@ -1,0 +1,717 @@
+From f201c864edaace39b25d3bae3109aff5a60d9e9e Mon Sep 17 00:00:00 2001
+From: Ludovic Mermod <ludovic.mermod@gmail.com>
+Date: Sat, 21 Oct 2023 10:24:30 +0200
+Subject: [PATCH 3/3] [regexp] lookbehind impl as of db6a68a15f4
+
+---
+ src/objects/js-regexp-inl.h                   |   3 +-
+ .../experimental/experimental-bytecode.cc     |   6 +
+ .../experimental/experimental-bytecode.h      |  18 ++
+ .../experimental/experimental-compiler.cc     | 271 +++++++++++++-----
+ .../experimental/experimental-interpreter.cc  |  59 +++-
+ src/regexp/regexp-ast.h                       |   7 +-
+ src/regexp/regexp-parser.cc                   |   7 +-
+ 7 files changed, 283 insertions(+), 88 deletions(-)
+
+diff --git a/src/objects/js-regexp-inl.h b/src/objects/js-regexp-inl.h
+index f45ebb0ab61..481b0e0bd95 100644
+--- a/src/objects/js-regexp-inl.h
++++ b/src/objects/js-regexp-inl.h
+@@ -5,9 +5,8 @@
+ #ifndef V8_OBJECTS_JS_REGEXP_INL_H_
+ #define V8_OBJECTS_JS_REGEXP_INL_H_
+ 
+-#include "src/objects/js-regexp.h"
+-
+ #include "src/objects/js-array-inl.h"
++#include "src/objects/js-regexp.h"
+ #include "src/objects/objects-inl.h"  // Needed for write barriers
+ #include "src/objects/smi.h"
+ #include "src/objects/string.h"
+diff --git a/src/regexp/experimental/experimental-bytecode.cc b/src/regexp/experimental/experimental-bytecode.cc
+index 48e870b720a..74eb33132f4 100644
+--- a/src/regexp/experimental/experimental-bytecode.cc
++++ b/src/regexp/experimental/experimental-bytecode.cc
+@@ -77,6 +77,12 @@ std::ostream& operator<<(std::ostream& os, const RegExpInstruction& inst) {
+     case RegExpInstruction::END_LOOP:
+       os << "END_LOOP";
+       break;
++    case RegExpInstruction::WRITE_LOOKBEHIND_TABLE:
++      os << "WRITE_LOOK_TABLE " << inst.payload.looktable_index;
++      break;
++    case RegExpInstruction::READ_LOOKBEHIND_TABLE:
++      os << "READ_LOOK_TABLE " << inst.payload.looktable_index;
++      break;
+   }
+   return os;
+ }
+diff --git a/src/regexp/experimental/experimental-bytecode.h b/src/regexp/experimental/experimental-bytecode.h
+index d7ff911dfa7..58bc904b1fc 100644
+--- a/src/regexp/experimental/experimental-bytecode.h
++++ b/src/regexp/experimental/experimental-bytecode.h
+@@ -102,6 +102,8 @@ struct RegExpInstruction {
+     SET_REGISTER_TO_CP,
+     BEGIN_LOOP,
+     END_LOOP,
++    WRITE_LOOKBEHIND_TABLE,
++    READ_LOOKBEHIND_TABLE,
+   };
+ 
+   struct Uc16Range {
+@@ -179,6 +181,20 @@ struct RegExpInstruction {
+     return result;
+   }
+ 
++  static RegExpInstruction WriteLookTable(int32_t index) {
++    RegExpInstruction result;
++    result.opcode = WRITE_LOOKBEHIND_TABLE;
++    result.payload.looktable_index = index;
++    return result;
++  }
++
++  static RegExpInstruction ReadLookTable(int32_t index) {
++    RegExpInstruction result;
++    result.opcode = READ_LOOKBEHIND_TABLE;
++    result.payload.looktable_index = index;
++    return result;
++  }
++
+   Opcode opcode;
+   union {
+     // Payload of CONSUME_RANGE:
+@@ -189,6 +205,8 @@ struct RegExpInstruction {
+     int32_t register_index;
+     // Payload of ASSERTION:
+     RegExpAssertion::Type assertion_type;
++    // Payload of WRITE_LOOKBEHIND_TABLE and READ_LOOKBEHIND_TABLE:
++    int32_t looktable_index;
+   } payload;
+   static_assert(sizeof(payload) == 4);
+ };
+diff --git a/src/regexp/experimental/experimental-compiler.cc b/src/regexp/experimental/experimental-compiler.cc
+index 01b72f2da60..4a675b1b6a8 100644
+--- a/src/regexp/experimental/experimental-compiler.cc
++++ b/src/regexp/experimental/experimental-compiler.cc
+@@ -4,6 +4,9 @@
+ 
+ #include "src/regexp/experimental/experimental-compiler.h"
+ 
++#include <optional>
++#include <variant>
++
+ #include "src/base/strings.h"
+ #include "src/regexp/experimental/experimental.h"
+ #include "src/zone/zone-list-inl.h"
+@@ -155,7 +158,12 @@ class CanBeHandledVisitor final : private RegExpVisitor {
+   }
+ 
+   void* VisitCapture(RegExpCapture* node, void*) override {
+-    node->body()->Accept(this, nullptr);
++    if (inside_positive_lookbehind_) {
++      // Positive lookbehinds with capture groups are not currently supported
++      result_ = false;
++    } else {
++      node->body()->Accept(this, nullptr);
++    }
+     return nullptr;
+   }
+ 
+@@ -167,7 +175,17 @@ class CanBeHandledVisitor final : private RegExpVisitor {
+   void* VisitLookaround(RegExpLookaround* node, void*) override {
+     // TODO(mbid, v8:10765): This will be hard to support, but not impossible I
+     // think.  See product automata.
+-    result_ = false;
++    bool parent_is_positive_lookbehind = inside_positive_lookbehind_;
++    inside_positive_lookbehind_ = node->is_positive();
++
++    if (node->type() == RegExpLookaround::Type::LOOKAHEAD) {
++      result_ = false;
++    } else {
++      node->body()->Accept(this, nullptr);
++    }
++
++    inside_positive_lookbehind_ = parent_is_positive_lookbehind;
++
+     return nullptr;
+   }
+ 
+@@ -183,6 +201,10 @@ class CanBeHandledVisitor final : private RegExpVisitor {
+   // See comment in `VisitQuantifier`:
+   int replication_factor_ = 1;
+ 
++  // Positive lookbehinds cannot contain capture (the implementation does not
++  // allow it).
++  bool inside_positive_lookbehind_ = false;
++
+   bool result_ = true;
+ };
+ 
+@@ -196,60 +218,110 @@ bool ExperimentalRegExpCompiler::CanBeHandled(RegExpTree* tree,
+ 
+ namespace {
+ 
++class BytecodeAssembler;
++
+ // A label in bytecode which starts with no known address. The address *must*
+ // be bound with `Bind` before the label goes out of scope.
+ // Implemented as a linked list through the `payload.pc` of FORK and JMP
+ // instructions.
+ struct Label {
+  public:
+-  Label() = default;
+-  ~Label() {
+-    DCHECK_EQ(state_, BOUND);
+-    DCHECK_GE(bound_index_, 0);
+-  }
+-
+-  // Don't copy, don't move.  Moving could be implemented, but it's not
+-  // needed anywhere.
+-  Label(const Label&) = delete;
+-  Label& operator=(const Label&) = delete;
++  ~Label() = default;
+ 
+  private:
++  explicit Label(int id) : id_(id) {}
+   friend class BytecodeAssembler;
+ 
+-  // UNBOUND implies unbound_patch_list_begin_.
+-  // BOUND implies bound_index_.
+-  enum { UNBOUND, BOUND } state_ = UNBOUND;
+-  union {
+-    int unbound_patch_list_begin_ = -1;
+-    int bound_index_;
+-  };
++  // Unique identifier of the label within the bytecode. Later used by
++  // `BytecodeAssembler` to assign the PCs.
++  int id_;
+ };
+ 
++// This class is used combine the instructions of the regexp.
+ class BytecodeAssembler {
++ private:
++  // A temporary instruction can either be a `Label` or a `RegExpInstruction`.
++  // For the latter, it may require a pc as payload, in which case we also give
++  // it a Label. The actual PC will be computed later during the code elision.
++  struct Inst {
++    RegExpInstruction inst;
++    std::optional<Label> label;
++  };
++  typedef std::variant<Label, Inst> Instruction;
++
+  public:
+   // TODO(mbid,v8:10765): Use some upper bound for code_ capacity computed from
+   // the `tree` size we're going to compile?
+-  explicit BytecodeAssembler(Zone* zone) : zone_(zone), code_(0, zone) {}
++  explicit BytecodeAssembler(Zone* zone)
++      : zone_(zone),
++        code_(0, zone),
++        code_stack_(zone),
++        lookbehinds_(zone_),
++        label_fresh_id_(0) {}
++
++  ZoneList<RegExpInstruction> IntoCode() && {
++    ZoneList<int> label_positions(label_fresh_id_, zone_);
++    for (int i = 0; i < label_fresh_id_; ++i) {
++      label_positions.Add(-1, zone_);
++    }
++
++    // Appends all the bytecodes into a single list.
++    auto code(std::move(code_));
++    for (auto it = lookbehinds_.begin(); it != lookbehinds_.end(); ++it) {
++      code.AddAll(*it, zone_);
++    }
+ 
+-  ZoneList<RegExpInstruction> IntoCode() && { return std::move(code_); }
++    // Count the number of instructions and maps label ids to pcs
++    int instruction_count = 0;
++    for (auto it : code) {
++      if (it.index() == 0) {
++        Label& label = std::get<Label>(it);
++        DCHECK_LT(label.id_, label_fresh_id_);
++        DCHECK_EQ(label_positions[label.id_], -1);
+ 
+-  void Accept() { code_.Add(RegExpInstruction::Accept(), zone_); }
++        label_positions[label.id_] = instruction_count;
++      } else {
++        ++instruction_count;
++      }
++    }
++
++    // Rewrite all Instructions to RegExpInstructions by removing the labels and
++    // setting the payload for the JUMP and FORK instructions
++    ZoneList<RegExpInstruction> out(0, zone_);
++    for (auto it : code) {
++      if (it.index() == 1) {
++        Inst& inst = std::get<Inst>(it);
++        RegExpInstruction instruction(inst.inst);
++
++        if (inst.label.has_value()) {
++          instruction.payload.pc = label_positions[inst.label->id_];
++        }
++
++        out.Add(instruction, zone_);
++      }
++    }
++
++    return out;
++  }
++
++  // Returns a Label with a new unique ID
++  Label getFreshLabel() { return Label(label_fresh_id_++); }
++
++  void Accept() { Add(RegExpInstruction::Accept()); }
+ 
+   void Assertion(RegExpAssertion::Type t) {
+-    code_.Add(RegExpInstruction::Assertion(t), zone_);
++    Add(RegExpInstruction::Assertion(t));
+   }
+ 
+   void ClearRegister(int32_t register_index) {
+-    code_.Add(RegExpInstruction::ClearRegister(register_index), zone_);
++    Add(RegExpInstruction::ClearRegister(register_index));
+   }
+ 
+   void ConsumeRange(base::uc16 from, base::uc16 to) {
+-    code_.Add(RegExpInstruction::ConsumeRange(from, to), zone_);
++    Add(RegExpInstruction::ConsumeRange(from, to));
+   }
+ 
+-  void ConsumeAnyChar() {
+-    code_.Add(RegExpInstruction::ConsumeAnyChar(), zone_);
+-  }
++  void ConsumeAnyChar() { Add(RegExpInstruction::ConsumeAnyChar()); }
+ 
+   void Fork(Label& target) {
+     LabelledInstrImpl(RegExpInstruction::Opcode::FORK, target);
+@@ -260,55 +332,76 @@ class BytecodeAssembler {
+   }
+ 
+   void SetRegisterToCp(int32_t register_index) {
+-    code_.Add(RegExpInstruction::SetRegisterToCp(register_index), zone_);
++    Add(RegExpInstruction::SetRegisterToCp(register_index));
+   }
+ 
+-  void BeginLoop() { code_.Add(RegExpInstruction::BeginLoop(), zone_); }
++  void BeginLoop() { Add(RegExpInstruction::BeginLoop()); }
+ 
+-  void EndLoop() { code_.Add(RegExpInstruction::EndLoop(), zone_); }
++  void EndLoop() { Add(RegExpInstruction::EndLoop()); }
+ 
+-  void Bind(Label& target) {
+-    DCHECK_EQ(target.state_, Label::UNBOUND);
++  void Bind(Label target) { code_.Add(target, zone_); }
+ 
+-    int index = code_.length();
++  void Fail() { Add(RegExpInstruction::Fail()); }
+ 
+-    while (target.unbound_patch_list_begin_ != -1) {
+-      RegExpInstruction& inst = code_[target.unbound_patch_list_begin_];
+-      DCHECK(inst.opcode == RegExpInstruction::FORK ||
+-             inst.opcode == RegExpInstruction::JMP);
++  void StartLookBehind() {
++    // The bytecode being created is pushed on the stack and we compile the
++    // lookbehind on a new list. See `EndLookBehind`.
++    code_stack_.push_front(std::move(code_));
++    code_.DropAndClear();
++  }
+ 
+-      target.unbound_patch_list_begin_ = inst.payload.pc;
+-      inst.payload.pc = index;
+-    }
++  void EndLookBehind(int32_t index) {
++    // Complete the lookbehind by adding the WRITE_LOOK_TABLE instruction, and
++    // add the its whole bytecode to the list of completed lookbehinds.
++    Add(RegExpInstruction::WriteLookTable(index));
++    lookbehinds_.push_front(std::move(code_));
++    code_.DropAndClear();
+ 
+-    target.state_ = Label::BOUND;
+-    target.bound_index_ = index;
+-  }
++    // Pops the bytecode to resume the compilation of the parent expression
++    // (either a parent lookbehind or the main expression).
++    code_.AddAll(code_stack_.front(), zone_);
++    code_stack_.pop_front();
+ 
+-  void Fail() { code_.Add(RegExpInstruction::Fail(), zone_); }
++    // The parent expression requires that the lookbehind has completed a match
++    // at this position.
++    Add(RegExpInstruction::ReadLookTable(index));
++  }
+ 
+  private:
++  void Add(RegExpInstruction inst) {
++    code_.Add(Inst{.inst = inst, .label = std::optional<Label>()}, zone_);
++  }
++
+   void LabelledInstrImpl(RegExpInstruction::Opcode op, Label& target) {
+-    RegExpInstruction result;
+-    result.opcode = op;
++    code_.Add(Inst{.inst =
++                       RegExpInstruction{
++                           .opcode = op,
++                           .payload = {.pc = -1},
++                       },
++                   .label = std::optional<Label>(target)},
++              zone_);
++  }
+ 
+-    if (target.state_ == Label::BOUND) {
+-      result.payload.pc = target.bound_index_;
+-    } else {
+-      DCHECK_EQ(target.state_, Label::UNBOUND);
+-      int new_list_begin = code_.length();
+-      DCHECK_GE(new_list_begin, 0);
++  Zone* zone_;
+ 
+-      result.payload.pc = target.unbound_patch_list_begin_;
++  // Instructions that are being written.
++  ZoneList<Instruction> code_;
+ 
+-      target.unbound_patch_list_begin_ = new_list_begin;
+-    }
++  // The lookbehinds are inside a tree, which is travelled up to down, left to
++  // right. When a lookbehind is found, `code_` is pushed onto the stack, and
++  // cleared for the newly found lookbehind to be compiled. Once it is
++  // completely compiled, it is added to the `lookbehinds_` list and the
++  // instructions pushed on the stack are popped to resume the lookbehind's
++  // parent compilation.
++  ZoneLinkedList<ZoneList<Instruction>> code_stack_;
+ 
+-    code_.Add(result, zone_);
+-  }
++  // Completed bytecode of the lookbehinds. The order of compilation (see
++  // `code_stack_`) ensures that for all lookbehinds in `lookbehinds_`, their
++  // children lookbehind are strictly before them in the list.
++  ZoneLinkedList<ZoneList<Instruction>> lookbehinds_;
+ 
+-  Zone* zone_;
+-  ZoneList<RegExpInstruction> code_;
++  // Increment for the id of the generated labels.
++  int label_fresh_id_;
+ };
+ 
+ class CompileVisitor : private RegExpVisitor {
+@@ -369,10 +462,10 @@ class CompileVisitor : private RegExpVisitor {
+       return;
+     }
+ 
+-    Label end;
++    Label end = assembler_.getFreshLabel();
+ 
+     for (int i = 0; i != alt_num - 1; ++i) {
+-      Label tail;
++      Label tail = assembler_.getFreshLabel();
+       assembler_.Fork(tail);
+       gen_alt(i);
+       assembler_.Jmp(end);
+@@ -488,8 +581,8 @@ class CompileVisitor : private RegExpVisitor {
+     //
+     // This is greedy because a forked thread has lower priority than the
+     // thread that spawned it.
+-    Label begin;
+-    Label end;
++    Label begin = assembler_.getFreshLabel();
++    Label end = assembler_.getFreshLabel();
+ 
+     assembler_.Bind(begin);
+     assembler_.Fork(end);
+@@ -516,8 +609,8 @@ class CompileVisitor : private RegExpVisitor {
+     //   end:
+     //     ...
+ 
+-    Label body;
+-    Label end;
++    Label body = assembler_.getFreshLabel();
++    Label end = assembler_.getFreshLabel();
+ 
+     assembler_.Fork(body);
+     assembler_.Jmp(end);
+@@ -554,7 +647,7 @@ class CompileVisitor : private RegExpVisitor {
+     // We add `BEGIN_LOOP` and `END_LOOP` instructions because these optional
+     // repetitions of the body cannot match the empty string.
+ 
+-    Label end;
++    Label end = assembler_.getFreshLabel();
+     for (int i = 0; i != max_repetition_num; ++i) {
+       assembler_.Fork(end);
+       assembler_.BeginLoop();
+@@ -594,9 +687,9 @@ class CompileVisitor : private RegExpVisitor {
+     // We add `BEGIN_LOOP` and `END_LOOP` instructions because these optional
+     // repetitions of the body cannot match the empty string.
+ 
+-    Label end;
++    Label end = assembler_.getFreshLabel();
+     for (int i = 0; i != max_repetition_num; ++i) {
+-      Label body;
++      Label body = assembler_.getFreshLabel();
+       assembler_.Fork(body);
+       assembler_.Jmp(end);
+ 
+@@ -635,7 +728,7 @@ class CompileVisitor : private RegExpVisitor {
+     //     JMP begin
+     //   end:
+     //     ...
+-    Label begin, end;
++    Label begin = assembler_.getFreshLabel(), end = assembler_.getFreshLabel();
+ 
+     assembler_.Bind(begin);
+     emit_body();
+@@ -656,7 +749,7 @@ class CompileVisitor : private RegExpVisitor {
+     //
+     //     FORK begin
+     //     ...
+-    Label begin;
++    Label begin = assembler_.getFreshLabel();
+ 
+     assembler_.Bind(begin);
+     emit_body();
+@@ -749,13 +842,20 @@ class CompileVisitor : private RegExpVisitor {
+   }
+ 
+   void* VisitCapture(RegExpCapture* node, void*) override {
+-    int index = node->index();
+-    int start_register = RegExpCapture::StartRegister(index);
+-    int end_register = RegExpCapture::EndRegister(index);
+-    assembler_.SetRegisterToCp(start_register);
+-    node->body()->Accept(this, nullptr);
+-    assembler_.SetRegisterToCp(end_register);
+-    return nullptr;
++    // Only negative lookbehinds contains captures (enforced by the
++    // `CanBeHandled` visitor), which cannot capture the string.
++    if (inside_lookaround_) {
++      node->body()->Accept(this, nullptr);
++      return nullptr;
++    } else {
++      int index = node->index();
++      int start_register = RegExpCapture::StartRegister(index);
++      int end_register = RegExpCapture::EndRegister(index);
++      assembler_.SetRegisterToCp(start_register);
++      node->body()->Accept(this, nullptr);
++      assembler_.SetRegisterToCp(end_register);
++      return nullptr;
++    }
+   }
+ 
+   void* VisitGroup(RegExpGroup* node, void*) override {
+@@ -765,7 +865,19 @@ class CompileVisitor : private RegExpVisitor {
+ 
+   void* VisitLookaround(RegExpLookaround* node, void*) override {
+     // TODO(mbid,v8:10765): Support this case.
+-    UNREACHABLE();
++    if (node->type() == RegExpLookaround::Type::LOOKBEHIND) {
++      assembler_.StartLookBehind();
++
++      auto emit_body = [&]() { assembler_.ConsumeAnyChar(); };
++      CompileNonGreedyStar(emit_body);
++
++      node->body()->Accept(this, nullptr);
++      assembler_.EndLookBehind(node->index());
++    } else {
++      UNREACHABLE();
++    }
++
++    return nullptr;
+   }
+ 
+   void* VisitBackReference(RegExpBackReference* node, void*) override {
+@@ -784,6 +896,7 @@ class CompileVisitor : private RegExpVisitor {
+  private:
+   Zone* zone_;
+   BytecodeAssembler assembler_;
++  bool inside_lookaround_;
+ };
+ 
+ }  // namespace
+diff --git a/src/regexp/experimental/experimental-interpreter.cc b/src/regexp/experimental/experimental-interpreter.cc
+index 27647c050cb..8a91df12706 100644
+--- a/src/regexp/experimental/experimental-interpreter.cc
++++ b/src/regexp/experimental/experimental-interpreter.cc
+@@ -154,11 +154,26 @@ class NfaInterpreter {
+         blocked_threads_(0, zone),
+         register_array_allocator_(zone),
+         best_match_registers_(base::nullopt),
++        lookbehind_pc_(0, zone),
++        lookbehind_table_(0, zone),
+         zone_(zone) {
+     DCHECK(!bytecode_.empty());
+     DCHECK_GE(input_index_, 0);
+     DCHECK_LE(input_index_, input_.length());
+ 
++    // Finds the starting PC of every lookbehind. Since they are listed one
++    // after the other, they start after each `ACCEPT` and
++    // `WRITE_LOOKBEHIND_TABLE` instructions (except the last one).
++    for (int i = 0; i < bytecode_.length(); ++i) {
++      if ((bytecode_[i].opcode == RegExpInstruction::Opcode::ACCEPT ||
++           bytecode_[i].opcode ==
++               RegExpInstruction::Opcode::WRITE_LOOKBEHIND_TABLE) &&
++          i + 1 < bytecode_.length()) {
++        lookbehind_pc_.Add(i + 1, zone_);
++        lookbehind_table_.Add(false, zone_);
++      }
++    }
++
+     std::fill(pc_last_input_index_.begin(), pc_last_input_index_.end(),
+               LastInputIndex());
+   }
+@@ -329,6 +344,7 @@ class NfaInterpreter {
+     // something about this in `SetInputIndex`.
+     std::fill(pc_last_input_index_.begin(), pc_last_input_index_.end(),
+               LastInputIndex());
++    std::fill(lookbehind_table_.begin(), lookbehind_table_.end(), false);
+ 
+     // Clean up left-over data from a previous call to FindNextMatch.
+     for (InterpreterThread t : blocked_threads_) {
+@@ -346,13 +362,22 @@ class NfaInterpreter {
+       best_match_registers_ = base::nullopt;
+     }
+ 
+-    // All threads start at bytecode 0.
+-    // The initial value of consumed_since_last_quantifier is irrelevant before
+-    // entering the first quantifier.
++    // The lookbehind threads needs to be executed before the thread of their
++    // parent (lookbehind or main expression). The order of the bytecode (see
++    // also `BytecodeAssembler`) ensures that they need to be executed from last
++    // to first (as of their position in the bytecode). The main expression
++    // bytecode is located at PC 0, and is executed with the lowest priority.
+     active_threads_.Add(
+         InterpreterThread(0, NewRegisterArray(kUndefinedRegisterValue),
+                           InterpreterThread::ConsumedCharacter::DidConsume),
+         zone_);
++
++    for (auto i : lookbehind_pc_) {
++      active_threads_.Add(
++          InterpreterThread(i, NewRegisterArray(kUndefinedRegisterValue),
++                            InterpreterThread::ConsumedCharacter::DidConsume),
++          zone_);
++    }
+     // Run the initial thread, potentially forking new threads, until every
+     // thread is blocked without further input.
+     RunActiveThreads();
+@@ -370,6 +395,8 @@ class NfaInterpreter {
+       base::uc16 input_char = input_[input_index_];
+       ++input_index_;
+ 
++      std::fill(lookbehind_table_.begin(), lookbehind_table_.end(), false);
++
+       static constexpr int kTicksBetweenInterruptHandling = 64;
+       if (input_index_ % kTicksBetweenInterruptHandling == 0) {
+         int err_code = HandleInterrupts();
+@@ -464,6 +491,24 @@ class NfaInterpreter {
+           }
+           ++t.pc;
+           break;
++        case RegExpInstruction::WRITE_LOOKBEHIND_TABLE:
++          // Reaching this instruction means that the current lookbehind thread
++          // has completed and needs to be destroyed. Since the lookbehind is
++          // verified at this position, we update the `lookbehind_table_`.
++          lookbehind_table_[inst.payload.looktable_index] = true;
++          DestroyThread(t);
++          break;
++        case RegExpInstruction::READ_LOOKBEHIND_TABLE:
++          // Destroy the thread if the corresponding lookbehind did not complete
++          // a match at the current position. The thread's priority ensures that
++          // all the threads of the lookbehind have already been run at this
++          // position.
++          if (!lookbehind_table_[inst.payload.looktable_index]) {
++            DestroyThread(t);
++          } else {
++            ++t.pc;
++          }
++          break;
+       }
+     }
+   }
+@@ -630,6 +675,14 @@ class NfaInterpreter {
+   // `register_array_allocator_`.
+   base::Optional<base::Vector<int>> best_match_registers_;
+ 
++  // Starting PC of each of the lookbehinds in the bytecode. Computed during the
++  // NFA instanciation (see the constructor).
++  ZoneList<int> lookbehind_pc_;
++
++  // Truth table for the lookbehinds. lookbehind_table_[k] indicates whether the
++  // lookbehind of index k did complete a match on the current position.
++  ZoneList<bool> lookbehind_table_;
++
+   Zone* zone_;
+ };
+ 
+diff --git a/src/regexp/regexp-ast.h b/src/regexp/regexp-ast.h
+index 56ece7ca51e..d52313c63d6 100644
+--- a/src/regexp/regexp-ast.h
++++ b/src/regexp/regexp-ast.h
+@@ -655,12 +655,13 @@ class RegExpLookaround final : public RegExpTree {
+   enum Type { LOOKAHEAD, LOOKBEHIND };
+ 
+   RegExpLookaround(RegExpTree* body, bool is_positive, int capture_count,
+-                   int capture_from, Type type)
++                   int capture_from, Type type, int index)
+       : body_(body),
+         is_positive_(is_positive),
+         capture_count_(capture_count),
+         capture_from_(capture_from),
+-        type_(type) {}
++        type_(type),
++        index_(index) {}
+ 
+   DECL_BOILERPLATE(Lookaround);
+ 
+@@ -673,6 +674,7 @@ class RegExpLookaround final : public RegExpTree {
+   int capture_count() const { return capture_count_; }
+   int capture_from() const { return capture_from_; }
+   Type type() const { return type_; }
++  int index() const {return index_; }
+ 
+   class Builder {
+    public:
+@@ -696,6 +698,7 @@ class RegExpLookaround final : public RegExpTree {
+   int capture_count_;
+   int capture_from_;
+   Type type_;
++  int index_;
+ };
+ 
+ 
+diff --git a/src/regexp/regexp-parser.cc b/src/regexp/regexp-parser.cc
+index de05f7a8ce9..8bd30ee4c38 100644
+--- a/src/regexp/regexp-parser.cc
++++ b/src/regexp/regexp-parser.cc
+@@ -20,7 +20,7 @@
+ #include "unicode/unistr.h"
+ #include "unicode/usetiter.h"
+ #include "unicode/utf16.h"  // For U16_NEXT
+-#endif  // V8_INTL_SUPPORT
++#endif                      // V8_INTL_SUPPORT
+ 
+ namespace v8 {
+ namespace internal {
+@@ -613,6 +613,7 @@ class RegExpParserImpl final {
+   int next_pos_;
+   int captures_started_;
+   int capture_count_;  // Only valid after we have scanned for captures.
++  int lookaround_count_;  // Only valid after we have scanned for lookbehinds.
+   bool has_more_;
+   bool simple_;
+   bool contains_anchor_;
+@@ -639,6 +640,7 @@ RegExpParserImpl<CharT>::RegExpParserImpl(
+       next_pos_(0),
+       captures_started_(0),
+       capture_count_(0),
++      lookaround_count_(0),
+       has_more_(true),
+       simple_(false),
+       contains_anchor_(false),
+@@ -933,7 +935,8 @@ RegExpTree* RegExpParserImpl<CharT>::ParseDisjunction() {
+           bool is_positive = (group_type == POSITIVE_LOOKAROUND);
+           body = zone()->template New<RegExpLookaround>(
+               body, is_positive, end_capture_index - capture_index,
+-              capture_index, state->lookaround_type());
++              capture_index, state->lookaround_type(), lookaround_count_);
++          lookaround_count_++;
+         }
+ 
+         // Restore previous state.
+-- 
+2.34.1
+

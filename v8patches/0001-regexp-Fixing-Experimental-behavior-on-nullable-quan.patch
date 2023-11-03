@@ -1,0 +1,512 @@
+From 51eb31f216b390b83ae7273e6d0cd1abbc05661d Mon Sep 17 00:00:00 2001
+From: Ludovic Mermod <ludovic.mermod@gmail.com>
+Date: Fri, 1 Sep 2023 13:54:37 +0200
+Subject: [PATCH 1/3] [regexp] Fixing Experimental behavior on nullable
+ quantifiers
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Each thread now contains an exit_allowed boolean indicating whether or
+not it consumed a character in the string since it last entered a
+quantifier. Adding new bytecode instructions BEGIN_LOOP and END_LOOP,
+such that a thread going through a quantifier without consuming any
+character is discarded.
+
+Two threads with the same pc but a different exit_allowed value may have
+different behaviors. As a result, isPcProcessed now records the pairs of
+pc,exit_allowed that have already been handled at the current string
+position.
+
+This work was supervised by Aurèle Barrière, from SYSTEMF at EPFL.
+
+Bug: v8:14098
+Change-Id: I6c6db02e98eebb7e9543fdba0b2793a5cf67d8fb
+Reviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/4755530
+Reviewed-by: Jakob Linke <jgruber@chromium.org>
+Reviewed-by: Patrick Thier <pthier@chromium.org>
+Commit-Queue: Jakob Linke <jgruber@chromium.org>
+Cr-Commit-Position: refs/heads/main@{#89812}
+---
+ AUTHORS                                       |   1 +
+ .../experimental/experimental-bytecode.cc     |   6 +
+ .../experimental/experimental-bytecode.h      |  14 ++
+ .../experimental/experimental-compiler.cc     |  33 ++++
+ .../experimental/experimental-interpreter.cc  | 143 ++++++++++++++----
+ test/mjsunit/mjsunit.status                   |   1 -
+ test/mjsunit/regexp-14098.js                  |  13 +-
+ 7 files changed, 171 insertions(+), 40 deletions(-)
+
+diff --git a/AUTHORS b/AUTHORS
+index b9b702c5d22..f72bb3adc87 100644
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -177,6 +177,7 @@ Kris Selden <kris.selden@gmail.com>
+ Kyounga Ra <kyounga@alticast.com>
+ Loo Rong Jie <loorongjie@gmail.com>
+ Lu Yahan <yahan@iscas.ac.cn>
++Ludovic Mermod <ludovic.mermod@gmail.com>
+ Luis Reis <luis.m.reis@gmail.com>
+ Luke Zarko <lukezarko@gmail.com>
+ Ma Aiguo <maaiguo@uniontech.com>
+diff --git a/src/regexp/experimental/experimental-bytecode.cc b/src/regexp/experimental/experimental-bytecode.cc
+index 3fbb6d7dc57..48e870b720a 100644
+--- a/src/regexp/experimental/experimental-bytecode.cc
++++ b/src/regexp/experimental/experimental-bytecode.cc
+@@ -71,6 +71,12 @@ std::ostream& operator<<(std::ostream& os, const RegExpInstruction& inst) {
+     case RegExpInstruction::CLEAR_REGISTER:
+       os << "CLEAR_REGISTER " << inst.payload.register_index;
+       break;
++    case RegExpInstruction::BEGIN_LOOP:
++      os << "BEGIN_LOOP";
++      break;
++    case RegExpInstruction::END_LOOP:
++      os << "END_LOOP";
++      break;
+   }
+   return os;
+ }
+diff --git a/src/regexp/experimental/experimental-bytecode.h b/src/regexp/experimental/experimental-bytecode.h
+index c3fe70ffd93..d7ff911dfa7 100644
+--- a/src/regexp/experimental/experimental-bytecode.h
++++ b/src/regexp/experimental/experimental-bytecode.h
+@@ -100,6 +100,8 @@ struct RegExpInstruction {
+     FORK,
+     JMP,
+     SET_REGISTER_TO_CP,
++    BEGIN_LOOP,
++    END_LOOP,
+   };
+ 
+   struct Uc16Range {
+@@ -165,6 +167,18 @@ struct RegExpInstruction {
+     return result;
+   }
+ 
++  static RegExpInstruction BeginLoop() {
++    RegExpInstruction result;
++    result.opcode = BEGIN_LOOP;
++    return result;
++  }
++
++  static RegExpInstruction EndLoop() {
++    RegExpInstruction result;
++    result.opcode = END_LOOP;
++    return result;
++  }
++
+   Opcode opcode;
+   union {
+     // Payload of CONSUME_RANGE:
+diff --git a/src/regexp/experimental/experimental-compiler.cc b/src/regexp/experimental/experimental-compiler.cc
+index 566ae06829f..1ec5a18ffef 100644
+--- a/src/regexp/experimental/experimental-compiler.cc
++++ b/src/regexp/experimental/experimental-compiler.cc
+@@ -260,6 +260,10 @@ class BytecodeAssembler {
+     code_.Add(RegExpInstruction::SetRegisterToCp(register_index), zone_);
+   }
+ 
++  void BeginLoop() { code_.Add(RegExpInstruction::BeginLoop(), zone_); }
++
++  void EndLoop() { code_.Add(RegExpInstruction::EndLoop(), zone_); }
++
+   void Bind(Label& target) {
+     DCHECK_EQ(target.state_, Label::UNBOUND);
+ 
+@@ -472,7 +476,9 @@ class CompileVisitor : private RegExpVisitor {
+     //
+     //   begin:
+     //     FORK end
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
+     //     JMP begin
+     //   end:
+     //     ...
+@@ -484,7 +490,9 @@ class CompileVisitor : private RegExpVisitor {
+ 
+     assembler_.Bind(begin);
+     assembler_.Fork(end);
++    assembler_.BeginLoop();
+     emit_body();
++    assembler_.EndLoop();
+     assembler_.Jmp(begin);
+ 
+     assembler_.Bind(end);
+@@ -498,7 +506,9 @@ class CompileVisitor : private RegExpVisitor {
+     //     FORK body
+     //     JMP end
+     //   body:
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
+     //     FORK body
+     //   end:
+     //     ...
+@@ -510,7 +520,9 @@ class CompileVisitor : private RegExpVisitor {
+     assembler_.Jmp(end);
+ 
+     assembler_.Bind(body);
++    assembler_.BeginLoop();
+     emit_body();
++    assembler_.EndLoop();
+     assembler_.Fork(body);
+ 
+     assembler_.Bind(end);
+@@ -522,20 +534,29 @@ class CompileVisitor : private RegExpVisitor {
+     // This is compiled into
+     //
+     //     FORK end
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
+     //     FORK end
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
+     //     ...
+     //     ...
+     //     FORK end
+     //     <body>
+     //   end:
+     //     ...
++    //
++    // We add `BEGIN_LOOP` and `END_LOOP` instructions because these optional
++    // repetitions of the body cannot match the empty string.
+ 
+     Label end;
+     for (int i = 0; i != max_repetition_num; ++i) {
+       assembler_.Fork(end);
++      assembler_.BeginLoop();
+       emit_body();
++      assembler_.EndLoop();
+     }
+     assembler_.Bind(end);
+   }
+@@ -548,17 +569,27 @@ class CompileVisitor : private RegExpVisitor {
+     //     FORK body0
+     //     JMP end
+     //   body0:
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
++    //
+     //     FORK body1
+     //     JMP end
+     //   body1:
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
+     //     ...
+     //     ...
+     //   body{max_repetition_num - 1}:
++    //     BEGIN_LOOP
+     //     <body>
++    //     END_LOOP
+     //   end:
+     //     ...
++    //
++    // We add `BEGIN_LOOP` and `END_LOOP` instructions because these optional
++    // repetitions of the body cannot match the empty string.
+ 
+     Label end;
+     for (int i = 0; i != max_repetition_num; ++i) {
+@@ -567,7 +598,9 @@ class CompileVisitor : private RegExpVisitor {
+       assembler_.Jmp(end);
+ 
+       assembler_.Bind(body);
++      assembler_.BeginLoop();
+       emit_body();
++      assembler_.EndLoop();
+     }
+     assembler_.Bind(end);
+   }
+diff --git a/src/regexp/experimental/experimental-interpreter.cc b/src/regexp/experimental/experimental-interpreter.cc
+index 2342c88e44f..27647c050cb 100644
+--- a/src/regexp/experimental/experimental-interpreter.cc
++++ b/src/regexp/experimental/experimental-interpreter.cc
+@@ -147,8 +147,9 @@ class NfaInterpreter {
+         input_object_(input),
+         input_(ToCharacterVector<Character>(input, no_gc_)),
+         input_index_(input_index),
+-        pc_last_input_index_(zone->AllocateArray<int>(bytecode->length()),
+-                             bytecode->length()),
++        pc_last_input_index_(
++            zone->AllocateArray<LastInputIndex>(bytecode->length()),
++            bytecode->length()),
+         active_threads_(0, zone),
+         blocked_threads_(0, zone),
+         register_array_allocator_(zone),
+@@ -158,7 +159,8 @@ class NfaInterpreter {
+     DCHECK_GE(input_index_, 0);
+     DCHECK_LE(input_index_, input_.length());
+ 
+-    std::fill(pc_last_input_index_.begin(), pc_last_input_index_.end(), -1);
++    std::fill(pc_last_input_index_.begin(), pc_last_input_index_.end(),
++              LastInputIndex());
+   }
+ 
+   // Finds matches and writes their concatenated capture registers to
+@@ -210,7 +212,16 @@ class NfaInterpreter {
+  private:
+   // The state of a "thread" executing experimental regexp bytecode.  (Not to
+   // be confused with an OS thread.)
+-  struct InterpreterThread {
++  class InterpreterThread {
++   public:
++    enum class ConsumedCharacter { DidConsume, DidNotConsume };
++
++    InterpreterThread(int pc, int* register_array_begin,
++                      ConsumedCharacter consumed_since_last_quantifier)
++        : pc(pc),
++          register_array_begin(register_array_begin),
++          consumed_since_last_quantifier(consumed_since_last_quantifier) {}
++
+     // This thread's program counter, i.e. the index within `bytecode_` of the
+     // next instruction to be executed.
+     int pc;
+@@ -218,6 +229,12 @@ class NfaInterpreter {
+     // `register_count_per_match_`.  Should be deallocated with
+     // `register_array_allocator_`.
+     int* register_array_begin;
++    // Describe whether the thread consumed a character since it last entered a
++    // quantifier. Since quantifier iterations that match the empty string are
++    // not allowed, we need to distinguish threads that are allowed to exit a
++    // quantifier iteration from those that are not.
++
++    ConsumedCharacter consumed_since_last_quantifier;
+   };
+ 
+   // Handles pending interrupts if there are any.  Returns
+@@ -310,7 +327,8 @@ class NfaInterpreter {
+     //
+     // for all k > 0 hold I think everything should be fine.  Maybe we can do
+     // something about this in `SetInputIndex`.
+-    std::fill(pc_last_input_index_.begin(), pc_last_input_index_.end(), -1);
++    std::fill(pc_last_input_index_.begin(), pc_last_input_index_.end(),
++              LastInputIndex());
+ 
+     // Clean up left-over data from a previous call to FindNextMatch.
+     for (InterpreterThread t : blocked_threads_) {
+@@ -329,8 +347,12 @@ class NfaInterpreter {
+     }
+ 
+     // All threads start at bytecode 0.
++    // The initial value of consumed_since_last_quantifier is irrelevant before
++    // entering the first quantifier.
+     active_threads_.Add(
+-        InterpreterThread{0, NewRegisterArray(kUndefinedRegisterValue)}, zone_);
++        InterpreterThread(0, NewRegisterArray(kUndefinedRegisterValue),
++                          InterpreterThread::ConsumedCharacter::DidConsume),
++        zone_);
+     // Run the initial thread, potentially forking new threads, until every
+     // thread is blocked without further input.
+     RunActiveThreads();
+@@ -372,8 +394,8 @@ class NfaInterpreter {
+   //   the current input index. All remaining `active_threads_` are discarded.
+   void RunActiveThread(InterpreterThread t) {
+     while (true) {
+-      if (IsPcProcessed(t.pc)) return;
+-      MarkPcProcessed(t.pc);
++      if (IsPcProcessed(t.pc, t.consumed_since_last_quantifier)) return;
++      MarkPcProcessed(t.pc, t.consumed_since_last_quantifier);
+ 
+       RegExpInstruction inst = bytecode_[t.pc];
+       switch (inst.opcode) {
+@@ -390,8 +412,9 @@ class NfaInterpreter {
+           ++t.pc;
+           break;
+         case RegExpInstruction::FORK: {
+-          InterpreterThread fork{inst.payload.pc,
+-                                 NewRegisterArrayUninitialized()};
++          InterpreterThread fork(inst.payload.pc,
++                                 NewRegisterArrayUninitialized(),
++                                 t.consumed_since_last_quantifier);
+           base::Vector<int> fork_registers = GetRegisterArray(fork);
+           base::Vector<int> t_registers = GetRegisterArray(t);
+           DCHECK_EQ(fork_registers.length(), t_registers.length());
+@@ -425,6 +448,22 @@ class NfaInterpreter {
+               kUndefinedRegisterValue;
+           ++t.pc;
+           break;
++        case RegExpInstruction::BEGIN_LOOP:
++          t.consumed_since_last_quantifier =
++              InterpreterThread::ConsumedCharacter::DidNotConsume;
++          ++t.pc;
++          break;
++        case RegExpInstruction::END_LOOP:
++          // If the thread did not consume any character during a whole
++          // quantifier iteration,then it must be destroyed, since quantifier
++          // repetitions are not allowed to match the empty string.
++          if (t.consumed_since_last_quantifier ==
++              InterpreterThread::ConsumedCharacter::DidNotConsume) {
++            DestroyThread(t);
++            return;
++          }
++          ++t.pc;
++          break;
+       }
+     }
+   }
+@@ -452,6 +491,8 @@ class NfaInterpreter {
+       RegExpInstruction::Uc16Range range = inst.payload.consume_range;
+       if (input_char >= range.min && input_char <= range.max) {
+         ++t.pc;
++        t.consumed_since_last_quantifier =
++            InterpreterThread::ConsumedCharacter::DidConsume;
+         active_threads_.Add(t, zone_);
+       } else {
+         DestroyThread(t);
+@@ -486,28 +527,51 @@ class NfaInterpreter {
+     FreeRegisterArray(t.register_array_begin);
+   }
+ 
+-  // It is redundant to have two threads t, t0 execute at the same PC value,
+-  // because one of t, t0 matches iff the other does.  We can thus discard
+-  // the one with lower priority.  We check whether a thread executed at some
+-  // PC value by recording for every possible value of PC what the value of
+-  // input_index_ was the last time a thread executed at PC. If a thread
+-  // tries to continue execution at a PC value that we have seen before at
+-  // the current input index, we abort it. (We execute threads with higher
+-  // priority first, so the second thread is guaranteed to have lower
+-  // priority.)
++  // It is redundant to have two threads t, t0 execute at the same PC and
++  // consumed_since_last_quantifier values, because one of t, t0 matches iff the
++  // other does.  We can thus discard the one with lower priority.  We check
++  // whether a thread executed at some PC value by recording for every possible
++  // value of PC what the value of input_index_ was the last time a thread
++  // executed at PC. If a thread tries to continue execution at a PC value that
++  // we have seen before at the current input index, we abort it. (We execute
++  // threads with higher priority first, so the second thread is guaranteed to
++  // have lower priority.)
+   //
+-  // Check whether we've seen an active thread with a given pc value since the
+-  // last increment of `input_index_`.
+-  bool IsPcProcessed(int pc) {
+-    DCHECK_LE(pc_last_input_index_[pc], input_index_);
+-    return pc_last_input_index_[pc] == input_index_;
++  // Check whether we've seen an active thread with a given pc and
++  // consumed_since_last_quantifier value since the last increment of
++  // `input_index_`.
++  bool IsPcProcessed(int pc, typename InterpreterThread::ConsumedCharacter
++                                 consumed_since_last_quantifier) {
++    switch (consumed_since_last_quantifier) {
++      case InterpreterThread::ConsumedCharacter::DidConsume:
++        DCHECK_LE(pc_last_input_index_[pc].having_consumed_character,
++                  input_index_);
++        return pc_last_input_index_[pc].having_consumed_character ==
++               input_index_;
++      case InterpreterThread::ConsumedCharacter::DidNotConsume:
++        DCHECK_LE(pc_last_input_index_[pc].not_having_consumed_character,
++                  input_index_);
++        return pc_last_input_index_[pc].not_having_consumed_character ==
++               input_index_;
++    }
+   }
+ 
+   // Mark a pc as having been processed since the last increment of
+   // `input_index_`.
+-  void MarkPcProcessed(int pc) {
+-    DCHECK_LE(pc_last_input_index_[pc], input_index_);
+-    pc_last_input_index_[pc] = input_index_;
++  void MarkPcProcessed(int pc, typename InterpreterThread::ConsumedCharacter
++                                   consumed_since_last_quantifier) {
++    switch (consumed_since_last_quantifier) {
++      case InterpreterThread::ConsumedCharacter::DidConsume:
++        DCHECK_LE(pc_last_input_index_[pc].having_consumed_character,
++                  input_index_);
++        pc_last_input_index_[pc].having_consumed_character = input_index_;
++        break;
++      case InterpreterThread::ConsumedCharacter::DidNotConsume:
++        DCHECK_LE(pc_last_input_index_[pc].not_having_consumed_character,
++                  input_index_);
++        pc_last_input_index_[pc].not_having_consumed_character = input_index_;
++        break;
++    }
+   }
+ 
+   Isolate* const isolate_;
+@@ -526,11 +590,26 @@ class NfaInterpreter {
+   base::Vector<const Character> input_;
+   int input_index_;
+ 
+-  // pc_last_input_index_[k] records the value of input_index_ the last
+-  // time a thread t such that t.pc == k was activated, i.e. put on
+-  // active_threads_.  Thus pc_last_input_index.size() == bytecode.size().  See
+-  // also `RunActiveThread`.
+-  base::Vector<int> pc_last_input_index_;
++  // Stores the last input index at which a thread was activated for a given pc.
++  // Two values are stored, depending on the value
++  // consumed_since_last_quantifier of the thread.
++  class LastInputIndex {
++   public:
++    LastInputIndex() : LastInputIndex(-1, -1) {}
++    LastInputIndex(int having_consumed_character,
++                   int not_having_consumed_character)
++        : having_consumed_character(having_consumed_character),
++          not_having_consumed_character(not_having_consumed_character) {}
++
++    int having_consumed_character;
++    int not_having_consumed_character;
++  };
++
++  // pc_last_input_index_[k] records the values of input_index_ the last
++  // time a thread t such that t.pc == k was activated for both values of
++  // consumed_since_last_quantifier. Thus pc_last_input_index.size() ==
++  // bytecode.size(). See also `RunActiveThread`.
++  base::Vector<LastInputIndex> pc_last_input_index_;
+ 
+   // Active threads can potentially (but not necessarily) continue without
+   // input.  Sorted from low to high priority.
+diff --git a/test/mjsunit/mjsunit.status b/test/mjsunit/mjsunit.status
+index e766cf81f2a..47e8457195d 100644
+--- a/test/mjsunit/mjsunit.status
++++ b/test/mjsunit/mjsunit.status
+@@ -1714,7 +1714,6 @@
+ ##############################################################################
+ ['variant == experimental_regexp', {
+   'regress/regress-779407': [SKIP],
+-  'regexp-14098': [FAIL],
+ }],  # variant == experimental_regexp
+ 
+ ################################################################################
+diff --git a/test/mjsunit/regexp-14098.js b/test/mjsunit/regexp-14098.js
+index 89be567bf67..cb288773db9 100644
+--- a/test/mjsunit/regexp-14098.js
++++ b/test/mjsunit/regexp-14098.js
+@@ -6,12 +6,13 @@
+ // Flags: --no-default-to-experimental-regexp-engine
+ 
+ // An example where the Experimental regexp engine
+-// disagrees with the backtracking engine and the specification
++// used to disagree with the backtracking engine and the specification
+ // for nullable quantifiers.
+ // v8:14098
+ var str = "ab";
+ 
+ // executed by the Experimental engine (l flag)
++var exp_repetitions = /(?:a?b??){0,2}/l;
+ var exp_empty_star = /(?:a?b??)*/l;
+ 
+ // executed by the backtracking engine
+@@ -19,13 +20,11 @@ var bt_empty_star = /(?:a?b??)*/;
+ 
+ // The engines should both match "ab":
+ // The first star repetition should match 'a'
+-// because ignoring 'b' has highest-priority
+-// Then the greedy star should be entered again
++// because ignoring 'b' has highest-priority.
++// Then the greedy star should be entered again.
+ // Then the second repetition should match 'b',
+ // a non-empty repetition of the star.
+ 
+-// backtracking correctly matches "ab"
+ assertEquals(["ab"], bt_empty_star.exec(str));
+-
+-// experimental does not match "ab" but instead "a"
+-assertEquals(["a"], exp_empty_star.exec(str));
++assertEquals(['ab'], exp_empty_star.exec(str));
++assertEquals(['ab'], exp_repetitions.exec(str));
+-- 
+2.34.1
+
