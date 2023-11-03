@@ -17,7 +17,8 @@ open Arg
 (* this V8 executable needs to be patched in two ways: *)
 (* - first, we augment the kMaxReplicationFactor, so that we can try more regexes to demonstrate regex-size-exponential complexity *)
 (* second, we define performance.rdtsc() to return rdtsc counter *)
-let v8_path = ref "~/v8/before/v8/out/x64.release/d8"
+let old_v8_path = ref "~/v8/before/v8/out/x64.release/d8"
+let new_v8_path = ref "~/v8/dev_branch/v8/out/x64.release/d8"
 let v8_args = " --expose-gc --enable-experimental-regexp-engine "
 
    
@@ -37,13 +38,15 @@ let repetitions = ref 10
 
 type engine =
   | OCaml
-  | V8Linear
+  | OldV8Linear
+  | NewV8Linear
   | Irregexp
 
 let engine_name (e:engine) : string =
   match e with
   | OCaml -> "OCaml"
-  | V8Linear -> "V8linear"
+  | OldV8Linear -> "oldV8L"
+  | NewV8Linear -> "newV8L"
   | Irregexp -> "Irregexp"
 
 
@@ -61,14 +64,19 @@ let write_v8_params (r:raw_regex) (str:string): unit =
   Printf.fprintf oc "const regex= \"%s\"\nconst string= \"%s\"\nconst warmups= %d\nconst repetitions =%d" (print_js r) str !warmups !repetitions;
   close_out oc
 
-let get_time_v8linear (r:raw_regex) (str:string): string =
+let get_time_oldv8linear (r:raw_regex) (str:string): string =
   write_v8_params r str;
-  let sys = !v8_path ^ v8_args ^ v8lineartimer in
+  let sys = !old_v8_path ^ v8_args ^ v8lineartimer in
   string_of_command(sys)
 
+let get_time_newv8linear (r:raw_regex) (str:string): string =
+  write_v8_params r str;
+  let sys = !new_v8_path ^ v8_args ^ v8lineartimer in
+  string_of_command(sys)
+  
 let get_time_irregexp (r:raw_regex) (str:string): string =
   write_v8_params r str;
-  let sys = !v8_path ^ v8_args ^ irregexptimer in
+  let sys = !old_v8_path ^ v8_args ^ irregexptimer in
   string_of_command(sys)
 
   
@@ -76,7 +84,8 @@ let get_time_irregexp (r:raw_regex) (str:string): string =
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
   match e with
   | OCaml -> get_time_ocaml r str
-  | V8Linear -> get_time_v8linear r str
+  | OldV8Linear -> get_time_oldv8linear r str
+  | NewV8Linear -> get_time_newv8linear r str
   | Irregexp -> get_time_irregexp r str
 
 
@@ -165,7 +174,8 @@ let nested_nn_plus_string = String.make 100 'a'
 
 let nn_plus_confs =
   [ {eng=OCaml; min_size=0; max_size=500 };
-    {eng=V8Linear; min_size=0; max_size=20 } ]
+    {eng=OldV8Linear; min_size=0; max_size=20 } ]
+(* TODO switch to new V8 instead of OCaml *)
 
 let nested_nn_plus : regex_benchmark =
   { name = "NNPlus";
@@ -191,7 +201,7 @@ let nested_cdn_string = "b"
 
 let nested_cdn_confs =
   [ {eng=OCaml; min_size=0; max_size=500 };
-    {eng=V8Linear; min_size=0; max_size=20 } ]
+    {eng=OldV8Linear; min_size=0; max_size=20 } ]
 
 let nested_cdn : regex_benchmark =
   { name = "CDN";
@@ -213,7 +223,7 @@ let clocks_string = String.make 100 'a'
 
 let clocks_conf =
   [ {eng=OCaml; min_size=0; max_size=200 };
-    {eng=V8Linear; min_size=0; max_size=150 } ]
+    {eng=OldV8Linear; min_size=0; max_size=150 } ]
 
 let clocks : regex_benchmark =
   { name = "Clocks";
@@ -272,6 +282,7 @@ let nested_lb_param_str = fun str_size ->
 let nested_lookb_str_conf =
   [ {eng=OCaml; min_size=0; max_size=3000 };
     {eng=Irregexp; min_size=0; max_size=3000 } ]
+(* TODO: change to newV8L instead of OCaml *)
 
 let nested_lookbehinds_string : string_benchmark =
   { name = "LBstr";
@@ -335,11 +346,12 @@ let main =
   let bench_list = ref [] in
   
   let speclist =
-    [("-v8", Arg.Set_string v8_path, "V8 path");
+    [("-oldv8", Arg.Set_string old_v8_path, "old V8 path");
+     ("-newv8", Arg.Set_string new_v8_path, "new V8 path");
      ("-warmups", Arg.Set_int warmups, "Number of Warmup Repetitions per iteration");
      ("-repet", Arg.Set_int repetitions, "Number of Measured Repetitions");   
     ] in
-  let usage = "./benchmark.native [-v8 path_to_d8] [-warmups 10] [-repet 10] benchmark list\n" in
+  let usage = "./benchmark.native [-oldv8 path_to_old_d8] [-newv8 path_to_new_d8] [-warmups 10] [-repet 10] benchmark list\n" in
   let full_usage = usage ^ "\nAvailable benchmarks: " ^ bench_names_string in
   Arg.parse speclist (fun s -> bench_list := s::!bench_list) full_usage;
   List.iter exec_bench !bench_list
