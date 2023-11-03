@@ -173,9 +173,8 @@ let rec nested_nn_plus_reg = fun reg_size ->
 let nested_nn_plus_string = String.make 100 'a'
 
 let nn_plus_confs =
-  [ {eng=OCaml; min_size=0; max_size=500 };
+  [ {eng=NewV8Linear; min_size=0; max_size=500 };
     {eng=OldV8Linear; min_size=0; max_size=20 } ]
-(* TODO switch to new V8 instead of OCaml *)
 
 let nested_nn_plus : regex_benchmark =
   { name = "NNPlus";
@@ -280,9 +279,8 @@ let nested_lb_param_str = fun str_size ->
   "b" ^ String.make str_size 'a'
 
 let nested_lookb_str_conf =
-  [ {eng=OCaml; min_size=0; max_size=3000 };
+  [ {eng=NewV8Linear; min_size=0; max_size=3000 };
     {eng=Irregexp; min_size=0; max_size=3000 } ]
-(* TODO: change to newV8L instead of OCaml *)
 
 let nested_lookbehinds_string : string_benchmark =
   { name = "LBstr";
