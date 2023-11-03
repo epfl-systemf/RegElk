@@ -41,6 +41,7 @@ type engine =
   | OldV8Linear
   | NewV8Linear
   | Irregexp
+  | LinearBaseline
 
 let engine_name (e:engine) : string =
   match e with
@@ -48,14 +49,15 @@ let engine_name (e:engine) : string =
   | OldV8Linear -> "oldV8L"
   | NewV8Linear -> "newV8L"
   | Irregexp -> "Irregexp"
+  | LinearBaseline -> "LinearBaseline"
 
 
 (* calling the matcher.native executable *)
 (* returning the rdtsc measuring *)
-let get_time_ocaml (r:raw_regex) (str:string): string =
+let get_time_ocaml (bin: string) (r:raw_regex) (str:string): string =
   let regex_string = " \""^print_js r^"\" " in
   let input_string = " \""^str^"\" " in
-  let sys = "./matcher.native " ^ regex_string ^ input_string ^ string_of_int !warmups ^ " " ^ string_of_int !repetitions in
+  let sys = bin ^ " " ^ regex_string ^ input_string ^ string_of_int !warmups ^ " " ^ string_of_int !repetitions in
   string_of_command(sys)
 
 (* modifies the parameter files that is read by the V8 D8 interpreter *)
@@ -83,10 +85,11 @@ let get_time_irregexp (r:raw_regex) (str:string): string =
 (* measures rdtsc time for each engine *)
 let get_time (e:engine) (r:raw_regex) (str:string) : string =
   match e with
-  | OCaml -> get_time_ocaml r str
+  | OCaml -> get_time_ocaml "./matcher.native" r str
   | OldV8Linear -> get_time_oldv8linear r str
   | NewV8Linear -> get_time_newv8linear r str
   | Irregexp -> get_time_irregexp r str
+  | LinearBaseline -> get_time_ocaml "./linearbaseline.native" r str
 
 
 (* an engine configuration to test *)
@@ -279,7 +282,9 @@ let nested_lb_param_str = fun str_size ->
   "b" ^ String.make str_size 'a'
 
 let nested_lookb_str_conf =
-  [ {eng=NewV8Linear; min_size=0; max_size=3000 };
+  [ {eng=LinearBaseline; min_size=0; max_size=3000 };
+    {eng=OCaml; min_size=0; max_size=3000 };
+    {eng=NewV8Linear; min_size=0; max_size=3000 };
     {eng=Irregexp; min_size=0; max_size=3000 } ]
 
 let nested_lookbehinds_string : string_benchmark =

@@ -23,8 +23,9 @@ main: main.native
 tests: tests.native
 fuzzer: fuzzer.native
 stats: stats.native
-benchmark: benchmark.native
+linearbaseline: linearbaseline.native
 matcher: matcher.native
+benchmark: matcher linearbaseline benchmark.native
 
 clean: parser_clean
 	-rm -R _build
