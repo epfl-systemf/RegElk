@@ -13,14 +13,6 @@ open Charclasses
 open Complexity_exp
 open Flags
 
-(** * Measuring With RDTSC *)
-(* all our algorithms are measured with the rdtsc instruction *)
-(* to get a estimate as precise as possible *)
-(* when we measure V8Linear, we also patch it to return rdtsc *)
-(* we use the rdtsc interface provided by the Ocaml_Intrinsics package *)
-let now () = Ocaml_intrinsics.Perfmon.rdtsc ()
-let elapsed from = Int64.sub (now ()) from
-
 (** * Measuring The OCaml engine execution  *)
 (* This executable is to be called directly by the benchmarks *)
    
@@ -72,12 +64,12 @@ let main =
   Gc.full_major();
 
   (* measuring matches *)
-  let tstart = now() in
+  let tstart = Timer.now() in
   for i = 0 to (repetitions - 1) do
     let o = build_oracle compiled_regex string in
     ignore(build_capture compiled_regex string o)
   done;
-  let time = elapsed tstart in
+  let time = Timer.elapsed tstart in
   
   Printf.printf ("%Li\n") time
  
