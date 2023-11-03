@@ -206,7 +206,7 @@ let nested_cdn : regex_benchmark =
 (* rn = (rn-1)* *)
 let rec clocks_reg = fun reg_size ->
   match reg_size with
-  | 0 -> raw_dot
+  | 0 -> raw_char('a')
   | _ -> raw_star(Raw_capture(clocks_reg (reg_size - 1)))
 
 let clocks_string = String.make 100 'a'
@@ -222,7 +222,7 @@ let clocks : regex_benchmark =
     input_str = clocks_string;
   }
 
-(** * Nested Lookarounds Regex-Size *)
+(** * Lookarounds Regex-Size *)
 (* r0 = ( a* )b *)
 (* rn = a (?= rn-1 ) *)
 let rec nested_look_reg = fun reg_size ->
@@ -237,13 +237,13 @@ let nested_look_conf =
     {eng=Irregexp; min_size=0; max_size=300 } ]
 
 let nested_lookarounds : regex_benchmark =
-  { name = "NestedLAreg";
+  { name = "LAreg";
     confs = nested_look_conf;
     param_regex = nested_look_reg;
     input_str = nested_look_reg_str;
   }
 
-(** * Nested Lookarounds String-Size  *)
+(** * Lookarounds String-Size  *)
 (* (?: a (?= a* b) )* *)
 let nested_la_reg = raw_star(Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_con(raw_star(raw_char('a')),raw_char('b')))))
 
@@ -255,12 +255,33 @@ let nested_look_str_conf =
     {eng=Irregexp; min_size=0; max_size=3000 } ]
 
 let nested_lookarounds_string : string_benchmark =
-  { name = "NestedLAstr";
+  { name = "LAstr";
     confs = nested_look_str_conf;
     param_str = nested_la_param_str;
     rgx = nested_la_reg;
   }
 
+
+(** * Lookbehinds String-Size  *)
+(* b(?: a (?<= a* b) )* *)
+let nested_lb_reg = Raw_con(raw_char('b'),raw_star(Raw_con(raw_char('a'),Raw_lookaround(Lookbehind,Raw_con(raw_char('b'),raw_star(raw_char('a')))))))
+
+let nested_lb_param_str = fun str_size ->
+  "b" ^ String.make str_size 'a'
+
+let nested_lookb_str_conf =
+  [ {eng=OCaml; min_size=0; max_size=3000 };
+    {eng=Irregexp; min_size=0; max_size=3000 } ]
+
+let nested_lookbehinds_string : string_benchmark =
+  { name = "LBstr";
+    confs = nested_lookb_str_conf;
+    param_str = nested_lb_param_str;
+    rgx = nested_lb_reg;
+  }
+                  
+  
+  
 (** * Register Data-Structure Benchmark  *)
 (* The goal is to launch this benchmark several times, switching the register implementation in the interpreter *)
 (* Later I'll make the interpreter a functor to switch dynamically, here you need to recompile each time. *)
@@ -291,6 +312,7 @@ let ds : regex_benchmark =
 let all_bench : benchmark list =
   [RB nested_nn_plus; RB nested_cdn; RB clocks;
    RB nested_lookarounds; SB nested_lookarounds_string;
+   SB nested_lookbehinds_string;
    RB ds]
 
 let bench_names = List.map (fun b -> bench_name b) all_bench
