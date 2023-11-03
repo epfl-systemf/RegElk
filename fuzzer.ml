@@ -8,9 +8,7 @@ open Random
 open Charclasses
 open Flags
 
-let _ = Random.self_init()
-
-
+let random_seed = ref 0
       
 (* we restrict ourselves to a small alphabet *)
 let alphabet = ['a'; 'b'; '-']
@@ -190,8 +188,10 @@ let main =
   
   let speclist =
     [("-tests", Arg.Set_int max_tests, "Number of tests");
+     ("-seed", Arg.Set_int random_seed, "Random seed");
     ] in
 
-  let usage = "./fuzzer.native [-tests 1000]" in
+  let usage = "./fuzzer.native [-tests 1000] [-seed 0]" in
   Arg.parse speclist (fun _ -> ()) usage;
+  Random.init !random_seed;
   fuzzer()
