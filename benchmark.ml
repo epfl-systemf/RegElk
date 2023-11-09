@@ -17,8 +17,8 @@ open Benchmark_vectors
 (* this V8 executable needs to be patched in two ways: *)
 (* - first, we augment the kMaxReplicationFactor, so that we can try more regexes to demonstrate regex-size-exponential complexity *)
 (* second, we define performance.rdtsc() to return rdtsc counter *)
-let old_v8_path = ref "~/v8/before/v8/out/x64.release/d8"
-let new_v8_path = ref "~/v8/dev_branch/v8/out/x64.release/d8"
+let old_v8_path = ref "~/v8/old/v8/out/x64.release/d8"
+let new_v8_path = ref "~/v8/new/v8/out/x64.release/d8"
 let v8_args = " --expose-gc --enable-experimental-regexp-engine "
 
    

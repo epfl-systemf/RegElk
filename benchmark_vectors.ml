@@ -62,7 +62,7 @@ let rec nested_nn_plus_reg = fun reg_size ->
 let nested_nn_plus_string = String.make 100 'a'
 
 let nn_plus_confs =
-  [ {eng=NewV8Linear; min_size=0; max_size=500 };
+  [ {eng=NewV8Linear; min_size=0; max_size=1000 };
     {eng=OldV8Linear; min_size=0; max_size=20 } ]
 
 let nested_nn_plus : regex_benchmark =
@@ -88,7 +88,7 @@ let rec nested_cdn_reg = fun reg_size ->
 let nested_cdn_string = "b"
 
 let nested_cdn_confs =
-  [ {eng=OCaml; min_size=0; max_size=500 };
+  [ {eng=OCaml; min_size=0; max_size=1000 };
     {eng=OldV8Linear; min_size=0; max_size=20 } ]
 
 let nested_cdn : regex_benchmark =
@@ -110,8 +110,8 @@ let rec clocks_reg = fun reg_size ->
 let clocks_string = String.make 100 'a'
 
 let clocks_conf =
-  [ {eng=OCaml; min_size=0; max_size=200 };
-    {eng=OldV8Linear; min_size=0; max_size=150 } ]
+  [ {eng=OCaml; min_size=0; max_size=500 };
+    {eng=OldV8Linear; min_size=0; max_size=500 } ]
 
 let clocks : regex_benchmark =
   { name = "Clocks";
@@ -131,8 +131,8 @@ let rec nested_look_reg = fun reg_size ->
 let nested_look_reg_str = String.make 100 'a' ^ "b"
 
 let nested_look_conf =
-  [ {eng=OCaml; min_size=0; max_size=300 };
-    {eng=Irregexp; min_size=0; max_size=300 } ]
+  [ {eng=OCaml; min_size=0; max_size=1000 }; ]
+    (* {eng=Irregexp; min_size=0; max_size=300 } ] *)
 
 let nested_lookarounds : regex_benchmark =
   { name = "LAreg";
@@ -142,15 +142,15 @@ let nested_lookarounds : regex_benchmark =
   }
 
 (** * Lookarounds String-Size  *)
-(* (?: a (?= a* b) )* *)
-let nested_la_reg = raw_star(Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_con(raw_star(raw_char('a')),raw_char('b')))))
+    (* c (?: a (?= a* (?<=c a* ) b ) )* *)
+let nested_la_reg = Raw_con(raw_char('c'),raw_star(Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_con(raw_star(raw_char('a')),Raw_con(Raw_lookaround(Lookbehind,Raw_con(raw_char('c'),raw_star(raw_char('a')))),raw_char('b')))))))
 
 let nested_la_param_str = fun str_size ->
-  String.make str_size 'a' ^ "b"
+  "c" ^ String.make str_size 'a' ^ "b"
 
 let nested_look_str_conf =
-  [ {eng=OCaml; min_size=0; max_size=3000 };
-    {eng=Irregexp; min_size=0; max_size=3000 } ]
+  [ {eng=OCaml; min_size=0; max_size=5000 }; 
+    {eng=Irregexp; min_size=0; max_size=5000 } ]
 
 let nested_lookarounds_string : string_benchmark =
   { name = "LAstr";
@@ -168,11 +168,11 @@ let nested_lb_param_str = fun str_size ->
   "b" ^ String.make str_size 'a'
 
 let nested_lookb_str_conf =
-  [ {eng=LinearBaseline; min_size=0; max_size=3000 };
-    {eng=OCaml; min_size=0; max_size=3000 };
-    {eng=OCamlBench; min_size=0; max_size=3000 };
-    {eng=NewV8Linear; min_size=0; max_size=3000 };
-    {eng=Irregexp; min_size=0; max_size=3000 } ]
+  [ (* {eng=LinearBaseline; min_size=0; max_size=5000 }; *)
+    {eng=OCaml; min_size=0; max_size=5000 };
+    (* {eng=OCamlBench; min_size=0; max_size=3000 }; *)
+    {eng=NewV8Linear; min_size=0; max_size=5000 };
+    {eng=Irregexp; min_size=0; max_size=5000 } ]
 
 let nested_lookbehinds_string : string_benchmark =
   { name = "LBstr";
@@ -198,8 +198,9 @@ let ds_param_reg = fun reg_size ->
 
 let ds_str = String.make 1000 'a'
 
+(* for array_regs, you can stop at ~200 or it really becomes long *)
 let ds_conf =
-  [{eng=OCaml; min_size=0; max_size=100}]
+  [{eng=OCaml; min_size=0; max_size=500}]
 
 let ds : regex_benchmark =
   { name = Interpreter.Regs.name;
