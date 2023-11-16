@@ -27,6 +27,15 @@ let parse_raw (str:string) : raw_regex =
   assert (regex_wf r);
   r
 
+(* Appendix example *)
+let appendix_regex : raw_regex =
+  let behind = Raw_lookaround(Lookbehind,Raw_con(raw_char('c'),raw_star(Raw_capture(raw_char('a'))))) in
+  let ahead = Raw_lookaround(Lookahead,Raw_con(raw_star(raw_char('a')),Raw_con(behind,raw_char('b')))) in
+  Raw_con(Raw_capture(raw_char('c')),raw_star(Raw_con(raw_char('a'),ahead)))
+
+let appendix_string : string = "caab"
+                              
+  
   
 let main =
 
@@ -36,6 +45,7 @@ let main =
    * ignore(get_linear_result (fst bug) (snd bug));
    * ignore(compare_engines (fst bug) (snd bug)); *)
   
+  
   let speclist =
     [("-regex", Arg.Tuple [Arg.Set_string input_regex; Arg.Set rgx_set], "Regex");
      ("-string", Arg.Tuple [Arg.Set_string input_str; Arg.Set str_set], "String");
@@ -44,7 +54,7 @@ let main =
      ("-cmp", Arg.Set compare_js, "Comparison with the Node engine");
     ] in
 
-  let usage = "./main.native [-regex (b)|.*] [-string abc] [-v] [-d] [-cmp]" in
+  let usage = "./main.native [-regex \"(b)|.*\"] [-string \"abc\"] [-v] [-d] [-cmp]" in
   Arg.parse speclist (fun _ -> ()) usage;
 
   (* if no regex or string were provided, ask the user to input them *)
