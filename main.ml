@@ -5,12 +5,7 @@ open Compiler
 open Cdn
 open Interpreter
 open Tojs
-open Tore2
-open Toexp
-open Torust
-open Todotnet
 open Charclasses
-open Complexity_exp
 open Flags
 
 (* Executing the OCaml linear engine on a regex and a string *)
