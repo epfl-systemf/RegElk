@@ -128,7 +128,7 @@ let rec nested_look_reg = fun reg_size ->
   | 0 -> Raw_con(Raw_capture(raw_star(raw_char('a'))),raw_char('b'))
   | _ -> Raw_con(raw_char('a'),Raw_lookaround(Lookahead,nested_look_reg (reg_size -1)))
 
-let nested_look_reg_str = String.make 100 'a' ^ "b"
+let nested_look_reg_str = String.make 1000 'a' ^ "b"
 
 let nested_look_conf =
   [ {eng=OCaml; min_size=0; max_size=1000 }; ]
@@ -141,6 +141,19 @@ let nested_lookarounds : regex_benchmark =
     input_str = nested_look_reg_str;
   }
 
+(** * Lookarounds Regex-Size 2*)
+
+let nested_look_conf2 =
+  [ {eng=Irregexp; min_size=0; max_size=1000 } ]
+
+let nested_lookarounds2 : regex_benchmark =
+  { name = "LAreg2";
+    confs = nested_look_conf2;
+    param_regex = nested_look_reg;
+    input_str = nested_look_reg_str;
+  }
+
+  
 (** * Lookarounds String-Size  *)
 (* c (?: a (?= a* (?<=c (a* ) ) b ) )* *)
 let nested_la_reg = Raw_con(raw_char('c'),raw_star(Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_con(raw_star(raw_char('a')),Raw_con(Raw_lookaround(Lookbehind,Raw_con(raw_char('c'),Raw_capture(raw_star(raw_char('a'))))),raw_char('b')))))))
@@ -181,6 +194,26 @@ let nested_lookbehinds_string : string_benchmark =
     rgx = nested_lb_reg;
   }
 
+(** * Lookbehinds Regex-Size *)
+(* r0 = ba* *)
+(* rn = a* (?<= rn-1 ) *)
+let rec nested_lb_reg = fun reg_size ->
+  match reg_size with
+  | 0 -> Raw_con(raw_char('b'),raw_star(raw_char('a')))
+  | _ -> Raw_con(raw_star(raw_char('a')),Raw_lookaround(Lookbehind,nested_lb_reg (reg_size -1)))
+
+let nested_lb_reg_str = "b" ^ String.make 100 'a'
+
+let nested_lb_conf =
+  [ {eng=NewV8Linear; min_size=0; max_size=1000 }; ]
+    (* {eng=Irregexp; min_size=0; max_size=300 } ] *)
+
+let nested_lb : regex_benchmark =
+  { name = "LBreg";
+    confs = nested_lb_conf;
+    param_regex = nested_lb_reg;
+    input_str = nested_lb_reg_str;
+  }
 
 
 (** * Register Data-Structure Benchmark  *)
@@ -211,8 +244,8 @@ let ds : regex_benchmark =
 
 let all_bench : benchmark list =
   [RB nested_nn_plus; RB nested_cdn; RB clocks;
-   RB nested_lookarounds; SB nested_lookarounds_string;
-   SB nested_lookbehinds_string;
+   RB nested_lookarounds; RB nested_lookarounds2; SB nested_lookarounds_string;
+   RB nested_lb; SB nested_lookbehinds_string;
    RB ds]
 
 let bench_names = List.map (fun b -> bench_name b) all_bench
