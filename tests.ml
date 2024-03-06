@@ -10,6 +10,14 @@ open Cdn
 open Interpreter
 open Tojs
 open Flags
+open Regs
+
+module PlayTests (R:REGS): sig
+  val tests : unit -> unit
+end = struct
+
+  module Interpreter = Interpreter(R)
+  module CMP = Tojs.Compare(Interpreter)
 
 (** * Manual Testing *)
    
@@ -55,8 +63,8 @@ let interpreter_tests () =
   let raw = Raw_con (Raw_quant (Star, raw_char 'a'), raw_char 'b') in
   let str1 = "aab" in
   let str2 = "aaa" in
-  assert (full_match raw str1 <> None);
-  assert (full_match raw str2 = None)
+  assert (Interpreter.full_match raw str1 <> None);
+  assert (Interpreter.full_match raw str2 = None)
 
 let build_oracle_tests () =
   let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (raw_char 'a',raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in
@@ -64,7 +72,7 @@ let build_oracle_tests () =
   let cr = full_compilation re in
   let str = "aaab" in
   Printf.printf "%s\n" (print_regex re);
-  let o = build_oracle cr str in
+  let o = Interpreter.build_oracle cr str in
   Printf.printf "%s\n" (print_oracle o);
   assert (get_oracle o 4 2 = true);
   assert (get_oracle o 3 2 = false);
@@ -75,12 +83,12 @@ let build_oracle_tests () =
 let full_algo_tests () =
   let raw = Raw_con (raw_char 'a', Raw_lookaround (Lookahead, Raw_capture(raw_char 'b'))) in
   let str = "cab" in
-  ignore(full_match raw str)
+  ignore(Interpreter.full_match raw str)
 
 let compare_engines_tests() =
-  ignore(compare_engines (Raw_con (Raw_quant (Star, Raw_capture (raw_char 'a')), raw_char 'b')) "aaab");
-  ignore(compare_engines (raw_char 'a') "b");
-  ignore(compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(raw_char 'a'), Raw_capture(raw_char 'b')))) "ababab")
+  ignore(CMP.compare_engines (Raw_con (Raw_quant (Star, Raw_capture (raw_char 'a')), raw_char 'b')) "aaab");
+  ignore(CMP.compare_engines (raw_char 'a') "b");
+  ignore(CMP.compare_engines (Raw_quant (Star, Raw_alt (Raw_capture(raw_char 'a'), Raw_capture(raw_char 'b')))) "ababab")
   
   
 (** * Gathering some errors found with the fuzzer *)
@@ -276,14 +284,15 @@ let redos : (raw_regex*string) list =
    (Raw_con(Raw_con(Raw_lookaround(Lookahead,Raw_capture(Raw_capture(raw_dot))),Raw_capture(Raw_alt(Raw_lookaround(Lookahead,raw_dot),Raw_alt(Raw_con(Raw_capture(Raw_quant(Star,raw_char('c'))),Raw_capture(raw_char('a'))),Raw_alt(Raw_capture(Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)))),Raw_capture(Raw_alt(Raw_alt(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_con(Raw_capture(raw_dot),Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(raw_char('a'),Raw_quant(LazyPlus,Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_empty))),Raw_quant(Plus,Raw_alt(raw_dot,Raw_capture(Raw_capture(raw_dot))))))))),Raw_empty)))),Raw_lookaround(Lookahead,raw_char('c')))))),raw_dot),raw_dot))))))),Raw_con(Raw_alt(Raw_con(Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_con(Raw_capture(raw_char('b')),Raw_alt(Raw_empty,raw_char('c'))))),raw_dot),raw_dot),Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_empty)))),Raw_lookaround(NegLookahead,Raw_alt(Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_lookaround(Lookbehind,Raw_empty)),Raw_lookaround(Lookahead,Raw_empty))))),"ccaacababbbcccbbbabcbbbccaaabccacbcb");
    (Raw_capture(Raw_alt(Raw_alt(Raw_con(Raw_alt(Raw_lookaround(NegLookbehind,Raw_con(Raw_con(Raw_alt(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_empty))))))),Raw_empty),Raw_alt(raw_char('a'),Raw_capture(Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_con(Raw_con(Raw_capture(Raw_alt(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(raw_char('a'))))),raw_char('b'))),Raw_empty),Raw_lookaround(Lookbehind,Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,raw_dot),Raw_empty)))),Raw_quant(LazyPlus,Raw_con(raw_dot,Raw_quant(Star,Raw_alt(Raw_con(Raw_lookaround(NegLookahead,Raw_lookaround(Lookbehind,raw_char('a'))),Raw_capture(raw_dot)),Raw_capture(Raw_con(Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_empty)),Raw_capture(raw_char('c'))))))))),raw_char('b')),Raw_empty)))))))),Raw_lookaround(NegLookahead,Raw_con(Raw_capture(raw_char('a')),Raw_con(Raw_empty,Raw_lookaround(Lookahead,Raw_quant(Star,raw_char('c')))))))),Raw_alt(Raw_con(Raw_con(Raw_alt(Raw_lookaround(Lookbehind,Raw_capture(Raw_lookaround(Lookbehind,raw_dot))),Raw_con(Raw_con(Raw_capture(Raw_lookaround(NegLookbehind,raw_char('b'))),Raw_quant(LazyPlus,Raw_quant(Star,Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_capture(Raw_capture(Raw_capture(raw_dot)))),raw_dot))))),Raw_capture(Raw_capture(raw_char('c'))))),Raw_con(Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_capture(raw_char('b')))),Raw_capture(Raw_alt(Raw_con(raw_dot,Raw_quant(Star,raw_char('b'))),Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_quant(Plus,raw_char('c'))),raw_dot)))))))),Raw_quant(Plus,Raw_empty)),Raw_quant(Plus,Raw_empty))),Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(NegLookbehind,Raw_empty)))),raw_char('b')),raw_char('b'))),"acccbcabbacbccbccbbcbbaa");
    (Raw_con(Raw_alt(raw_char('a'),Raw_con(Raw_quant(LazyStar,Raw_capture(Raw_quant(Star,Raw_alt(raw_dot,Raw_quant(Plus,Raw_empty))))),Raw_alt(raw_char('b'),Raw_lookaround(NegLookahead,Raw_empty)))),Raw_con(Raw_lookaround(NegLookahead,Raw_capture(raw_dot)),Raw_capture(Raw_capture(Raw_capture(raw_dot))))),"cabbcaacbaccccababcbcccbababacbcccabbaaacacacbcacccaaacbbccabaabbaacbcbcacaaacabaacaaaa")]
-  
+
+
 (* re-checking a list of previous bugs *)
 let replay_bugs (l:(raw_regex*string) list) =
-  List.iter (fun (raw,str) -> ignore(compare_engines raw str)) l
+  List.iter (fun (raw,str) -> ignore(CMP.compare_engines raw str)) l
 
 (* just checking that our engine is not stuck on the REDOS regexes *)
 let replay_stuck (l:(raw_regex*string) list) =
-  List.iter (fun (raw,str) -> ignore(full_match raw str)) l
+  List.iter (fun (raw,str) -> ignore(Interpreter.full_match raw str)) l
 
   
 (** * Running tests  *)
@@ -341,13 +350,22 @@ let paper_example () =
   let right_branch_example = Raw_con(Raw_quant(Star,Raw_con(raw_char('a'),Raw_lookaround(Lookahead,lookahead_example))),Raw_capture(raw_dot)) in
   let reg_example : raw_regex = Raw_alt(right_branch_example,left_branch_example) in
   let str_example = "aaab" in
-  full_match reg_example str_example
+  Interpreter.full_match reg_example str_example
 
+end
 
 (* Running all tests *)
 let main =
 
   verbose := false;
   debug := false;
-  
-  tests()
+
+  (* testing for all register implementations *)
+  let module T1 = PlayTests(Regs.Array_Regs) in
+  T1.tests();
+
+  let module T2 = PlayTests(Regs.List_Regs) in
+  T2.tests();
+
+  let module T3 = PlayTests(Regs.Map_Regs) in
+  T3.tests()

@@ -13,8 +13,22 @@ open Anchors
 open Regs
 open Charclasses
 open Flags
-       
 
+
+module type INTERP = sig
+  val regs_name : unit -> string
+  val build_oracle : compiled_regex -> string -> oracle
+  val build_capture : compiled_regex -> string -> oracle -> (int Array.t) option
+  val matcher : compiled_regex -> string -> (int Array.t) option
+  val full_match : raw_regex -> string -> (int Array.t) option
+  val get_linear_result : raw_regex -> string -> string
+end
+(* I might move the last two functions out of this signature *)
+
+module Interpreter (Regs:REGS) : INTERP = struct
+
+  let regs_name () = Regs.name
+  
 (** * Direction  *)
 (* In our algorithm, the interpreter can traverse the string in a forward way or in a backward way *)
 (* Backward is used when building the oracle for lookaheads *)
@@ -72,7 +86,7 @@ let debug_regs (regs:int Array.t) : string =
       !s
               
 (* each thread stores capture registers for the capture groups it has matched so far *)
-module Regs = (List_Regs : REGS)
+(* module Regs = (List_Regs : REGS) *)
               
 
 (** * String Manipulation *)
@@ -737,3 +751,5 @@ let full_match (raw:raw_regex) (str:string) : (int Array.t) option =
 let get_linear_result (raw:raw_regex) (str:string) : string =
   let capop = full_match raw str in
   print_result (annotate raw) str capop
+
+end

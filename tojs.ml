@@ -64,6 +64,10 @@ let get_time_js (raw:raw_regex) (str:string) : string =
   
 (** *  Comparing JS engine with our engine *)
 
+module Compare (Interpreter:INTERP): sig
+  val compare_engines : raw_regex -> string -> bool
+end = struct
+
 type compare_result =
   | Equal
   | Timeout
@@ -84,7 +88,7 @@ let compare_js_ocaml (raw:raw_regex) (str:string) : compare_result =
   Printf.printf "%s\n%!" (report_raw raw);
   let sjs = get_js_result raw str in
   Printf.printf "\027[35mJS result:\027[0m\n%s%!" sjs;
-  let sl = get_linear_result raw str in
+  let sl = Interpreter.get_linear_result raw str in
   Printf.printf "\027[35mLinear result:\027[0m\n%s%!" sl;
   let result = if (String.compare sjs "Timeout\n\n" = 0) then Timeout
                else if (String.compare sjs sl = 0) then Equal else Error in
@@ -103,3 +107,4 @@ let compare_engines (raw:raw_regex) (str:string) : bool =
   | Timeout -> false
   | Equal -> true
 
+end

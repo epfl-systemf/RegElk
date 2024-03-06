@@ -7,6 +7,10 @@ open Regex
 open Random
 open Charclasses
 open Flags
+open Regs
+
+module Interpreter = Interpreter(List_Regs)
+module CMP = Tojs.Compare(Interpreter)
 
 let random_seed = ref 0
       
@@ -158,7 +162,7 @@ let fuzzer () : unit =
   for i = 0 to !max_tests do 
     let raw = random_raw() in
     let str = random_string() in
-    let comp = compare_engines raw str in
+    let comp = CMP.compare_engines raw str in
     if (not comp) then total_timeout := !total_timeout +1;
 
     let (nn,cdn,cin,lnn,ln) = plus_stats (annotate raw) in

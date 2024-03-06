@@ -1,17 +1,19 @@
+open Interpreter
 open Oracle
 open Regex
 open Bytecode
 open Compiler
 open Cdn
-open Interpreter
 open Tojs
 open Tore2
 open Toexp
 open Torust
 open Todotnet
 open Charclasses
-open Complexity_exp
 open Flags
+open Regs
+
+module Interpreter = Interpreter(List_Regs)
 
 (** * Measuring The OCaml engine execution  *)
 (* This executable is to be called directly by the benchmarks *)
@@ -57,7 +59,7 @@ let main =
   (* this shouldn't change anything for this engine *)
   (* but we do it anyway to mirror our evaluation of the V8Linear engine *)
   for i=0 to (warmups-1) do
-    ignore(matcher compiled_regex string)
+    ignore(Interpreter.matcher compiled_regex string)
   done;
 
   (* triggering garbage collector *)
@@ -66,8 +68,8 @@ let main =
   (* measuring matches *)
   let tstart = Timer.now() in
   for i = 0 to (repetitions - 1) do
-    let o = build_oracle compiled_regex string in
-    ignore(build_capture compiled_regex string o)
+    let o = Interpreter.build_oracle compiled_regex string in
+    ignore(Interpreter.build_capture compiled_regex string o)
   done;
   let time = Timer.elapsed tstart in
   

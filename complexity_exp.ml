@@ -17,6 +17,8 @@ open Unix
 open Gc
 
 let exp_dir = "exps/"
+
+module Interpreter = Interpreter(Regs.List_Regs)
    
 (** * A Benchmark Framework  *)
 (* Regexes and strings parameterized with a size *)
@@ -36,7 +38,7 @@ type benchmark =
 let get_time_ocaml (r:raw_regex) (str:string) : float =
   Gc.full_major();               (* triggering the GC *)
   let tstart = Unix.gettimeofday() in
-  ignore(get_linear_result r str);
+  ignore(Interpreter.get_linear_result r str);
   let tend = Unix.gettimeofday() in
   tend -. tstart
 
@@ -50,7 +52,7 @@ let prepare_core_benchmark (b:benchmark) =
      let matcher_fn i =
        let r = inputs.(i) in
        (* todo live update i and try with a sleep *)
-       Staged.stage (fun () -> ignore(get_linear_result r str)) in
+       Staged.stage (fun () -> ignore(Interpreter.get_linear_result r str)) in
      (inputs, matcher_fn, name)
   | _ -> failwith "TODO"
   

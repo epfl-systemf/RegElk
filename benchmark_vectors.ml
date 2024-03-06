@@ -1,4 +1,9 @@
 open Regex
+open Interpreter
+open Regs
+
+module Interpreter = Interpreter(Regs.List_Regs)
+(* change this to test other implementations *)
 
 type engine =
   | OCaml
@@ -236,7 +241,7 @@ let ds_conf =
   [{eng=OCaml; min_size=0; max_size=500}]
 
 let ds : regex_benchmark =
-  { name = Interpreter.Regs.name;
+  { name = Interpreter.regs_name();
     confs = ds_conf;
     param_regex = ds_param_reg;
     input_str = ds_str }
