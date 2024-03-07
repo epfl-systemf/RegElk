@@ -35,14 +35,14 @@ let irregexptimer = "scripts_bench/irregexptimer.js"
 let warmups = ref 10
 (* the number of times we perform each test *)
 let repetitions = ref 10
-
+ 
 
 (* calling the matcher.native executable *)
 (* returning the rdtsc measuring *)
-let get_time_ocaml (bin: string) (r:raw_regex) (str:string): string =
+let get_time_ocaml (bin: string) (r:raw_regex) (str:string) (impl:string): string =
   let regex_string = " \""^print_js r^"\" " in
   let input_string = " \""^str^"\" " in
-  let sys = bin ^ " " ^ regex_string ^ input_string ^ string_of_int !warmups ^ " " ^ string_of_int !repetitions in
+  let sys = bin ^ " " ^ regex_string ^ input_string ^ string_of_int !warmups ^ " " ^ string_of_int !repetitions ^ " " ^ impl in
   string_of_command(sys)
 
 (* modifies the parameter files that is read by the V8 D8 interpreter *)
@@ -68,14 +68,14 @@ let get_time_irregexp (r:raw_regex) (str:string): string =
 
   
 (* measures rdtsc time for each engine *)
-let get_time (e:engine) (r:raw_regex) (str:string) : string =
+let get_time (e:engine) (r:raw_regex) (str:string) (impl:string): string =
   match e with
-  | OCaml -> get_time_ocaml "./matcher.native" r str
+  | OCaml -> get_time_ocaml "./matcher.native" r str impl
   | OCamlBench -> failwith "get_time incompatible with OCamlBench engine"
   | OldV8Linear -> get_time_oldv8linear r str
   | NewV8Linear -> get_time_newv8linear r str
   | Irregexp -> get_time_irregexp r str
-  | LinearBaseline -> get_time_ocaml "./linearbaseline.native" r str
+  | LinearBaseline -> get_time_ocaml "./linearbaseline.native" r str "ListRegs"
 
 
 (* runs a regex-size benchmark on a single engine and prints the result to a csv file *)
@@ -85,7 +85,7 @@ let run_regex_config (ec:engine_conf) (param_regex:int->raw_regex) (str:string) 
   for i = ec.min_size to ec.max_size do
     Printf.printf " %s\r%!" (string_of_int i); (* live update *)
     let reg = param_regex i in
-    let time = get_time ec.eng reg str in
+    let time = get_time ec.eng reg str name in
     Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
   done;
   close_out oc;
@@ -102,7 +102,7 @@ let run_simple_config (ec:engine_conf) (param_str:int->string) (reg:raw_regex) (
   for i = ec.min_size to ec.max_size do
     Printf.printf " %s\r%!" (string_of_int i); (* live update *)
     let str = param_str i in
-    let time = get_time ec.eng reg str in
+    let time = get_time ec.eng reg str name in
     Printf.fprintf oc "%d,%s%!" i time; (* printing to the csv file *)
   done;
   close_out oc;

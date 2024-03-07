@@ -1,9 +1,5 @@
 open Regex
-open Interpreter
 open Regs
-
-module Interpreter = Interpreter(Regs.List_Regs)
-(* change this to test other implementations *)
 
 type engine =
   | OCaml
@@ -240,8 +236,20 @@ let ds_str = String.make 1000 'a'
 let ds_conf =
   [{eng=OCaml; min_size=0; max_size=500}]
 
-let ds : regex_benchmark =
-  { name = Interpreter.regs_name();
+let dsarray : regex_benchmark =
+  { name = Array_Regs.name;
+    confs = ds_conf;
+    param_regex = ds_param_reg;
+    input_str = ds_str }
+
+let dslist : regex_benchmark =
+  { name = List_Regs.name;
+    confs = ds_conf;
+    param_regex = ds_param_reg;
+    input_str = ds_str }
+
+let dstree : regex_benchmark =
+  { name = Map_Regs.name;
     confs = ds_conf;
     param_regex = ds_param_reg;
     input_str = ds_str }
@@ -251,7 +259,7 @@ let all_bench : benchmark list =
   [RB nested_nn_plus; RB nested_cdn; RB clocks;
    RB nested_lookarounds; RB nested_lookarounds2; SB nested_lookarounds_string;
    RB nested_lb; SB nested_lookbehinds_string;
-   RB ds]
+   RB dsarray; RB dslist; RB dstree]
 
 let bench_names = List.map (fun b -> bench_name b) all_bench
 let bench_names_string =
