@@ -201,14 +201,16 @@ let print_stats (s:support_stats) : string =
   "\nUnsupported Octal: " ^ string_of_int s.octal ^ 
   "\nNot WellFormed: " ^ string_of_int s.notwf ^
   "\nErrors: " ^ string_of_int s.errors ^
+
+  "\n\nNUMBERS FOR FIGURE16:" ^ 
   "\nPARSED REGEXES / TOTAL REGEXES: " ^ string_of_int s.parsed ^ " / " ^ string_of_int s.total ^
   "\nNullable Quantifiers: " ^ string_of_int s.null_quant ^
   "\nCapture Groups in Quantifiers: " ^ string_of_int s.quant_groups ^
   "\nLookarounds: " ^ string_of_int s.lookaround ^
-  "\nNonNullable, min>0 quantifiers: " ^ string_of_int s.nn ^
-  "\nNullable Greedy min>0 quantifiers (CIN&CDN): " ^ string_of_int s.null_plus ^
-  "\nNullable NonGreedy min>0 quantifiers (CIN&CDN): " ^ string_of_int s.lazy_nullplus ^
-  "\nMemoryLess Lookbehinds without groups: " ^ string_of_int s.ml_behind ^ 
+  "\nNonNullable, min>0 quantifiers (Non-nullable +): " ^ string_of_int s.nn ^
+  "\nNullable Greedy min>0 quantifiers (CIN&CDN greedy +): " ^ string_of_int s.null_plus ^
+  "\nNullable NonGreedy min>0 quantifiers (CIN&CDN lazy +?): " ^ string_of_int s.lazy_nullplus ^
+  "\nMemoryLess Lookbehinds without groups (Captureless lookbehinds): " ^ string_of_int s.ml_behind ^ 
   "\n"
     
 
