@@ -5,10 +5,7 @@ open Bytecode
 open Compiler
 open Cdn
 open Tojs
-open Tore2
 open Toexp
-open Torust
-open Todotnet
 open Charclasses
 open Flags
 open Regs

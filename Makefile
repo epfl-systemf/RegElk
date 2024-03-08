@@ -1,6 +1,6 @@
 all:main tests fuzzer stats benchmark matcher
 
-FILES = benchmark_vectors.ml timer.ml oracle.ml regex.ml bytecode.ml compiler.ml interpreter.ml tojs.ml tore2.ml toexp.ml torust.ml todotnet.ml jsmatcher.js complexity_exp.ml cdn.ml anchors.ml tests.ml charclasses.ml flags.ml
+FILES = benchmark_vectors.ml timer.ml oracle.ml regex.ml bytecode.ml compiler.ml interpreter.ml tojs.ml toexp.ml jsmatcher.js complexity_exp.ml cdn.ml anchors.ml tests.ml charclasses.ml flags.ml
 
 PARSER_SRC = parser_src/regex_lexer.mll parser_src/regex_parser.mly
 PARSER_FILES = parser/regex_lexer.ml parser/regex_parser.ml
@@ -16,7 +16,7 @@ parser_clean:
 	-rm parser/*
 
 %.native: %.ml $(FILES) $(PARSER_FILES) $(PARSER_SRC)
-	ocamlbuild -I parser -package unix -package re2 -package ocaml_intrinsics -package core_bench -package core -package core_unix.command_unix -package yojson $@
+	ocamlbuild -I parser -package unix -package ocaml_intrinsics -package core_bench -package core -package core_unix.command_unix -package yojson $@
 
 
 main: main.native
