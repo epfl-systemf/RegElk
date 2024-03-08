@@ -106,13 +106,13 @@ let expected_result_oracle_errors : (raw_regex*string) list = (* FIXED! read str
   [(Raw_lookaround(Lookbehind,raw_char('b')),"bccaaacabcbcabaacbccaccbbbaaccccaabcac");
    (Raw_lookaround(Lookbehind,raw_char('a')),"cabbcabcccacbbabcb")]
 
-let idk : (raw_regex*string) list = (* FIXED, but i don't know why *)
+let idk : (raw_regex*string) list = (* FIXED, by one of the changes above *)
   [(Raw_capture(Raw_con(Raw_con(Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_alt(Raw_alt(raw_char('b'),Raw_capture(Raw_empty)),raw_char('a')))),Raw_quant(Star,Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,raw_char('c')))))))),Raw_quant(Plus,Raw_con(raw_dot,Raw_empty)))),"babcbcaacccbbcccabacaccaaccbabcbbbabbabbbabbcbcaa")]
   
 let clear_mem : (raw_regex*string) list = (* FIXED! clear the lookaround memory in quantifiers *)
   [(Raw_quant(Star,Raw_alt(Raw_con(raw_char('a'),Raw_lookaround(Lookahead,Raw_capture(raw_char('b')))),raw_char('b'))),"abc")] 
 
-let empty_problem : (raw_regex*string) list = (* FIXED, by compiling Plus as Concatenation with Star *)
+let empty_problem : (raw_regex*string) list = (* FIXED, by compiling Plus as Concatenation with Star when needed *)
   [(Raw_con(Raw_lookaround(NegLookbehind,raw_char('b')),Raw_quant(Plus,Raw_alt(Raw_empty,Raw_capture(raw_dot)))),"bbccbacbccbcabbcbcaccccba");
    (Raw_quant(Plus,Raw_alt(Raw_empty,Raw_con(Raw_alt(raw_dot,Raw_alt(raw_dot,Raw_empty)),Raw_alt(Raw_lookaround(Lookahead,raw_char('b')),Raw_quant(LazyStar,Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_con(Raw_con(raw_dot,Raw_capture(raw_dot)),Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_quant(LazyStar,Raw_empty))))))))))))))),"bbccaaccbbbaccabccbabccababc");
    (Raw_alt(Raw_quant(Plus,Raw_alt(Raw_empty,raw_dot)),Raw_capture(Raw_alt(raw_dot,raw_char('c')))),"bbccacccabcbaaabbabbbccccccacbaabacbc")]
@@ -147,7 +147,6 @@ let linear_stuck : (raw_regex*string) list =
 
 (* bugs when I switched to linear compilation of the nullable + *)
 (* Fixed the first 2 by starting the original thread with a true for exit_allowed, otherwise it fails to take empty Plusses *)
-(* But the last one is still a bug *)
 let linear_plus : (raw_regex*string) list =
   [(Raw_alt(Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_quant(Star,Raw_empty),Raw_capture(Raw_quant(Plus,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_alt(Raw_lookaround(Lookbehind,Raw_con(raw_char('c'),raw_dot)),raw_dot))),Raw_empty))),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_empty)),Raw_quant(LazyStar,Raw_capture(Raw_capture(Raw_empty)))))))))))))))))))),Raw_capture(Raw_empty)),"bacabacbcabcaacac");
    (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
@@ -219,7 +218,7 @@ let counted_oob: (raw_regex*string) list =
    (Raw_lookaround(Lookahead,Raw_alt(Raw_count({min=1;max=Some 3;greedy=true},raw_dot),Raw_empty)),"a-abb-bbbb----bbaa--aabb-abaab---b-bab-b--ba--a--bb-babb-b");
    (Raw_count({min=4;max=Some 8;greedy=false},raw_dot),"abbb--a-ab-aa--ba--bb-aaa")]
 
-(* fixed, by copying the regisers correctly *)
+(* fixed, by copying the registers correctly *)
 let regs_mismatch: (raw_regex*string) list =
   [(Raw_alt(Raw_count({min=3;max=None;greedy=true},Raw_alt(Raw_con(Raw_empty,Raw_capture(Raw_alt(Raw_alt(Raw_quant(Star,raw_dot),raw_dot),Raw_capture(Raw_anchor(WordBoundary))))),Raw_quant(LazyStar,Raw_count({min=7;max=None;greedy=true},Raw_empty)))),Raw_count({min=8;max=Some 15;greedy=true},Raw_lookaround(Lookahead,Raw_anchor(EndInput)))),"a");
    (Raw_quant(Plus,Raw_capture(raw_char('a'))),"ab--bbb---ba-b-b--abababbaabab--b-")]
@@ -278,13 +277,34 @@ let lazy_cin: (raw_regex*string) list =
   (Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyStar,Raw_character(Dot)))),Raw_character(Char('a'))),"b-a")]
   
 (* JS is stuck (timeout), but not our engine *)
-(* I quickly stopped listing these *)
+(* I quickly stopped listing these, I found too many *)
 let redos : (raw_regex*string) list =
   [(Raw_lookaround(Lookbehind,Raw_con(Raw_lookaround(NegLookahead,raw_dot),Raw_quant(LazyPlus,Raw_capture(Raw_con(Raw_quant(Star,raw_char('a')),Raw_con(Raw_alt(Raw_empty,raw_dot),raw_dot)))))),"cbabbccccbbcccaaaaaccabccbaabaabcaaacbca");
    (Raw_con(Raw_con(Raw_lookaround(Lookahead,Raw_capture(Raw_capture(raw_dot))),Raw_capture(Raw_alt(Raw_lookaround(Lookahead,raw_dot),Raw_alt(Raw_con(Raw_capture(Raw_quant(Star,raw_char('c'))),Raw_capture(raw_char('a'))),Raw_alt(Raw_capture(Raw_quant(Plus,Raw_quant(Plus,Raw_lookaround(Lookahead,Raw_empty)))),Raw_capture(Raw_alt(Raw_alt(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_capture(Raw_alt(Raw_con(Raw_capture(raw_dot),Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(raw_char('a'),Raw_quant(LazyPlus,Raw_con(Raw_lookaround(NegLookbehind,Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_empty))),Raw_quant(Plus,Raw_alt(raw_dot,Raw_capture(Raw_capture(raw_dot))))))))),Raw_empty)))),Raw_lookaround(Lookahead,raw_char('c')))))),raw_dot),raw_dot))))))),Raw_con(Raw_alt(Raw_con(Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_con(Raw_capture(raw_char('b')),Raw_alt(Raw_empty,raw_char('c'))))),raw_dot),raw_dot),Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_empty)))),Raw_lookaround(NegLookahead,Raw_alt(Raw_alt(Raw_capture(Raw_capture(Raw_empty)),Raw_lookaround(Lookbehind,Raw_empty)),Raw_lookaround(Lookahead,Raw_empty))))),"ccaacababbbcccbbbabcbbbccaaabccacbcb");
    (Raw_capture(Raw_alt(Raw_alt(Raw_con(Raw_alt(Raw_lookaround(NegLookbehind,Raw_con(Raw_con(Raw_alt(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_empty))))))),Raw_empty),Raw_alt(raw_char('a'),Raw_capture(Raw_quant(LazyPlus,Raw_lookaround(Lookahead,Raw_con(Raw_con(Raw_capture(Raw_alt(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_capture(raw_char('a'))))),raw_char('b'))),Raw_empty),Raw_lookaround(Lookbehind,Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_lookaround(NegLookbehind,raw_dot),Raw_empty)))),Raw_quant(LazyPlus,Raw_con(raw_dot,Raw_quant(Star,Raw_alt(Raw_con(Raw_lookaround(NegLookahead,Raw_lookaround(Lookbehind,raw_char('a'))),Raw_capture(raw_dot)),Raw_capture(Raw_con(Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_empty)),Raw_capture(raw_char('c'))))))))),raw_char('b')),Raw_empty)))))))),Raw_lookaround(NegLookahead,Raw_con(Raw_capture(raw_char('a')),Raw_con(Raw_empty,Raw_lookaround(Lookahead,Raw_quant(Star,raw_char('c')))))))),Raw_alt(Raw_con(Raw_con(Raw_alt(Raw_lookaround(Lookbehind,Raw_capture(Raw_lookaround(Lookbehind,raw_dot))),Raw_con(Raw_con(Raw_capture(Raw_lookaround(NegLookbehind,raw_char('b'))),Raw_quant(LazyPlus,Raw_quant(Star,Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_capture(Raw_capture(Raw_capture(raw_dot)))),raw_dot))))),Raw_capture(Raw_capture(raw_char('c'))))),Raw_con(Raw_lookaround(NegLookahead,Raw_quant(Plus,Raw_capture(raw_char('b')))),Raw_capture(Raw_alt(Raw_con(raw_dot,Raw_quant(Star,raw_char('b'))),Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,Raw_con(Raw_lookaround(NegLookahead,Raw_quant(Plus,raw_char('c'))),raw_dot)))))))),Raw_quant(Plus,Raw_empty)),Raw_quant(Plus,Raw_empty))),Raw_lookaround(Lookahead,Raw_capture(Raw_lookaround(NegLookbehind,Raw_empty)))),raw_char('b')),raw_char('b'))),"acccbcabbacbccbccbbcbbaa");
    (Raw_con(Raw_alt(raw_char('a'),Raw_con(Raw_quant(LazyStar,Raw_capture(Raw_quant(Star,Raw_alt(raw_dot,Raw_quant(Plus,Raw_empty))))),Raw_alt(raw_char('b'),Raw_lookaround(NegLookahead,Raw_empty)))),Raw_con(Raw_lookaround(NegLookahead,Raw_capture(raw_dot)),Raw_capture(Raw_capture(Raw_capture(raw_dot))))),"cabbcaacbaccccababcbcccbababacbcccabbaaacacacbcacccaaacbbccabaabbaacbcbcacaaacabaacaaaa")]
 
+(** * Paper Examples  *)
+(* Everytime, in the paper, there is a pair of a regex and a string, we put it in this list *)
+(* we then check that on these regexes/string inputs, our Ocaml engine has the same result as Irregexp *)
+let paper_tests : (raw_regex*string) list =
+  [(Raw_con(Raw_quant(Star,raw_char('a')),raw_char('b')),"caabd"); (* (a* )b *)
+   (Raw_capture(Raw_alt(raw_char('a'),Raw_quant(Star,raw_char('a')))),"aa"); (* (a|a* ) *)
+   (Raw_con(Raw_lookaround(Lookbehind,raw_char('L')),raw_char('1')),"L1.2"); (* (?<=L)1 *)
+   (Raw_con(Raw_lookaround(Lookbehind,raw_char('L')),raw_char('1')),"v1.2"); (* (?<=L)1 *)
+   (Raw_con(Raw_lookaround(Lookbehind,Raw_con(Raw_con(Raw_con(Raw_character(Char('P')),Raw_character(Char('L'))),Raw_character(Char('D'))),Raw_character(Char('I')))),Raw_count({min=2;max=Some 4;greedy=true},Raw_character(Class([CRange(char_of_int(48),char_of_int(57))])))),"PLDI2024"); (* (?<=PLDI)[0-9]{2,4} *)
+   (Raw_con(Raw_capture(Raw_alt(Raw_character(Char('a')),Raw_character(Dot))),Raw_character(Char('b'))),"ab"); (* (a|.)b *)
+   (Raw_con(Raw_quant(Star,Raw_capture(Raw_quant(Plus,Raw_character(Char('a'))))),Raw_character(Char('b'))),"aaa"); (* (a+)*b *)
+   (Raw_lookaround(Lookahead,Raw_capture(Raw_character(Char('c')))),"c"); (* (?=(c)) *)
+   (Raw_quant(Star,Raw_capture(Raw_alt(Raw_capture(Raw_character(Char('a'))),Raw_capture(Raw_character(Char('b')))))),"ab");                     (* ((a)|(b))* *)
+   (Raw_quant(Star,Raw_con(Raw_alt(Raw_character(Char('a')),Raw_empty),Raw_alt(Raw_empty,Raw_character(Char('b'))))),"ab"); (* (?:(?:a|)(?:|b))* *)
+   (Raw_count({min=0;max=Some 7;greedy=true},Raw_con(Raw_alt(Raw_character(Char('a')),Raw_empty),Raw_alt(Raw_empty,Raw_character(Char('b'))))),"ab"); (* (?:(?:a|)(?:|b)){0,7} *)
+   (Raw_quant(Star,Raw_alt(Raw_quant(Star,Raw_alt(Raw_capture(Raw_character(Char('a'))),Raw_character(Char('b')))),Raw_character(Char('c')))),"ac"); (* (?:(?:(a)|b)*|c)* *)
+   (Raw_quant(Star,Raw_alt(Raw_quant(Star,Raw_capture(Raw_character(Char('a')))),Raw_quant(Star,Raw_alt(Raw_capture(Raw_character(Char('b'))),Raw_capture(Raw_character(Char('c'))))))),"abc"); (* (?:(a)*|(?:(b)|(c))* )* *)
+   (Raw_con(Raw_con(Raw_con(Raw_character(Char('a')),Raw_character(Char('b'))),Raw_character(Char('c'))),Raw_lookaround(Lookbehind,Raw_con(Raw_con(Raw_con(Raw_character(Char('a')),Raw_character(Char('b'))),Raw_lookaround(Lookbehind,Raw_character(Char('b')))),Raw_character(Char('c'))))),"abc"); (* abc(?<=ab(?<=b)c) *)
+   (Raw_quant(Plus,Raw_alt(Raw_empty,Raw_character(Dot))),"a"); (* (?:|.)+ *)
+   (Raw_con(Raw_quant(Star,Raw_quant(Star,Raw_character(Char('a')))),Raw_lookaround(Lookahead,Raw_character(Char('b')))),"aaaaaaaaaaaaaa") (* (?:a* )*(?=b) *)
+  ]
 
 (* re-checking a list of previous bugs *)
 let replay_bugs (l:(raw_regex*string) list) =
@@ -339,18 +359,9 @@ let tests () =
   replay_bugs(cin_clock_mismatch);
   replay_bugs(lazy_cin);
   replay_stuck(redos);
+  replay_bugs(paper_tests);
   Printf.printf "\027[32mTests passed\027[0m\n"
 
-
-(* the example I put in the written description of the algorithm *)
-(* the paper has now changed a lot, but I'm keeping this one just in case *)
-let paper_example () =
-  let lookahead_example = Raw_con(raw_char('a'),Raw_capture(raw_dot)) in
-  let left_branch_example = Raw_con(Raw_quant(Star,raw_char('a')),Raw_capture(raw_char('b'))) in
-  let right_branch_example = Raw_con(Raw_quant(Star,Raw_con(raw_char('a'),Raw_lookaround(Lookahead,lookahead_example))),Raw_capture(raw_dot)) in
-  let reg_example : raw_regex = Raw_alt(right_branch_example,left_branch_example) in
-  let str_example = "aaab" in
-  Interpreter.full_match reg_example str_example
 
 end
 
