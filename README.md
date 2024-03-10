@@ -101,7 +101,7 @@ Switch to the `strlb` directory for this algorithm, and see the corresponding `R
 - (C1) the benchmark used for Figure 17 is named "Clocks", defined line 117 of `benchmark_vectors`.
 - (C2) the benchmark used for Figure 18 is named "NNPlus", defined line 69.
 - (C3) the benchmark used for Figure 19 is named "CDN", defined line 95.
-- (C4) the benchmark used for Figure 20 is named "LBstr", defined line 191.
-- (C5) the benchmark used for Figure 21 is named "LAreg", defined line 127.
-- (C5) the benchmark used for Figure 22 is named "LAstr", defined line 169.
+- (C4) the benchmark used for Figure 20 is named "LBstr", defined line 179.
+- (C5) the benchmark used for Figure 21 is named "LAreg", defined line 138.
+- (C5) the benchmark used for Figure 22 is named "LAstr", defined line 157.
 - TODO: maybe change in LAreg?

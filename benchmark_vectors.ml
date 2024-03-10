@@ -132,24 +132,12 @@ let rec nested_look_reg = fun reg_size ->
 let nested_look_reg_str = String.make 1000 'a' ^ "b"
 
 let nested_look_conf =
-  [ {eng=OCaml; min_size=0; max_size=1000 }; ]
-    (* {eng=Irregexp; min_size=0; max_size=300 } ] *)
+  [ {eng=OCaml; min_size=0; max_size=1000 };
+    {eng=Irregexp; min_size=0; max_size=1000 } ]
 
 let nested_lookarounds : regex_benchmark =
   { name = "LAreg";
     confs = nested_look_conf;
-    param_regex = nested_look_reg;
-    input_str = nested_look_reg_str;
-  }
-
-(** * Lookarounds Regex-Size 2*)
-
-let nested_look_conf2 =
-  [ {eng=Irregexp; min_size=0; max_size=1000 } ]
-
-let nested_lookarounds2 : regex_benchmark =
-  { name = "LAreg2";
-    confs = nested_look_conf2;
     param_regex = nested_look_reg;
     input_str = nested_look_reg_str;
   }
@@ -257,7 +245,7 @@ let dstree : regex_benchmark =
 
 let all_bench : benchmark list =
   [RB nested_nn_plus; RB nested_cdn; RB clocks;
-   RB nested_lookarounds; RB nested_lookarounds2; SB nested_lookarounds_string;
+   RB nested_lookarounds; SB nested_lookarounds_string;
    RB nested_lb; SB nested_lookbehinds_string;
    RB dsarray; RB dslist; RB dstree]
 
