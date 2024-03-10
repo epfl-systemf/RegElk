@@ -1,6 +1,4 @@
-*.aux
-*.bbl
-*.blg
-*.log
-*.out
-*.pdf
+_build/
+main.native
+*.csv
+*.jpg

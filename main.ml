@@ -5,10 +5,7 @@ open Compiler
 open Interpreter
 open Linear
 open Tojs
-open Tore2
-open Toexp
 open Diff_fuzzer
-open Complexity_exp
 
 (** * Basic Testing *)
 
