@@ -165,15 +165,4 @@ let tests () =
 let main =
   (* tests() *)
   fuzzer()
-  (* run_benchmark(many_forks); *)
-  (* many_forks_re2_benchmark() *)
-
-  (* TODO: make more JSCore benchmarks *)
-  (* let open Core in
-   *   let open Core_bench in
-   *   let (array_args,matcher_fn,name) = prepare_core_benchmark quadratic_plus in
-   *   Command_unix.run (Bench.make_command [
-   *                    Bench.Test.create_indexed
-   *                      ~name
-   *                      ~args:(List.init (Array.length array_args) (fun i -> i))
-   *                      matcher_fn ]) *)
+ 
