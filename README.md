@@ -3,7 +3,7 @@ Anonymous Authors
 
 ## Dependencies
 You need the following Opam packages.
-Oher version numbers may also work.
+Other version numbers may also work.
 - Ocaml 5.0
 - ocamlbuild 0.14.1
 - Menhir 20220210
@@ -33,7 +33,7 @@ This creates several executables:
 ## Files
 
 ### OCaml Engine Files
-- the main enty point of the engine is in the `main.ml` file
+- the main entry point of the engine is in the `main.ml` file
 - regexes and regex annotation are found in `regex.ml`
 - the extended bytecode NFA representation is defined in `bytecode.ml`
 - compilation from a regex to bytecode is found in `compiler.ml`
@@ -49,17 +49,17 @@ This creates several executables:
 - the computation of statistics on regex features usage is defined in `stats.ml`
 - the `scripts_bench` directory contains scripts called by the benchmarks or the fuzzer to compare the OCaml engine to other engines.
 
-## Correspondance between the Paper and the Code
+## Correspondence between the Paper and the Code
 
 ### Renamings
 - The linear engine from V8 is called "V8Linear" in the paper. It is sometimes called "Experimental" or "Exp" in the code (as this is the name used by the V8 developers).
-- The bytecode instructions `Consume` and `ConsumeAny` fro Figure 4 are replaced by a single `Consume` instruction in `bytecode.ml`, which takes as argument either a character or a list of character ranges.
+- The bytecode instructions `Consume` and `ConsumeAny` from Figure 4 are replaced by a single `Consume` instruction in `bytecode.ml`, which takes as argument either a character or a list of character ranges.
 - The `Jump` instruction is called `Jmp` in the code.
 - `SetReg` is called `SetRegisterToCP`.
 - `SetQuant` is called `SetQuantToClock`.
 - `CheckNull` is called `CheckNullable`.
 - `SetNullPlus` in the paper is not an independent instruction in the code. Instead `SetQuantToClock` encodes both `SetQuant` and `SetNullPlus`: it takes a boolean argument indicating if this quantifier is a nulled plus or not.
-- The "Balanced Tree" register implementation in the paper is renamed to `Maps_Regs` in the code.
+- The "Balanced Tree" register implementation in the paper is renamed to `Map_Regs` in the code.
 
 ### Algorithm 1
 This is implemented by the functions `advance_epsilon` and `find_match` in `interpreter.ml`.
@@ -90,7 +90,7 @@ Switch to the `strlb` directory for this algorithm, and see the corresponding `R
 ### Section 4.6
 - The three different register data-structures are defined in `regs.ml`: `Array_Regs`, `List_Regs` and `Map_Regs`.
 - At line 28 of `interpreter.ml`, see that the interpreter is parameterized by a register implementation (a `REGS` module).
-- The benchmark used for Figure 15 is defined in `dsarray`, `dslist` and `dstree` in `benchmark_vectors.ml`.
+- The benchmark used for Figure 15 is defined as `dsarray`, `dslist` and `dstree` in `benchmark_vectors.ml`.
 
 ### Section 5.1
 - All regex corpora are in the `corpus` directory.
