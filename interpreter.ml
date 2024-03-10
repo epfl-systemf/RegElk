@@ -52,8 +52,6 @@ let cp_offset (dir:direction) : int =
 
 
 (** * Capture Registers  *)
-(* TODO: why don't we switch to a int Array? We know how much capture regs we need *)
-(* in that case we will need to make a copy of the Array for the forks, which is not constant-time *)
    
 (* each thread stores capture registers for the capture groups it has matched so far *)
 module IntMap = Map.Make(struct type t = int let compare = compare end)

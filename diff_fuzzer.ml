@@ -6,7 +6,7 @@ open Tojs
 open Regex
 open Random
 
-let _ = Random.self_init()
+let _ = Random.init(1)          (* change seed here *)
 
 
       
