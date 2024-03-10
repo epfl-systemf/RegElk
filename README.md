@@ -47,9 +47,7 @@ This creates several executables:
 ### Other Tools
 - the differential fuzzer is implemented in `fuzzer.ml`
 - the computation of statistics on regex features usage is defined in `stats.ml`
-- the files `jsmatcher.js` and `jstimer.js` are executed by node when we compare against the node backtracking implementation in the benchmarks or in the fuzzer
-- similarly `expmatcher.js` and `exptimer.js` are used to compare to the Experimental (or V8Linear) engine
-- TODO: no! this was replaced now by the scripts in the scripts_bench dir! update
+- the `scripts_bench` directory contains scripts called by the benchmarks or the fuzzer to compare the OCaml engine to other engines.
 
 ## Correspondance between the Paper and the Code
 
@@ -105,3 +103,8 @@ Switch to the `strlb` directory for this algorithm, and see the corresponding `R
 - (C4) the benchmark used for Figure 20 is named "LBstr", defined line 179.
 - (C5) the benchmark used for Figure 21 is named "LAreg", defined line 138.
 - (C5) the benchmark used for Figure 22 is named "LAstr", defined line 157.
+
+### Tests
+- For every pair of regex and string discussed in the paper, we added this test to our test suite.
+- This list is the `paper_tests` list at line 290 of `tests.ml`.
+- This test suite is executed for each of the three register implementations when running `tests.native`.

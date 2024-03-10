@@ -51,7 +51,7 @@ let string_of_command (command:string) : string =
 let get_js_result (raw:raw_regex) (str:string) : string =
   let js_regex = print_js raw in
   let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
-  let js_command = "timeout 5s node jsmatcher.js " ^ js_regex ^ " " ^ "'"^str^"'" in
+  let js_command = "timeout 5s node scripts_bench/jsmatcher.js " ^ js_regex ^ " " ^ "'"^str^"'" in
   let result = string_of_command(js_command) in
   if (String.length result = 0) then "Timeout\n\n" else result
 
@@ -59,7 +59,7 @@ let get_js_result (raw:raw_regex) (str:string) : string =
 let get_time_js (raw:raw_regex) (str:string) : string =
   let js_regex = print_js raw in
   let js_regex = "'" ^ js_regex ^ "'" in (* adding quotes to escape special characters *)
-  let js_command = "node jstimer.js " ^ js_regex ^ " " ^ "'"^str^"'" in
+  let js_command = "node scripts_bench/jstimer.js " ^ js_regex ^ " " ^ "'"^str^"'" in
   string_of_command(js_command)
   
 (** *  Comparing JS engine with our engine *)
