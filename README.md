@@ -92,6 +92,7 @@ Switch to the `strlb` directory for this algorithm, and see the corresponding `R
 ### Section 4.6
 - The three different register data-structures are defined in `regs.ml`: `Array_Regs`, `List_Regs` and `Map_Regs`.
 - At line 28 of `interpreter.ml`, see that the interpreter is parameterized by a register implementation (a `REGS` module).
+- The benchmark used for Figure 15 is defined in `dsarray`, `dslist` and `dstree` in `benchmark_vectors.ml`.
 
 ### Section 5.1
 - All regex corpora are in the `corpus` directory.
@@ -104,4 +105,3 @@ Switch to the `strlb` directory for this algorithm, and see the corresponding `R
 - (C4) the benchmark used for Figure 20 is named "LBstr", defined line 179.
 - (C5) the benchmark used for Figure 21 is named "LAreg", defined line 138.
 - (C5) the benchmark used for Figure 22 is named "LAstr", defined line 157.
-- TODO: maybe change in LAreg?
