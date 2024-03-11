@@ -4,10 +4,10 @@ all:main.native fuzzer.native tests.native
 	ocamlbuild -package unix -package core_bench -package core -package core_unix.command_unix $@
 
 clean:
-	-rm -R _build
-	-rm *.native
-	-rm *.data
+	rm -f -R _build
+	rm -f *.native
+	rm -f *.data
 
 clean_data:
-	-rm *.csv
-	-rm *.jpg
+	rm -f *.csv
+	rm -f *.jpg
