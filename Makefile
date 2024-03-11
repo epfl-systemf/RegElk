@@ -28,10 +28,10 @@ matcher: matcher.native
 benchmark: matcher linearbaseline benchmark.native
 
 clean: parser_clean
-	-rm -R _build
-	-rm *.native
-	-rm *.data
+	rm -f -R _build
+	rm -f *.native
+	rm -f *.data
 
 clean_data:
-	-rm *.csv
-	-rm *.jpg
+	rm -f *.csv
+	rm -f *.jpg
