@@ -220,13 +220,13 @@ let ds_param_reg = fun reg_size ->
 
 let ds_str = String.make 1000 'a'
 
-(* for array_regs, you can stop at ~200 or it really becomes long *)
 let ds_conf =
   [{eng=OCaml; min_size=0; max_size=500}]
 
 let dsarray : regex_benchmark =
   { name = Array_Regs.name;
-    confs = ds_conf;
+    (* for array_regs, you can stop at ~200 or it really becomes long *)
+    confs = [{ (List.hd ds_conf) with max_size=200 }];
     param_regex = ds_param_reg;
     input_str = ds_str }
 
