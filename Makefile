@@ -9,7 +9,7 @@ parser/regex_lexer.ml: parser_src/regex_lexer.mll
 	ocamllex -o parser/regex_lexer.ml parser_src/regex_lexer.mll
 
 parser/regex_parser.ml: parser_src/regex_parser.mly
-	menhir parser_src/regex_parser.mly
+	menhir parser_src/regex_parser.mly 2>/dev/null
 	mv parser_src/regex_parser.ml parser_src/regex_parser.mli parser
 
 parser_clean:
