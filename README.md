@@ -1,5 +1,55 @@
 # OCaml Linear Engine for JS Regexes
-Anonymous Authors
+Authors: [Aurèle Barrière](https://aurele-barriere.github.io/) and [Clément Pit-Claudel](https://pit-claudel.fr/clement/).
+
+
+## About
+This is a linear regular expression engine for a subset of JavaScript regexes.
+The underlying algorithm is an extension of the [PikeVM](https://swtch.com/~rsc/regexp/regexp2.html), supporting more JavaScript features.
+This engine implements the algorithms described in the paper [Linear Matching of JavaScript Regular Expressions](https://arxiv.org/abs/2311.17620) by the same authors.
+
+In particular, it supports, for the first time with linear time and space complexity:
+- nullable JavaScript quantifiers (these have different semantics than in other regex languages, see for instance `(a?b??)*` on string "ab")
+- capture reset, a JavaScript-specific property where capture groups are reset at each quantifier iteration (for instance `((a)|(b))*` on string "ab")
+- all lookarounds (lookahads and lookbehinds), even with capture groups inside
+- linear matching of the greedy or nullable plus.
+
+## Complexity
+
+Given a regex of size `|r|` and a string of size `|s|`, this engine has linear worst-case time complexity in both of them `O(|r|*|s|)`.
+While counted quantifiers are supported, they increase the regex size.
+For instance, `e{4-8}` will multiply the size of `e` 8 times.
+However, the greedy plus (`+` or `{1,}`) or the nonnullable lazy plus (as in `(ab)+?`) are handled without duplication.
+
+The engine also has `O(|r|*|s|)` space complexity.
+If one wants to avoid a string-size dependent space complexity, we provide alternative register data-structures, presenting various time-space complexity tradeoff.
+
+|                | Time Complexity             | Space Complexity |
+|----------------|-----------------------------|------------------|
+| List (default) | `O(|r|*|s|)`                | `O(|r|*|s|)`     |
+| Array          | `O(|r|^2*|s|)`              | `O(|r|^2)`       |
+| Tree           | `O(|r|*log(|r|)*|s|)`       | `O(|r|^2)`       |
+
+Note however that a `O(|r|*|s|)` space complexity cannot be avoided when using our linear lookaround algorithm.
+
+## Supported Features
+
+| Feature                       | Example                                   |
+|-------------------------------|-------------------------------------------|
+| Lookahead                     | `a(?=(b))`, `a(?!=b)`                     |
+| Lookbehind                    | `(?<=b)a`, `(?<!b)a`                      |
+| Capture Groups                | `(a*)b`                                   |
+| Noncapturing Groups           | `(?:a*)b`                                 |
+| Greedy Quantifiers            | `*`, `+`, `?`                             |
+| Lazy Quantifiers              | `*?`, `+?`, `??`                          |
+| Counted Quantifiers           | `a{6,12}`, `a{7,}`, `a{9}`, `a{4,5}?`     |
+| Character Class               | `[a-z]`, `[^h]`, `[aeiouy]`               |
+| Character Groups              | `\w`, `\d`, `\s`, `\W`, `\D`, `\S`        |
+| Anchors                       | `$`, `^`                                  |
+| Word Boundaries               | `\b`, `\B`                                |
+
+Backreferences are not supported, as they make the matching problem [NP-hard](https://perl.plover.com/NPC/NPC-3SAT.html).
+Named capture groups, hexadecimal escapes, unicode escapes, unicode properties and regex flags are  ot supported yet, although they could be in the future.
+
 
 ## Dependencies
 You need the following Opam packages.
