@@ -35,20 +35,20 @@ Note however that a `O(|r|*|s|)` space complexity cannot be avoided when using o
 
 | Feature                       | Example                                   |
 |-------------------------------|-------------------------------------------|
-| Lookahead                     | `a(?=(b))`, `a(?!=b)`                     |
-| Lookbehind                    | `(?<=b)a`, `(?<!b)a`                      |
+| Lookaheads                    | `a(?=(b))`, `a(?!=b)`                     |
+| Lookbehinds                   | `(?<=b)a`, `(?<!b)a`                      |
 | Capture Groups                | `(a*)b`                                   |
 | Noncapturing Groups           | `(?:a*)b`                                 |
 | Greedy Quantifiers            | `*`, `+`, `?`                             |
 | Lazy Quantifiers              | `*?`, `+?`, `??`                          |
 | Counted Quantifiers           | `a{6,12}`, `a{7,}`, `a{9}`, `a{4,5}?`     |
-| Character Class               | `[a-z]`, `[^h]`, `[aeiouy]`               |
+| Character Classes             | `[a-z]`, `[^h]`, `[aeiouy]`               |
 | Character Groups              | `\w`, `\d`, `\s`, `\W`, `\D`, `\S`        |
 | Anchors                       | `$`, `^`                                  |
 | Word Boundaries               | `\b`, `\B`                                |
 
 Backreferences are not supported, as they make the matching problem [NP-hard](https://perl.plover.com/NPC/NPC-3SAT.html).
-Named capture groups, hexadecimal escapes, unicode escapes, unicode properties and regex flags are  ot supported yet, although they could be in the future.
+Named capture groups, hexadecimal escapes, unicode escapes, unicode properties and regex flags are not supported yet, although they could be in the future.
 
 
 ## Dependencies
