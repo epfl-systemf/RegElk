@@ -13,7 +13,7 @@ parser/regex_parser.ml: parser_src/regex_parser.mly
 	mv parser_src/regex_parser.ml parser_src/regex_parser.mli parser
 
 parser_clean:
-	-rm parser/*
+	rm -f parser/*
 
 %.native: %.ml $(FILES) $(PARSER_FILES) $(PARSER_SRC)
 	ocamlbuild -I parser -package unix -package ocaml_intrinsics -package core_bench -package core -package core_unix.command_unix -package yojson $@
@@ -28,10 +28,10 @@ matcher: matcher.native
 benchmark: matcher linearbaseline benchmark.native
 
 clean: parser_clean
-	-rm -R _build
-	-rm *.native
-	-rm *.data
+	rm -f -R _build
+	rm -f *.native
+	rm -f *.data
 
 clean_data:
-	-rm *.csv
-	-rm *.jpg
+	rm -f *.csv
+	rm -f *.jpg
