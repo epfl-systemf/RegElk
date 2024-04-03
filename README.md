@@ -25,9 +25,9 @@ If one wants to avoid a string-size dependent space complexity, we provide alter
 
 |                | Time Complexity             | Space Complexity |
 |----------------|-----------------------------|------------------|
-| List (default) | `O(|r|*|s|)`                | `O(|r|*|s|)`     |
-| Array          | `O(|r|^2*|s|)`              | `O(|r|^2)`       |
-| Tree           | `O(|r|*log(|r|)*|s|)`       | `O(|r|^2)`       |
+| List (default) | `O(\|r\|*\|s\|)`            | `O(\|r\|*\|s\|)` |
+| Array          | `O(\|r\|^2*\|s\|)`          | `O(\|r\|^2)`     |
+| Tree           | `O(\|r\|*log(\|r\|)*\|s\|)` | `O(\|r\|^2)`     |
 
 Note however that a `O(|r|*|s|)` space complexity cannot be avoided when using our linear lookaround algorithm.
 
