@@ -1,7 +1,7 @@
 # OCaml linear engine supporting streaming lookbehinds
-Anonymous Authors
+Authors: [Aurèle Barrière](https://aurele-barriere.github.io/) and [Clément Pit-Claudel](https://pit-claudel.fr/clement/).
 
-This is a modified version of the main engine (from the `allf`) directory.
+This is a modified version of the main engine in the `main` branch.
 This one does not support all of the features of the main engine (for instance lookaheads), but it supports captureless lookbehinds in a streaming way, as seen on Section 4.4 of the paper.
 
 ## Dependencies
