@@ -1,6 +1,5 @@
-# OCaml Linear Engine for JS Regexes
+# RegElk - OCaml Linear Engine for JavaScript Regexes
 Authors: [Aurèle Barrière](https://aurele-barriere.github.io/) and [Clément Pit-Claudel](https://pit-claudel.fr/clement/).
-
 
 ## About
 This is a linear regular expression engine for a subset of JavaScript regexes.
@@ -12,6 +11,9 @@ In particular, it supports, for the first time with linear time and space comple
 - capture reset, a JavaScript-specific property where capture groups are reset at each quantifier iteration (for instance `((a)|(b))*` on string "ab")
 - all lookarounds (lookahads and lookbehinds), even with capture groups inside
 - linear matching of the greedy or nullable plus.
+
+RegElk means **Reg**ex **E**ngine with **L**inear loo**K**arounds. 
+Elks are [diagonal walkers](https://ecowellness.com/animal-tracking-part-2-common-gait-patterns/), meaning that they reuse their front legs prints for their rear legs to conserve energy, evoking how a PikeVM merges threads reaching the same state to preserve linearity.
 
 ## Complexity
 
