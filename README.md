@@ -15,7 +15,7 @@ In particular, it supports, for the first time with linear time and space comple
 RegElk means **Reg**ex **E**ngine with **L**inear loo**K**arounds. 
 Elks are [diagonal walkers](https://ecowellness.com/animal-tracking-part-2-common-gait-patterns/), meaning that they reuse their front legs prints for their rear legs to conserve energy, evoking how a PikeVM merges threads reaching the same state to preserve linearity.
 
-![RegElk](etc/regelk_logo.png)
+![RegElk](etc/regelk_logo.jpg)
 
 ## Complexity
 
