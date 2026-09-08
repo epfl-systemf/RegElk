@@ -106,52 +106,24 @@ type node = {
   half_node : half_node option;                      (* only meaningful when not a leaf *)
   mutable start_pos : int;
   mutable parent : node option;
-  mutable left : node option;
-  mutable right : node option;
+  mutable children : node list;                      (* (?:ab?)*  on "ab" *)
 }
 
-type slot = Left | Right
-
-let holds (s : node option) (n : node) : bool =
-  match s with Some c -> c == n | None -> false
-
-let get_slot (p : node) (side : slot) : node option =
-  match side with Left -> p.left | Right -> p.right
-
-let set_slot (p : node) (side : slot) (v : node option) : unit =
-  match side with Left -> p.left <- v | Right -> p.right <- v
-
-let side_of (node : node) : (node * slot) option =
-  match node.parent with
-  | None -> None
-  | Some parent ->
-      if holds parent.left node then Some (parent, Left)
-      else if holds parent.right node then Some (parent, Right)
-      else failwith "Corrupt tree: node is not a child of its parent"
-
 let detach (node : node) : unit =
-  match side_of node with
+  match node.parent with
   | None -> ()
-  | Some (parent, side) ->
-      set_slot parent side None;
+  | Some parent ->
+      parent.children <- List.filter (fun c -> c != node) parent.children;
       node.parent <- None
 
 let replace ~(old_node : node) ~(new_node : node) : unit =
-  match side_of new_node with
+  match new_node.parent with
   | None -> failwith "replace: node is a root"
-  | Some (parent, side) ->
+  | Some parent ->
       detach old_node;
-      set_slot parent side (Some old_node);
+      parent.children <- old_node :: List.filter (fun c -> c != new_node) parent.children;
       new_node.parent <- None;
       old_node.parent <- Some parent
-
-let attach ~(child : node) ~(parent : node) (side : slot) : unit =
-  detach child;
-  (match get_slot parent side with
-   | Some old_child -> detach old_child
-   | None -> ());
-  set_slot parent side (Some child);
-  child.parent <- Some parent
 
 let compare_history (new_node : node) (old_node : node) : bool =
   let new_parent = (Option.get new_node.parent) in
@@ -172,13 +144,7 @@ let g_gap  = "    "
 let print_forest ?(oc = stdout)
     (roots : node list) : unit =
   let label n = Printf.sprintf "id=%d,start=%d" (match n.half_node with |None -> -1 |Some node -> node.id) n.start_pos in
-  let children n =
-    match n.left, n.right with
-    | Some l, Some r -> [ ("", l); ("", r) ]
-    | Some l, None   -> [ ("L ", l) ]
-    | None,   Some r -> [ ("R ", r) ]
-    | None,   None   -> []
-  in
+  let children n = List.map (fun c -> ("", c)) n.children in
   let rec render ~prefix ~branch ~cont n =
     Printf.fprintf oc "%s%s%s\n" prefix branch (label n);
     let kids = children n in
@@ -221,7 +187,7 @@ type thread =
   }
 
 let init_thread (half_node:half_node option) (initcap:Regs.regs) (initlook:Regs.regs) (initquant:Regs.regs) (start_pos:int): thread =
-  let history_node = { start_pos = start_pos; half_node = None; parent = None; left = None; right = None } in
+  let history_node = { start_pos = start_pos; half_node = None; parent = None; children = [] } in
   { half_node=half_node; pc = 0; history_node = history_node; capture_regs = initcap; look_regs = initlook; quant_regs = initquant; exit_allowed = true }
 
 
@@ -232,9 +198,7 @@ let rec set_start_pos (nodes: node list) :unit =
   | [] -> ()
   | n :: ns ->
     if n.start_pos = -1 then n.start_pos <- (Option.get n.parent).start_pos;
-    let ns = match n.right with Some r -> r :: ns | None -> ns in
-    let ns = match n.left  with Some l -> l :: ns | None -> ns in
-    set_start_pos ns
+    set_start_pos (n.children @ ns)
 (** * PC Sets  *)
 
 (* for each PC of the bytecode, we want to track if, in a step of the interpreter, this PC has already been processed *)
@@ -476,11 +440,8 @@ let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs
   [cap_regs]
 
 let add_new_node (t :thread): unit =
-  let new_node = { start_pos = -1; half_node = t.half_node; parent = Some t.history_node; left = None; right = None } in
-  if t.history_node.left  = None then
-    t.history_node.left <- Some new_node
-  else
-    t.history_node.right <- Some new_node;
+  let new_node = { start_pos = -1; half_node = t.half_node; parent = Some t.history_node; children = [] } in
+  t.history_node.children <- new_node :: t.history_node.children;
   t.history_node <- new_node
 
 let add_children (t:thread) (active:thread list) : thread list =
@@ -729,7 +690,7 @@ let rec find_match (c:code) (half_node:half_node option) (graph_size:int) (main_
     end;
   (* checking if there are still surviving threads *)
   match s.blocked, s.context.nextchar with
-  | [], _ -> s.bestmatch        (* no more surviving threads *)
+  | [], _ when not findall -> s.bestmatch        (* (?:)  on "ab" *)
   | _, None -> s.bestmatch      (* we reached the end of the string *)
   | _, _ ->
      (* advancing blocked threads *)

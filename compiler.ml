@@ -217,8 +217,13 @@ and compile_to_graph (r:regex) (start_node: full_node) (ctype:comp_type) (connec
      let end_node = compile_to_graph r1 start_node ctype connect in
      compile_to_graph r2 end_node ctype connect
   | Re_alt (r1, r2) ->
-     let end_node1 = compile_to_graph r1 start_node ctype connect in
-     let end_node2 = compile_to_graph r2 start_node ctype connect in
+     (* (?:)|a  on "a" *)
+     let branch1 = create_empty_node () in
+     let branch2 = create_empty_node () in
+     connect start_node branch1;
+     connect start_node branch2;
+     let end_node1 = compile_to_graph r1 branch1 ctype connect in
+     let end_node2 = compile_to_graph r2 branch2 ctype connect in
      let final_node = create_empty_node () in
      connect end_node1 final_node;
      connect end_node2 final_node;
