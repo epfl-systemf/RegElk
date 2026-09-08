@@ -1,0 +1,14 @@
+(include_subdirs unqualified)
+
+(env
+ (_
+  (flags
+   (:standard -warn-error -a))))
+
+(executables
+ (names main tests fuzzer stats linearbaseline matcher benchmark)
+ (modes byte exe)
+ (libraries
+  unix
+  ocaml_intrinsics
+  yojson))

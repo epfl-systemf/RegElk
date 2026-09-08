@@ -9,21 +9,22 @@ open Bytecode
 open Compiler
 open Interpreter
 open Flags
-
+open Oracle
+open Anchors
 
 (** * The Find-All Algorithms  *)
 
 type algo =
   | Naive
-  | NimReg
+  | Clemele
 
-let all_algos : algo list = [Naive; NimReg]
+let all_algos : algo list = [Naive; Clemele]
 let default_algo : algo = Naive
 
 let string_of_algo (a:algo) : string =
   match a with
   | Naive -> "naive"
-  | NimReg -> "nimreg"
+  | Clemele -> "clemele"
 
 let algo_names : (string * algo) list =
   List.map (fun a -> (string_of_algo a, a)) all_algos
@@ -57,8 +58,8 @@ module FindAll (I:INTERP) : FINDALL = struct
         if !debug then
           Printf.printf "\027[35mFindall:\027[0m searching from %d in %S\n%!" idx remaining;
         match I.matcher cr remaining with
-        | None -> List.rev acc      (* no match left in the suffix: we are done *)
-        | Some regs ->
+        | [] -> List.rev acc      (* no match left in the suffix: we are done *)
+        | regs :: _ ->
            let regs = shift_regs idx regs in
            begin match match_bounds regs with
            | None -> List.rev acc
@@ -72,9 +73,10 @@ module FindAll (I:INTERP) : FINDALL = struct
     loop 0 []
 
 
-  (** ** NimReg: TODO  *)
-  let find_all_nimreg (_cr:compiled_regex) (_str:string) : match_result list =
-    failwith "findall: algorithm 'nimreg' is not implemented yet"
+  let find_all_clemele (cr:compiled_regex) (str:string) : match_result list =
+    let o = I.build_oracle cr str in
+    let ca = I.build_capture cr str o in
+    ca
 
   let find_all (a:algo) (raw:raw_regex) (str:string) : match_result list =
     if !verbose then
@@ -82,7 +84,7 @@ module FindAll (I:INTERP) : FINDALL = struct
     let cr = full_compilation (annotate raw) in
     match a with
     | Naive -> find_all_naive cr str
-    | NimReg -> find_all_nimreg cr str
+    | Clemele -> find_all_clemele cr str
 
   let get_all_result (a:algo) (raw:raw_regex) (str:string) : string =
     match find_all a raw str with
@@ -98,7 +100,7 @@ module FindAll (I:INTERP) : FINDALL = struct
            let position =
              match match_bounds c with
              | Some (mstart, mend) -> Printf.sprintf " [%d,%d]" mstart mend
-             | None -> ""
+             | None -> failwith "false match report"
            in
            Buffer.add_string b (Printf.sprintf "\nMatch %d%s:\n" (i+1) position);
            Buffer.add_string b (I.print_cap_regs c max_groups str))

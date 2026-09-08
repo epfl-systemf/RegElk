@@ -20,9 +20,9 @@ module type INTERP = sig
   val get_op : int array -> int -> int option
   val print_cap_regs : int Array.t -> int -> string -> string
   val build_oracle : compiled_regex -> string -> oracle
-  val build_capture : compiled_regex -> string -> oracle -> (int Array.t) option
-  val matcher : compiled_regex -> string -> (int Array.t) option
-  val full_match : raw_regex -> string -> (int Array.t) option
+  val build_capture : compiled_regex -> string -> oracle -> (int Array.t) list
+  val matcher : compiled_regex -> string -> (int Array.t) list
+  val full_match : raw_regex -> string -> (int Array.t) list
   val get_linear_result : raw_regex -> string -> string
 end
 (* I might move the last two functions out of this signature *)
@@ -80,10 +80,10 @@ let cp_offset (dir:direction) : int =
 (** * Capture Registers  *)
 
 (* just printing the contents of an Array for debugging purposes *)
-let debug_regs (regs:int Array.t) : string =
+let debug_regs (regs:(int Array.t) list) : string =
       let s = ref "" in
-      for c = 0 to (Array.length regs)-1 do
-        s := !s ^ string_of_int c ^ ": " ^ string_of_int (regs.(c)) ^ " | "
+      for c = 0 to (Array.length (List.hd regs))-1 do
+        s := !s ^ string_of_int c ^ ": " ^ string_of_int ((List.hd regs).(c)) ^ " | "
       done;
       !s
 
@@ -269,13 +269,12 @@ let print_cap_regs (c:int Array.t) (max_groups:int) (str:string) : string =
   done;
   !s
 
-let print_cap_option (c:(int Array.t) option) (max_groups:int) (str:string) : string =
+let print_cap_option (c:(int Array.t) list) (max_groups:int) (str:string) : string =
   match c with
-  | None -> "NoMatch\n"
-  | Some ca -> print_cap_regs ca max_groups str
+  | [] -> "NoMatch\n"
+  | ca :: _ -> print_cap_regs ca max_groups str
 
-
-let print_result (r:regex) (str:string) (c:(int Array.t) option) : string =
+let print_result (r:regex) (str:string) (c:(int Array.t) list) : string =
   let s = ref "" in
   if !verbose then
     s := !s ^ ("Result of matching " ^ print_regex r ^ " on string " ^ str ^ " : \n");
@@ -335,12 +334,12 @@ and filter_all (r:regex) (regs:int Array.t) : unit = (* clearing all capture gro
   | Re_lookaround (lid, l, r1) -> filter_all r1 regs
 
 (* we transform the registers to an Array with constant-time access and insertion when filtering *)
-let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (maxclock:int) : int Array.t =
+let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (maxclock:int) : int Array.t list =
   let (cap_regs, cap_clocks) = Regs.to_arrays capture in
   let (_, look_clocks) = Regs.to_arrays look in
   let (_, quant_clocks) = Regs.to_arrays quant in
   filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
-  cap_regs
+  [cap_regs]
 
 
 (** * Interpreter  *)
@@ -679,7 +678,7 @@ let build_oracle (cr:compiled_regex) (str:string): oracle =
 
 (* returns the register array if there is a match *)
 (* also filters the return value for capture reset *)
-let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) option =
+let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) list =
   let max_look = max_lookaround cr.main_ast in
   let max_cap = max_group cr.main_ast in
   let max_quant = max_quant cr.main_ast in
@@ -692,7 +691,7 @@ let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) opt
   let main_result =
     find_match_plus main_bytecode cr.main_ast cr.plus_bc str o Forward 0 capture look quant 0 main_cdn in
   match main_result with
-  | None -> None
+  | None -> []
   | Some thread ->
      (* we have a match and want to rebuild capture groups in lookarounds*)
      let capture = ref thread.capture_regs in
@@ -723,20 +722,20 @@ let build_capture (cr:compiled_regex) (str:string) (o:oracle): (int Array.t) opt
          Printf.printf "regs: %s\n%!" (Regs.to_string !capture);
          let (prefilter,preclocks) = Regs.to_arrays(!capture) in
          let (_,quantclocks) = Regs.to_arrays(!quant) in
-         Printf.printf "pre-filtering regs: %s\n%!" (debug_regs prefilter);
-         Printf.printf "pre-filtering clocks: %s\n%!" (debug_regs preclocks);
-         Printf.printf "pre-filtering quant clocks: %s\n%!" (debug_regs quantclocks);
+         Printf.printf "pre-filtering regs: %s\n%!" (debug_regs [prefilter]);
+         Printf.printf "pre-filtering clocks: %s\n%!" (debug_regs [preclocks]);
+         Printf.printf "pre-filtering quant clocks: %s\n%!" (debug_regs [quantclocks]);
        end;
      let match_capture = filter_reset cr.main_ast !capture !look !quant (-1) in (* filtering old values *)
      if !debug then Printf.printf "filtered regs: %s\n%!" (debug_regs match_capture);
-     Some (match_capture)
+     match_capture
 
 
 
 (** * The Full matcher  *)
 (* builds the oracle, then matches the main expression and rebuilds missing capture groups, and filters *)
 
-let matcher (cr:compiled_regex) (str:string) : (int Array.t) option =
+let matcher (cr:compiled_regex) (str:string) : (int Array.t) list =
   let o = build_oracle cr str in
   if !debug then
     Printf.printf "%s\n" (print_oracle o);
@@ -745,7 +744,7 @@ let matcher (cr:compiled_regex) (str:string) : (int Array.t) option =
     Printf.printf "%s\n" (print_result cr.main_ast str ca);
   ca
 
-let full_match (raw:raw_regex) (str:string) : (int Array.t) option =
+let full_match (raw:raw_regex) (str:string) : (int Array.t) list =
   let re = annotate raw in
   let cr = full_compilation re in
   matcher cr str
