@@ -343,6 +343,7 @@ let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs
       filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
       (Array.copy cap_regs)::acc
     end
+    (* should also handle the case of the last null r match here:*)
     else if cap_regs.(0) <> -1 then begin
       filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
       loop ((Array.copy cap_regs)::acc)
