@@ -81,10 +81,14 @@ module FindAll (I:INTERP) : FINDALL = struct
   let find_all (a:algo) (raw:raw_regex) (str:string) : match_result list =
     if !verbose then
       Printf.printf "\027[33mFind-all algorithm:\027[0m %s\n" (string_of_algo a);
-    let cr = full_compilation (annotate raw) in
+    
     match a with
-    | Naive -> find_all_naive cr str
-    | Clemele -> find_all_clemele cr str
+    | Naive ->
+      let cr = full_compilation (annotate raw) false in
+      find_all_naive cr str
+    | Clemele -> 
+      let cr = full_compilation (annotate_to_clemele raw) true in
+      find_all_clemele cr str
 
   let get_all_result (a:algo) (raw:raw_regex) (str:string) : string =
     match find_all a raw str with

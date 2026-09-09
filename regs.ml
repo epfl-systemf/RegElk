@@ -143,15 +143,18 @@ module List_Regs =
     let to_arrays (regs:regs) : int Array.t * int Array.t =
       let a_cp = Array.make regs.size (-1) in
       let a_clk = Array.make regs.size (-1) in
-      let rec fill_array (l:(int*int*int) list) : unit =
+      let rec fill_array (l:(int*int*int) list) : (int*int*int) list =
         match l with
-        | [] -> ()
+        | [] -> []
         | (k,cp,clk)::l' ->
            (* only setting reg values that haven't been set yet *)
            if (a_cp.(k) = -1) then a_cp.(k) <- cp;
            if (a_clk.(k) = -1) then a_clk.(k) <- clk;
-           fill_array l' in
-      fill_array regs.setlist;
+
+           if k==0 then l'
+           else fill_array l' in
+
+      regs.setlist <- fill_array regs.setlist;
       (a_cp, a_clk)
 
     let to_string (regs:regs) : string =

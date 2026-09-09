@@ -74,7 +74,7 @@ let main =
   (* annotating the regex *)
   let annotated_regex = annotate parsed_regex in
   (* compiling the regex *)
-  let compiled_regex = full_compilation annotated_regex in
+  let compiled_regex = full_compilation annotated_regex false in
 
   (* Warmup *)
   (* this shouldn't change anything for this engine *)

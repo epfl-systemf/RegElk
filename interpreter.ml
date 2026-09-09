@@ -335,11 +335,22 @@ and filter_all (r:regex) (regs:int Array.t) : unit = (* clearing all capture gro
 
 (* we transform the registers to an Array with constant-time access and insertion when filtering *)
 let filter_reset (r:regex) (capture:Regs.regs) (look:Regs.regs) (quant:Regs.regs) (maxclock:int) : int Array.t list =
-  let (cap_regs, cap_clocks) = Regs.to_arrays capture in
-  let (_, look_clocks) = Regs.to_arrays look in
-  let (_, quant_clocks) = Regs.to_arrays quant in
-  filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
-  [cap_regs]
+  let rec loop acc  =
+    let (cap_regs, cap_clocks) = Regs.to_arrays capture in
+    let (_, look_clocks) = Regs.to_arrays look in
+    let (_, quant_clocks) = Regs.to_arrays quant in
+    if Regs.name <> "ListRegs" then begin
+      filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
+      (Array.copy cap_regs)::acc
+    end
+    else if cap_regs.(0) <> -1 then begin
+      filter_capture r cap_regs cap_clocks look_clocks quant_clocks maxclock;
+      loop ((Array.copy cap_regs)::acc)
+    end
+    else
+      acc
+  in
+  loop []
 
 
 (** * Interpreter  *)
@@ -746,7 +757,7 @@ let matcher (cr:compiled_regex) (str:string) : (int Array.t) list =
 
 let full_match (raw:raw_regex) (str:string) : (int Array.t) list =
   let re = annotate raw in
-  let cr = full_compilation re in
+  let cr = full_compilation re false in
   matcher cr str
 
 let get_linear_result (raw:raw_regex) (str:string) : string =

@@ -300,6 +300,22 @@ let lazy_prefix (r:regex) : regex =
   Re_con (Re_quant (NonNullable, 0,{min=0;max=None;greedy=false}, Re_character Dot), r)
 (* TODO: if there is a BeginInput at the beginning of the regex, we could remove the lazy star *)
 
+    (* | Re_quant of nullability * quantid * counted_quantifier * regex
+  | Re_capture of capture * regex
+  | Re_lookaround of lookid * lookaround * regex *)
+let annotate_to_clemele (ra:raw_regex) : regex =
+  (* [^]*? (?: (r) [^]*? )* (?![^]) (?:(r)|) *)
+  let (r1, c1, l1, q1)  = annotate_regex ra 2 1 3 in
+  let (r2, _, _, _)  = annotate_regex ra c1 l1 q1 in
+  let lazy_part1 = Re_quant(NonNullable, 0, {min=0;max=None;greedy=false}, Re_character (NegClass [])) in
+  let lazy_part2 = Re_quant(NonNullable, 1, {min=0;max=None;greedy=false}, Re_character (NegClass [])) in
+
+  let iteration_part = Re_quant(NonNullable, 2, {min=0;max=None;greedy=true}, Re_con (Re_capture (0, r1),lazy_part2) ) in
+  let terminating_part = Re_con(Re_lookaround(0,NegLookahead, Re_character (NegClass [])),
+                                Re_alt(Re_capture(1,r2), Re_empty)) in
+  
+  Re_con(lazy_part1, Re_con(iteration_part,terminating_part))
+
 (** * Regex Manipulation  *)
 
 (* Reversing a regex when we want to execute it backward *)

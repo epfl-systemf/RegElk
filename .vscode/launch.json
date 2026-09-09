@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "OCaml earlybird",
+      "name": "OCaml Clemele",
       "type": "ocaml.earlybird",
       "request": "launch",
       "program": "${workspaceFolder}/_build/default/main.bc",

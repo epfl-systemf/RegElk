@@ -69,7 +69,7 @@ let interpreter_tests () =
 let build_oracle_tests () =
   let raw = Raw_con(Raw_con (Raw_lookaround (Lookahead, raw_char 'a'), Raw_lookaround (Lookbehind, Raw_con (raw_char 'a',raw_char 'b'))), Raw_lookaround(Lookbehind, Raw_empty)) in
   let re = annotate raw in
-  let cr = full_compilation re in
+  let cr = full_compilation re false in
   let str = "aaab" in
   Printf.printf "%s\n" (print_regex re);
   let o = Interpreter.build_oracle cr str in

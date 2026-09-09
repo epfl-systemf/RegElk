@@ -266,7 +266,7 @@ let rec compile_extra_bytecode (r:regex) (c:compiled_regex): unit =
      c.look_capture_bc.(lid) <- capture_code;
      compile_extra_bytecode body c
 
-let full_compilation (r:regex) : compiled_regex =
+let full_compilation (r:regex) (clemele: bool) : compiled_regex =
   let maxlook = max_lookaround r in
   let maxquant = max_quant r in
   let empty_code : code = Array.of_list [] in
@@ -276,8 +276,11 @@ let full_compilation (r:regex) : compiled_regex =
   let build_look = Array.make (maxlook+1) empty_code in
   let capture_look = Array.make (maxlook+1) empty_code in
   let plus_code = Array.make (maxquant+1) empty_code in
-  let main_code = compile_to_bytecode (lazy_prefix r) in
+  let main_code = match clemele with
+                    | true -> compile_to_bytecode r
+                    | false-> compile_to_bytecode (lazy_prefix r) in
   let main_cdns = compile_cdns r in
+  (* Printf.printf "%s" (print_code main_code); *)
   let compiled = {
       main_ast = r; main_bc = main_code; main_cdns = main_cdns;
       look_types = looktypes; look_cdns = lookcdns; look_ast = lookast;
