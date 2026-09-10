@@ -109,7 +109,7 @@ type thread =
   }
 
 let init_thread (initcap:Regs.regs) (initlook:Regs.regs) (initquant:Regs.regs): thread =
-  { pc = 0; capture_regs = initcap; look_regs = initlook; quant_regs = initquant; exit_allowed = false }
+  { pc = 0; capture_regs = initcap; look_regs = initlook; quant_regs = initquant; exit_allowed = true }
 
 (** * PC Sets  *)
 

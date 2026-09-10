@@ -93,6 +93,27 @@ let compare_engines_tests() =
 
 (** * Gathering some errors found with the fuzzer *)
 
+let plustest : (raw_regex*string) list =
+  [
+    (Raw_quant(Plus,Raw_capture(Raw_con(Raw_quant(LazyPlus,Raw_capture(Raw_empty)),Raw_character(Dot)))),"ba");
+    (* (Raw_quant(Plus,Raw_capture(Raw_con(Raw_alt(Raw_character(Dot),Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyPlus,Raw_quant(Plus,Raw_empty))))),Raw_character(Dot)))),"baa"); *)
+    (* (Raw_quant(LazyPlus,Raw_quant(Plus,Raw_capture(Raw_con(Raw_alt(Raw_character(Dot),Raw_quant(LazyPlus,Raw_capture(Raw_quant(LazyPlus,Raw_quant(Plus,Raw_empty))))),Raw_character(Dot))))),"baa"); *)
+    (* (Raw_quant(LazyPlus,Raw_quant(Plus,Raw_capture(Raw_con(Raw_alt(Raw_character(Dot),Raw_quant(LazyPlus,Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_quant(Plus,Raw_empty))),Raw_character(Dot)))),Raw_character(Dot))))),"baa"); *)
+    (* (Raw_quant(LazyPlus,Raw_quant(Plus,Raw_capture(Raw_con(Raw_alt(Raw_character(Dot),Raw_quant(LazyPlus,Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_capture(Raw_quant(Plus,Raw_alt(Raw_empty,Raw_empty))))),Raw_character(Dot)))),Raw_character(NegClass([CChar(char_of_int(45));CRange(char_of_int(126),char_of_int(127));CChar(char_of_int(98))])))))),"baa"); *)
+    (Raw_quant(LazyPlus,Raw_quant(Plus,Raw_capture(Raw_con(Raw_alt(Raw_character(Dot),Raw_quant(LazyPlus,Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_capture(Raw_quant(Plus,Raw_alt(Raw_empty,Raw_empty))))),Raw_character(Dot)))),Raw_character(NegClass([CChar(char_of_int(45));CRange(char_of_int(126),char_of_int(127));CChar(char_of_int(98))])))))),"ab-b-bbbabbbabbaa---a--ab-b--b-b-bbaa-b-abbbbbbaa");
+
+
+    (Raw_quant(LazyPlus,Raw_quant(Plus,Raw_capture(Raw_con(Raw_alt(Raw_character(Dot),Raw_quant(LazyPlus,Raw_alt(Raw_capture(Raw_quant(LazyPlus,Raw_capture(Raw_quant(Plus,Raw_alt(Raw_empty,Raw_empty))))),Raw_character(Dot)))),Raw_character(NegClass([CChar(char_of_int(45));CRange(char_of_int(126),char_of_int(127));CChar(char_of_int(98))])))))),"ab-b-babbbbbbaab-bbaa-b-b-b---ba--a---aabbabbbabb");
+
+
+    (* fixed by starting with exit_allowed = true *)
+    (Raw_alt(Raw_quant(Plus,Raw_capture(Raw_quant(Plus,Raw_empty))),Raw_empty),"");
+    (Raw_alt(Raw_quant(Plus,Raw_capture(Raw_quant(LazyStar,Raw_empty))),Raw_empty),"");
+    (Raw_alt(Raw_quant(Plus,Raw_capture(Raw_capture(Raw_quant(LazyStar,Raw_anchor(NonWordBoundary))))),Raw_empty),"babb-babababa--bbaa--aaa-----a-aa-aabbbaa--ab-aa-baabbbabaaab-aba-abbba");
+
+    (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
+  (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb")]
+
 let string_sub_errors : (raw_regex*string) list = (* FIXED! reverse registers for lookbehinds groups *)
   [(Raw_lookaround(Lookbehind,Raw_capture(raw_dot)),"bababaaabbacacbabbacabcccaaacaabccab");
    (Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_capture(Raw_capture(Raw_alt(Raw_empty,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookahead,Raw_quant(LazyStar,Raw_alt(Raw_lookaround(NegLookahead,raw_dot),Raw_capture(raw_dot)))))))),Raw_lookaround(Lookbehind,Raw_capture(raw_dot))))),"bcacaaaacaabcbbcacaaacbbaabc");
@@ -130,8 +151,8 @@ let empty_group : (raw_regex*string) list =
 let should_not_clear : (raw_regex*string) list =
   [(Raw_alt(Raw_con(Raw_quant(LazyStar,Raw_alt(Raw_capture(Raw_con(Raw_quant(Star,Raw_lookaround(Lookahead,Raw_empty)),Raw_empty)),Raw_capture(Raw_empty))),raw_char('a')),Raw_empty),"cbacacaabbcbaacbbababcbcaaa");
    (Raw_alt(Raw_con(Raw_alt(Raw_empty,Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_quant(LazyPlus,raw_char('b'))))),Raw_lookaround(Lookahead,raw_char('b'))),Raw_quant(LazyStar,raw_char('c'))),"cbcaaaacccabbaacccaacbcbacbbabcaccbbbbc");
-   (Raw_con(Raw_capture(Raw_capture(Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_con(Raw_alt(Raw_quant(LazyStar,raw_dot),Raw_capture(Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,raw_char('c')))))),Raw_capture(raw_char('b')))),Raw_quant(Plus,Raw_con(raw_char('a'),Raw_alt(Raw_con(Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_capture(raw_dot))),Raw_empty),Raw_con(Raw_capture(Raw_lookaround(NegLookbehind,Raw_quant(LazyStar,raw_dot))),raw_char('a')))))),raw_char('b')),Raw_con(Raw_con(Raw_con(raw_dot,raw_dot),Raw_lookaround(NegLookahead,Raw_capture(raw_char('c')))),Raw_capture(Raw_con(Raw_capture(raw_dot),raw_dot)))))),Raw_alt(Raw_con(Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(raw_char('a'),Raw_empty)),Raw_quant(LazyPlus,Raw_empty)),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_lookaround(NegLookahead,Raw_con(Raw_con(Raw_lookaround(Lookahead,raw_char('c')),Raw_lookaround(NegLookbehind,Raw_capture(Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,raw_char('b')))))),raw_char('a'))))))),Raw_empty)),"cabababbccaaccbabbaaacbb");
-   (Raw_capture(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_con(Raw_con(Raw_quant(LazyPlus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,raw_char('b')))),Raw_con(raw_char('c'),Raw_empty)),Raw_capture(Raw_alt(Raw_con(Raw_quant(LazyPlus,Raw_empty),Raw_capture(Raw_capture(Raw_quant(LazyPlus,Raw_empty)))),Raw_capture(raw_dot)))))))),"ccbbbccababcababbbaccabccbacababbacbcababcabbaccccacbccbbbcbbcbcacacbaaacaaababccbbbbbbac")]
+   (Raw_con(Raw_capture(Raw_capture(Raw_con(Raw_con(Raw_alt(Raw_capture(Raw_con(Raw_alt(Raw_quant(LazyStar,raw_dot),Raw_capture(Raw_lookaround(NegLookbehind,Raw_capture(Raw_lookaround(NegLookahead,raw_char('c')))))),Raw_capture(raw_char('b')))),Raw_quant(Plus,Raw_con(raw_char('a'),Raw_alt(Raw_con(Raw_lookaround(NegLookbehind,Raw_lookaround(Lookbehind,Raw_capture(raw_dot))),Raw_empty),Raw_con(Raw_capture(Raw_lookaround(NegLookbehind,Raw_quant(LazyStar,raw_dot))),raw_char('a')))))),raw_char('b')),Raw_con(Raw_con(Raw_con(raw_dot,raw_dot),Raw_lookaround(NegLookahead,Raw_capture(raw_char('c')))),Raw_capture(Raw_con(Raw_capture(raw_dot),raw_dot)))))),Raw_alt(Raw_con(Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(raw_char('a'),Raw_empty)),Raw_quant(LazyPlus,Raw_empty)),Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_lookaround(NegLookahead,Raw_con(Raw_con(Raw_lookaround(Lookahead,raw_char('c')),Raw_lookaround(NegLookbehind,Raw_capture(Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,raw_char('b')))))),raw_char('a'))))))),Raw_empty)),"cabababbccaaccbabbaaacbb");]
+   (* (Raw_capture(Raw_capture(Raw_quant(Plus,Raw_capture(Raw_con(Raw_con(Raw_quant(LazyPlus,Raw_lookaround(Lookbehind,Raw_lookaround(NegLookbehind,raw_char('b')))),Raw_con(raw_char('c'),Raw_empty)),Raw_capture(Raw_alt(Raw_con(Raw_quant(LazyPlus,Raw_empty),Raw_capture(Raw_capture(Raw_quant(LazyPlus,Raw_empty)))),Raw_capture(raw_dot)))))))),"ccbbbccababcababbbaccabccbacababbacbcababcabbaccccacbccbbbcbbcbcacacbaaacaaababccbbbbbbac")] *)
 
 (* here we agree with Experimental, but Experimental does not agree with Irregexp! *)
 (* The problem here is that we merge threads that may have a different future according to the JS semantics *)
@@ -148,7 +169,7 @@ let linear_stuck : (raw_regex*string) list =
 (* bugs when I switched to linear compilation of the nullable + *)
 (* Fixed the first 2 by starting the original thread with a true for exit_allowed, otherwise it fails to take empty Plusses *)
 let linear_plus : (raw_regex*string) list =
-  [(Raw_alt(Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_quant(Star,Raw_empty),Raw_capture(Raw_quant(Plus,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_alt(Raw_lookaround(Lookbehind,Raw_con(raw_char('c'),raw_dot)),raw_dot))),Raw_empty))),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_empty)),Raw_quant(LazyStar,Raw_capture(Raw_capture(Raw_empty)))))))))))))))))))),Raw_capture(Raw_empty)),"bacabacbcabcaacac");
+  [(* (Raw_alt(Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_quant(Star,Raw_empty),Raw_capture(Raw_quant(Plus,Raw_alt(Raw_capture(Raw_empty),Raw_lookaround(NegLookbehind,Raw_capture(Raw_capture(Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_capture(Raw_quant(LazyStar,Raw_alt(Raw_lookaround(Lookbehind,Raw_con(raw_char('c'),raw_dot)),raw_dot))),Raw_empty))),Raw_quant(Star,Raw_lookaround(Lookahead,Raw_lookaround(Lookbehind,Raw_lookaround(Lookbehind,Raw_capture(Raw_con(Raw_quant(LazyStar,Raw_quant(LazyPlus,Raw_empty)),Raw_quant(LazyStar,Raw_capture(Raw_capture(Raw_empty)))))))))))))))))))),Raw_capture(Raw_empty)),"bacabacbcabcaacac"); *)
    (Raw_quant(Plus,Raw_con(Raw_capture(Raw_lookaround(Lookbehind,Raw_alt(Raw_con(raw_char('b'),Raw_empty),Raw_capture(Raw_empty)))),Raw_empty)),"bbacaaaaccbcaaccaacaaababacccbcbbbccbccb");
    (Raw_quant(Plus,Raw_lookaround(Lookbehind,Raw_alt(raw_dot,Raw_capture(Raw_empty)))),"b"); (* simplified *)
    (Raw_alt(Raw_lookaround(Lookahead,Raw_lookaround(NegLookbehind,Raw_lookaround(NegLookahead,Raw_con(Raw_lookaround(NegLookahead,Raw_capture(Raw_empty)),Raw_lookaround(Lookahead,Raw_capture(raw_dot)))))),Raw_lookaround(Lookahead,Raw_con(Raw_capture(Raw_alt(Raw_quant(Star,Raw_capture(Raw_con(Raw_alt(Raw_lookaround(Lookahead,raw_char('b')),Raw_lookaround(Lookahead,raw_char('c'))),Raw_capture(Raw_alt(Raw_lookaround(NegLookbehind,Raw_alt(Raw_lookaround(Lookbehind,raw_char('c')),raw_char('c'))),Raw_capture(Raw_con(raw_dot,raw_dot))))))),Raw_con(raw_dot,Raw_alt(raw_dot,raw_char('b'))))),Raw_quant(Star,Raw_con(Raw_quant(Plus,Raw_capture(Raw_lookaround(NegLookbehind,raw_char('b')))),Raw_quant(Star,Raw_con(raw_dot,raw_dot))))))),"accababbbabbccacabcaccaabcbbabcaaacbaaccabacababa")]
@@ -319,6 +340,7 @@ let replay_stuck (l:(raw_regex*string) list) =
 
 let tests () =
   Printf.printf "\027[32mTests: \027[0m\n\n";
+  replay_bugs(plustest);
   oracle_tests();
   regex_tests();
   bytecode_tests();

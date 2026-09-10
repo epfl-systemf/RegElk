@@ -75,8 +75,17 @@ let rec compile (r:regex) (fresh:label) (ctype:comp_type): instruction treelist 
 
      (* there is some code duplication here, but it should help identify the different particular cases that we do linearly *)
 
+     (** * particular case of the +, experiment  *)
+     if (quant.min = 1 && quant.max = None) then
+       begin
+         let (body_code, r_fresh) = compile r1 (fresh+1) ctype in
+         let fork = if quant.greedy then Fork (r_fresh +2, r_fresh +4)
+                    else Fork (r_fresh +4, r_fresh +2) in
+         (Leaf [SetQuantToClock (qid,false)] @@ body_code @@ Leaf [EndLoop; fork; BeginLoop; Jmp fresh], r_fresh+4)
+       end
+
      (** particular case of the Non-Nullable +, where the last repetition can be used for the final loop *)
-     if (quant.min > 0 && quant.max = None && nul = NonNullable) then
+     else if (quant.min > 0 && quant.max = None && nul = NonNullable) then
        begin
          (* repeat the body min-1 times *)
          let (min_code, min_fresh) = repeat_min (quant.min-1) qid r1 fresh ctype in
