@@ -37,6 +37,7 @@ type match_result = int Array.t
 module type FINDALL = sig
   val find_all : algo -> raw_regex -> string -> match_result list
   val get_all_result : algo -> raw_regex -> string -> string
+  val print_all_matches : ?full:bool -> match_result list -> raw_regex -> string -> string
 end
 
 module FindAll (I:INTERP) : FINDALL = struct
@@ -89,26 +90,22 @@ module FindAll (I:INTERP) : FINDALL = struct
     | Clemele -> 
       let cr = full_compilation (annotate_to_clemele raw) true in
       find_all_clemele cr str
-
+  let print_all_matches ?(full=false) (l:match_result list) (raw:raw_regex) (str:string) : string =
+    let max_groups = max_group (annotate raw) in
+    
+    let nb = List.length l in
+    let b = Buffer.create 256 in
+    Buffer.add_string b
+      (Printf.sprintf "%d match%s\n" nb (if nb = 1 then "" else "es"));
+    List.iteri
+      (fun i c ->
+        Buffer.add_string b
+          (Printf.sprintf "\nMatch %d:\n" (i+1));
+        Buffer.add_string b (I.print_cap_regs ~show_substring:full c max_groups str))
+      l;
+    Buffer.add_string b "\n";
+    Buffer.contents b
   let get_all_result (a:algo) (raw:raw_regex) (str:string) : string =
-    match find_all a raw str with
-    | [] -> "NoMatch\n"
-    | l ->
-       let max_groups = max_group (annotate raw) in
-       let nb = List.length l in
-       let b = Buffer.create 256 in
-       Buffer.add_string b
-         (Printf.sprintf "%d match%s\n" nb (if nb = 1 then "" else "es"));
-       List.iteri
-         (fun i c ->
-           let position =
-             match match_bounds c with
-             | Some (mstart, mend) -> Printf.sprintf " [%d,%d]" mstart mend
-             | None -> failwith "false match report"
-           in
-           Buffer.add_string b (Printf.sprintf "\nMatch %d%s:\n" (i+1) position);
-           Buffer.add_string b (I.print_cap_regs c max_groups str))
-         l;
-       Buffer.contents b
+    print_all_matches (find_all a raw str) raw str
 
 end

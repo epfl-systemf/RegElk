@@ -8,9 +8,11 @@ open Random
 open Charclasses
 open Flags
 open Regs
+open Findall
 
 module Interpreter = Interpreter(List_Regs)
-module CMP = Tojs.Compare(Interpreter)
+module FindAll = FindAll(Interpreter)
+module CMP = Tojs.Compare(Interpreter)(FindAll)
 
 let random_seed = ref 0
 
@@ -162,7 +164,7 @@ let fuzzer () : unit =
   for i = 0 to !max_tests do
     let raw = random_raw() in
     let str = random_string() in
-    let comp = CMP.compare_engines raw str in
+    let comp = CMP.compare_engines_all raw str in
     if (not comp) then total_timeout := !total_timeout +1;
 
     let (nn,cdn,cin,lnn,ln) = plus_stats (annotate raw) in

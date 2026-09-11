@@ -11,13 +11,15 @@ open Interpreter
 open Tojs
 open Flags
 open Regs
+open Findall
 
 module PlayTests (R:REGS): sig
   val tests : unit -> unit
 end = struct
 
   module Interpreter = Interpreter(R)
-  module CMP = Tojs.Compare(Interpreter)
+  module FindAll = FindAll(Interpreter)
+  module CMP = Tojs.Compare(Interpreter)(FindAll)
 
 (** * Manual Testing *)
 

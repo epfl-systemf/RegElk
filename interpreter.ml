@@ -18,7 +18,7 @@ open Flags
 module type INTERP = sig
   val regs_name : unit -> string
   val get_op : int array -> int -> int option
-  val print_cap_regs : int Array.t -> int -> string -> string
+  val print_cap_regs : ?show_substring:bool -> int array -> int -> string -> string  
   val build_oracle : compiled_regex -> string -> oracle
   val build_capture : compiled_regex -> string -> oracle -> (int Array.t) list
   val matcher : compiled_regex -> string -> (int Array.t) list
@@ -259,15 +259,24 @@ let print_slice (str:string) (startreg:int option) (endreg:int option) : string 
      end
 
 (* printing all capture groups *)
-let print_cap_regs (c:int Array.t) (max_groups:int) (str:string) : string =
-  let s = ref "" in
+let print_cap_regs ?(show_substring=true) (c:int array) (max_groups:int) (str:string) : string =
+  let b = Buffer.create 128 in
   for i = 0 to max_groups do
-    s := !s ^ "#" ^ string_of_int i ^ ":";
     let startr = get_op c (start_reg i) in
     let endr = get_op c (end_reg i) in
-    s := !s ^ print_slice str startr endr ^ "\n"
+    let range_str = 
+      match startr, endr with
+      | None, None -> "Undefined  "
+      | Some s, Some e -> Printf.sprintf "[%d,%d]  " s e
+      | _ -> failwith "startreg is set but not endreg"
+    in
+    Buffer.add_string b ("#" ^ string_of_int i ^ ":" ^ range_str);
+    if show_substring then begin
+      Buffer.add_string b (" " ^ print_slice str startr endr);
+      Buffer.add_char b '\n'
+    end
   done;
-  !s
+  Buffer.contents b
 
 let print_cap_option (c:(int Array.t) list) (max_groups:int) (str:string) : string =
   match c with

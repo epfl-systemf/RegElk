@@ -45,13 +45,16 @@ let appendix_string : string = "caab"
 let compare (ri:reg_impl) : raw_regex -> string -> bool =
   match ri with
   | RegArray -> let module INT = Interpreter(Regs.Array_Regs) in
-                 let module CMP = Tojs.Compare(INT) in
-                 CMP.compare_engines
+                let module FA = FindAll(INT) in
+                let module CMP = Tojs.Compare(INT)(FA) in
+                CMP.compare_engines
   | RegList -> let module INT = Interpreter(Regs.List_Regs) in
-               let module CMP = Tojs.Compare(INT) in
+               let module FA = FindAll(INT) in
+               let module CMP = Tojs.Compare(INT)(FA) in
                CMP.compare_engines
   | RegTree -> let module INT = Interpreter(Regs.Map_Regs) in
-               let module CMP = Tojs.Compare(INT) in
+               let module FA = FindAll(INT) in
+               let module CMP = Tojs.Compare(INT)(FA) in
                CMP.compare_engines
 
 let linear (ri:reg_impl) : raw_regex -> string -> string =

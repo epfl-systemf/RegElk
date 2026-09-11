@@ -7,6 +7,7 @@ open Filename
 open Interpreter
 open Charclasses
 open Flags
+open Findall
 
 (** * JS Regex pretty-printing  *)
 (* printing regexes in the JS style so that we can compare our results to a JS engine *)
@@ -64,8 +65,9 @@ let get_time_js (raw:raw_regex) (str:string) : string =
 
 (** *  Comparing JS engine with our engine *)
 
-module Compare (Interpreter:INTERP): sig
+module Compare (Interpreter:INTERP)(FindAll: FINDALL): sig
   val compare_engines : raw_regex -> string -> bool
+  val compare_engines_all : raw_regex -> string -> bool
 end = struct
 
 type compare_result =
@@ -98,6 +100,40 @@ let compare_js_ocaml (raw:raw_regex) (str:string) : compare_result =
   verbose := ver_save;
   result
 
+let shell_quote s = "'" ^ String.concat "'\\''" (String.split_on_char '\'' s) ^ "'"
+
+let get_js_all_matches (raw:raw_regex) (str:string) (max_groups:int) : match_result list =
+  let out = String.trim (string_of_command (Printf.sprintf
+    "timeout 5s node scripts_bench/jsallmatcher.js %s '' %d %s"
+    (shell_quote (print_js raw)) max_groups (shell_quote str))) in
+  (* Printf.printf "\027[35mJS all matches result:\027[0m\n%s\n%!" out; *)
+  match List.rev (String.split_on_char '\n' out) with
+  | "END" :: _ when String.starts_with ~prefix:"Error" out -> failwith (Printf.sprintf "JS error: %s" out)
+  | "END" :: rev_body -> List.rev_map (fun l ->
+       Array.of_list (List.map int_of_string (String.split_on_char ' ' l))) rev_body
+  |_-> failwith (Printf.sprintf "Timeout")
+
+let compare_js_ocaml_all ?(algo=Clemele) (raw:raw_regex) (str:string) : compare_result =
+  let dbg_save = !debug and ver_save = !verbose in
+  debug := false; verbose := false;
+
+  Printf.printf "\027[36mRegex:\027[0m %s || " (print_regex (annotate raw));
+  Printf.printf "\027[36mJS Regex:\027[0m %s || " (print_js raw);
+  Printf.printf "\027[36mString:\027[0m \"%s\"\n%!" str;
+  Printf.printf "%s\n%!" (report_raw raw);
+
+  let max_groups = max_group (annotate raw) in
+  let js_all_matches = get_js_all_matches raw str max_groups in
+  Printf.printf "\027[35mJS result:\027[0m\n%s%!" (FindAll.print_all_matches js_all_matches raw str);
+  let ocaml_all_matches = FindAll.find_all algo raw str in
+  Printf.printf "\027[35mLinear result:\027[0m\n%s%!" (FindAll.print_all_matches ocaml_all_matches raw str);
+   
+  let result = if js_all_matches = ocaml_all_matches then Equal
+               else Error in
+
+    debug := dbg_save;
+    verbose := ver_save;
+    result
 
 (* fails on errors, and returns false on timeouts (we couldn't verify the equality) *)
 let compare_engines (raw:raw_regex) (str:string) : bool =
@@ -106,5 +142,11 @@ let compare_engines (raw:raw_regex) (str:string) : bool =
   | Error -> failwith "Mismatch between backtracking and linear"
   | Timeout -> false
   | Equal -> true
-
+  
+let compare_engines_all (raw:raw_regex) (str:string) : bool =
+  let cr = compare_js_ocaml_all raw str in
+    match cr with
+    | Error -> failwith "Mismatch between backtracking and linear"
+    | Timeout -> false
+    | Equal -> true
 end
